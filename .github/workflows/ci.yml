@@ -69,24 +69,31 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
-      - name: Inspect Dependencies & Run Tests
+      - name: Install Dependencies
         shell: bash
         run: |
-          echo "Python version: $(python --version)"
-          if [ -f "requirements.txt" ]; then
-            python -m pip install --upgrade pip
-            pip install -r requirements.txt
-            if command -v ruff &> /dev/null; then
-              ruff check .
-              ruff format --check .
-            fi
-            if [ -d "tests" ]; then
-              pytest -v --cov=sim_engine --cov-report=xml
-            fi
-          else
-            echo "Phase 0 scaffold verified: No backend requirements.txt declared yet. Python 3.11 verified."
-          fi
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run Ruff Linting
+        shell: bash
+        run: |
+          ruff check backend
+
+      - name: Run Django System Checks
+        shell: bash
+        run: |
+          python backend/manage.py check
+
+      - name: Run Automated Test Suite
+        shell: bash
+        run: |
+          pytest
 
   frontend-quality:
     name: Frontend Lint, Typecheck & Build

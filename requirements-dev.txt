@@ -1,0 +1,7 @@
+# AMAPP Development and Testing Dependencies (Phase 02)
+-r requirements.txt
+
+# Testing & Linting
+pytest>=8.2.2,<8.3
+pytest-django>=4.8.0,<4.9
+ruff>=0.5.0,<0.6

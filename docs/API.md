@@ -9,20 +9,21 @@
 
 All REST endpoints operate over HTTP/HTTPS with `Content-Type: application/json`. Error responses follow the RFC 7807 problem details specification.
 
-### 1.1 Health & Service Status (Target Phase: Phase 02, refined in Phase 21)
+### 1.1 Health & Service Status (Status: IMPLEMENTED & TESTED in Phase 02)
 - **`GET /api/v1/health/`**
-  - **Purpose:** Liveness and readiness probe for container orchestration and CI/CD smoke tests.
-  - **Request:** No body or query parameters.
+  - **Purpose:** Liveness and readiness probe for container orchestration, dev server health, and CI/CD smoke tests.
+  - **Implementation:** `apps.core.views.HealthCheckView` registered at `api/v1/health/`.
+  - **Authentication:** Unauthenticated (no headers/tokens required).
+  - **Request:** HTTP GET with no body or parameters.
   - **Success Response (`200 OK`):**
     ```json
     {
       "status": "healthy",
-      "version": "1.0.0",
-      "sim_engine_ready": true,
-      "timestamp": "2026-10-19T15:00:00Z"
+      "service": "amapp-backend",
+      "version": "1.0.0"
     }
     ```
-  - **Error Handling:** Returns `503 Service Unavailable` if the simulation worker process is unresponsive.
+  - **Test Suite:** `backend/apps/core/tests/test_health.py` (verifies 200 OK, JSON content-type, payload schema, unauthenticated access, and 404 for invalid paths).
 
 ---
 

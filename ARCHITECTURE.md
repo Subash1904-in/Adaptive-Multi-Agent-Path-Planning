@@ -54,7 +54,11 @@ flowchart TB
 ```
 
 ### Component Status Summary
-All modules documented in this architecture are **PLANNED ARCHITECTURAL BLUEPRINTS**. No runtime code has been generated in Phase 0 or Phase 1. Implementation strictly follows the 40-phase roadmap.
+- **Backend Scaffold & Health API (`backend/`, `apps.core`):** **IMPLEMENTED & TESTED** in Phase 02 (Django 5.1.x, DRF 3.15.x, ASGI/WSGI entrypoints, `GET /api/v1/health/`, automated pytest suite passing).
+- **Simulation Core & Subsystems (`sim_engine/*`):** **PLANNED ARCHITECTURAL BLUEPRINTS** (Phases 3–20).
+- **Transport Streaming & Advanced REST (`backend/channels/`, etc.):** **PLANNED** (Phases 21–22).
+- **Reinforcement Learning (`rl_engine/*`):** **PLANNED** (Phases 32–34).
+- **Frontend Dashboard (`frontend/*`):** **PLANNED** (Phases 23–30).
 
 ---
 
@@ -163,8 +167,7 @@ A fundamental requirement of AMAPP is the strict separation between global groun
 | `sim_engine/core/` | Authoritative simulation clock, stepping loop, world state | Phase 08 | All `sim_engine/` subsystems | `SimulationEngine`, `SimulationClock`, `WorldState` | `tests/unit/test_sim_engine.py` | Must NOT depend on Django views or WebSocket consumers |
 | `sim_engine/v2v/` | Message validation, proximity detection, channel noise | Phase 11 | `sim_engine/domain/`, SciPy/NumPy | `V2VChannel`, `ProximityDetector`, `MessageDispatcher` | `tests/unit/test_v2v.py` | Must NOT modify agent routes directly |
 | `sim_engine/safety/` | Collision detection, IDM, signals, pedestrian yielding | Phase 16 | `sim_engine/domain/`, NumPy | `CollisionDetector`, `IDMController`, `TrafficSignalController` | `tests/unit/test_safety.py` | Must NOT depend on frontend rendering |
-| `sim_engine/policies/` | Interpretable AI decision policy (weighted scoring) | Phase 19 | `sim_engine/domain/` | `AIDecisionPolicy`, `RouteCandidateScorer` | `tests/unit/test_policy.py` | Must NOT require PyTorch or SB3 |
-| `backend/` | Django project, REST endpoints, ASGI Channels, persistence | Phase 02, 21 | Django, DRF, Channels, Daphne | REST API endpoints, WebSocket `/ws/simulation/` | `tests/integration/test_api.py` | Core simulation must run without `backend/` |
+| `backend/` | Django project, settings, ASGI/WSGI, health check API (scaffold: Phase 02; full APIs: Phase 21) | Phase 02, 21 | Django, DRF, Channels, Daphne | Health check (`/api/v1/health/`), future REST API & WebSockets | `backend/apps/core/tests/test_health.py` | Core simulation must run without `backend/` |
 | `rl_engine/` | Gymnasium environment, SB3 PPO training, model evaluation | Phase 32 | Gymnasium, Stable-Baselines3, PyTorch | `AMAPPEnv`, `train_ppo()`, `evaluate_policy()` | `tests/unit/test_gym_env.py` | Core simulation must function if SB3 is absent |
 | `frontend/` | TypeScript + Three.js 3D dashboard & HUD | Phase 23 | Node.js, Vite, Three.js | Browser UI, WebSocket client, Canvas renderer | Frontend test runner (Vitest/ESLint) | Must NOT compute authoritative vehicle movements |
 

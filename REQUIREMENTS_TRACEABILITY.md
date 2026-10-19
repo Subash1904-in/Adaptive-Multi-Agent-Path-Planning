@@ -2,13 +2,15 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 1 (Repository audit and project blueprint)  
+**Current Phase:** Phase 2 (Project scaffold and development environment)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
 - `IMPLEMENTED`: Code implemented but awaiting complete integration/system testing.
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
+
+> *Note on Phase 2:* Phase 2 implements development infrastructure, backend scaffolding, and application health checks. None of the 14 major simulation functional requirements are implemented in this phase; all remain honestly classified as `NOT STARTED`.
 
 ---
 

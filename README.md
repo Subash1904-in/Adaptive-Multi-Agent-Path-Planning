@@ -85,20 +85,82 @@ Current status and ongoing progress are tracked in [PROJECT_STATUS.md](PROJECT_S
 
 ---
 
-## 6. Getting Started & Prerequisites
+## 6. Getting Started & Development Setup
 
-### Prerequisites
-- **Python:** 3.11.x
-- **Node.js:** 22.x or 20.x LTS
+### 6.1 Prerequisites
+- **Python:** 3.11.x (verified with Python 3.11.9)
+- **Node.js:** 22.x or 20.x LTS (verified with Node v22.18.0)
 - **npm:** 10.x
 - **Git:** 2.40+
 
-### Verification Commands
-```bash
-python --version  # Must be 3.11+
-node --version    # Must be 20.x or 22.x
-git --version     # Must be 2.40+
+### 6.2 Virtual Environment & Dependency Installation
+
+#### Windows (PowerShell)
+```powershell
+# Create virtual environment
+python -m venv .venv
+
+# Activate virtual environment
+.\.venv\Scripts\Activate.ps1
+
+# Install runtime and development dependencies
+pip install -r requirements-dev.txt
 ```
+
+#### Linux / macOS (Bash / Zsh)
+```bash
+# Create virtual environment
+python3 -m venv .venv
+
+# Activate virtual environment
+source .venv/bin/activate
+
+# Install runtime and development dependencies
+pip install -r requirements-dev.txt
+```
+
+### 6.3 Environment Configuration
+Copy the template `.env.example` to create your local `.env`:
+```bash
+cp .env.example .env
+```
+Default parameters are pre-configured for local development. **Never commit `.env` to version control.**
+
+### 6.4 Starting the Development Server
+```bash
+python backend/manage.py check
+python backend/manage.py runserver 127.0.0.1:8000
+```
+> *Notice:* Django's built-in development server is intended for development and testing only, not for production deployment.
+
+### 6.5 Health Check Endpoint
+Once the server is running, query the health endpoint:
+```bash
+# Using curl or browser
+curl http://127.0.0.1:8000/api/v1/health/
+```
+Expected JSON Response (`HTTP 200 OK`):
+```json
+{
+  "status": "healthy",
+  "service": "amapp-backend",
+  "version": "1.0.0"
+}
+```
+
+### 6.6 Running Lint & Automated Tests
+```bash
+# Run Ruff linting across backend code
+ruff check backend
+
+# Run automated tests via pytest
+pytest
+```
+
+### 6.7 Troubleshooting
+- **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
+- **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
+- **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
 
 ---
 
@@ -109,6 +171,7 @@ git --version     # Must be 2.40+
 - [REQUIREMENTS_TRACEABILITY.md](REQUIREMENTS_TRACEABILITY.md): 14 Functional Requirements traceability matrix.
 - [docs/progress/PHASE_00.md](docs/progress/PHASE_00.md): Phase 0 preparation report.
 - [docs/progress/PHASE_01.md](docs/progress/PHASE_01.md): Phase 1 audit and blueprint report.
+- [docs/progress/PHASE_02.md](docs/progress/PHASE_02.md): Phase 2 scaffold and dev environment report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

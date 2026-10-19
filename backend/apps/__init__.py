@@ -1,0 +1,1 @@
+"""AMAPP Django Applications Package."""

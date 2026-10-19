@@ -84,21 +84,30 @@ def set_deterministic_seed():
 
 ---
 
-## 4. Execution Commands (Phase 02+)
+## 4. Active Test Suites & Commands (Phase 02)
 
+### 4.1 Running Active Tests
 ```bash
-# Run all fast unit and integration tests
+# Run backend test suite via pytest
+pytest
+
+# Run with verbose output
 pytest -v
 
-# Run with coverage report
-pytest -v --cov=sim_engine --cov-report=term-missing --cov-report=xml
+# Run Ruff linting
+ruff check backend
 
-# Run specific subsystem tests
-pytest tests/unit/test_v2v_protocol.py
-
-# Run only scenario regression tests
-pytest tests/scenarios/
+# Run Django system checks
+python backend/manage.py check
 ```
+
+### 4.2 Verified Test Coverage (Phase 02)
+- `backend/apps/core/tests/test_health.py`:
+  - `test_health_check_returns_http_200`: PASSED
+  - `test_health_check_content_type`: PASSED
+  - `test_health_check_payload_schema`: PASSED
+  - `test_health_check_unauthenticated_access`: PASSED
+  - `test_invalid_path_returns_http_404`: PASSED
 
 ---
 
