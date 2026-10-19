@@ -159,8 +159,16 @@ Implement a directed road-network graph abstraction wrapping NetworkX that integ
 ---
 
 ## 12. CI Workflow Run & Verification
-- Commits will be pushed to `origin/main` to verify the GitHub Actions CI pipeline.
-- Verified CI results will be recorded upon pipeline completion.
+- **GitHub Actions Run:** [Run 39308010144](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39308010144)
+- **Trigger:** Push to `main` (commit `90dfd2f`)
+- **Status:** **PASSED (Success)** in 17s
+- **Job Details:**
+  - `Backend Lint, Test & Coverage`: **PASSED** (ID 118249988235 in 14s)
+    - Ruff check: 0 errors
+    - Django system check: 0 issues
+    - Pytest: 151 passed, 0 failed in 0.93s
+  - `Repository Hygiene & Documentation Integrity`: **PASSED** (ID 118249988399 in 3s)
+  - `Frontend Lint, Typecheck & Build`: **PASSED** (ID 118249988493 in 5s, deferred cleanly)
 
 ---
 
