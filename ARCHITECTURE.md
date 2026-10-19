@@ -1,30 +1,30 @@
-# ARCHITECTURE: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
+# ARCHITECTURE: Adaptive Multi-Agent Path Planning for Autonomous Vehicles (AMAPP)
 
-## 1. System Overview
+> **Document Status:** Implementation Blueprint (Phase 01)  
+> **Component Implementation Status:** **PROPOSED / SPECIFICATION ONLY** (No runtime application code implemented yet)
+
+---
+
+## 1. System Overview & Component Status
 
 The **Adaptive Multi-Agent Path Planning (AMAPP)** simulation platform is a decentralized multi-agent autonomous vehicle research environment. It simulates autonomous vehicles navigating real-world or synthetic road networks with dynamic traffic, pedestrians, signalized intersections, emergency vehicles, and decentralized Vehicle-to-Vehicle (V2V) communications under realistic channel constraints (range attenuation, delay, packet loss).
 
-The architecture enforces strict separation between:
-1. **Authoritative Backend Simulation Engine:** Owns ground-truth state, simulation time, spatial indices, message routing, collision detection, and traffic dynamics.
-2. **Decentralized Agent Decision Policies:** Each autonomous vehicle maintains a private local world model (belief state) constructed solely from its sensors and received V2V messages, independently computing route adaptations and collision avoidance maneuvers.
-3. **Real-time 3D Visualization Client:** A web-based Three.js application communicating over WebSockets to render vehicle movements, communication waves, hazard beacons, and metrics HUD without inventing simulation state.
-
 ```mermaid
 flowchart TB
-    subgraph Frontend["Frontend Client (Browser / Three.js)"]
+    subgraph Frontend["Frontend Layer (Browser / Three.js - Planned Phases 23-30)"]
         UI["Interactive Dashboard HUD"]
         ThreeCanvas["Three.js 3D Scene (Vehicles, Roads, V2V Waves)"]
         WSClient["WebSocket Client (JSON Telemetry Stream)"]
         RESTClient["REST API Client (Scenario Config / Controls)"]
     end
 
-    subgraph BackendTransport["Transport Layer (Django Channels & DRF)"]
+    subgraph BackendTransport["Transport Layer (Django Channels & DRF - Planned Phases 2, 21-22)"]
         Daphne["ASGI Server (Daphne)"]
         WSChannel["Simulation WebSocket Consumer"]
         RESTViews["REST API Endpoints (/api/v1/...)"]
     end
 
-    subgraph SimulationCore["Authoritative Simulation Core (Python)"]
+    subgraph SimulationCore["Authoritative Simulation Core (Python - Planned Phases 3-20)"]
         Clock["Simulation Clock (Fixed dt Step)"]
         SpatialIndex["Spatial Partitioning (R-tree / Grid)"]
         
@@ -37,13 +37,13 @@ flowchart TB
         end
 
         subgraph VehicleAgents["Vehicle Agents Pool"]
-            AgentA["Agent 1 (Local Belief + A* + Decision Engine)"]
+            AgentA["Agent 1 (Local Belief + A* + Local Policy)"]
             AgentB["Agent 2 (Local Belief + RL Policy)"]
             AgentE["Emergency Vehicle (Ambulance / Priority)"]
         end
     end
 
-    subgraph RLSubsystem["Reinforcement Learning Subsystem (Gymnasium / SB3)"]
+    subgraph RLSubsystem["Reinforcement Learning Subsystem (Gymnasium / SB3 - Planned Phases 32-34)"]
         GymEnv["AMAPP Gymnasium Environment"]
         SB3Model["Trained Policy (PPO / DQN)"]
     end
@@ -53,223 +53,211 @@ flowchart TB
     SimulationCore <--> RLSubsystem
 ```
 
+### Component Status Summary
+All modules documented in this architecture are **PLANNED ARCHITECTURAL BLUEPRINTS**. No runtime code has been generated in Phase 0 or Phase 1. Implementation strictly follows the 40-phase roadmap.
+
 ---
 
 ## 2. Core Architectural Principles
 
-### 2.1 Backend Authority vs. Decentralized Agent Autonomy
-- **Ground Truth vs. Agent Observation:** The central engine manages physical updates, spatial coordinates, collision verification, and message delivery latency. However, individual agents do **not** have access to the global simulation state.
-- **Local Belief State:** Each agent $i$ maintains its own private `LocalKnowledgeBase`:
-  $$\mathcal{K}_i(t) = \{\text{direct sensor observations}\} \cup \{\text{valid V2V messages received}\} \cup \{\text{static map fragment}\}$$
-- **Independent Decisions:** An agent plans routes and takes tactical avoidance actions using solely $\mathcal{K}_i(t)$. When an accident alert is received via V2V, the agent evaluates whether to reroute based on its internal utility/cost function or RL policy.
+### 2.1 Authoritative Simulation Core vs. Decentralized Agent Autonomy
+A fundamental requirement of AMAPP is the strict separation between global ground truth and local agent perception:
+
+1. **Global Ground-Truth State ($\mathcal{S}_{\text{global}}$):**
+   - Maintained exclusively by the authoritative simulation engine (`sim_engine/`).
+   - Contains exact 2D/3D coordinates $(x, y, z)$, true heading $\theta$, actual velocity $v$, active obstacles, actual collision events, signal phases, and message packet positions in flight.
+   - **Agents have NO direct access to $\mathcal{S}_{\text{global}}$.**
+
+2. **Direct Local Observations ($\mathcal{O}_i(t)$):**
+   - Emulates onboard vehicle sensors (radar/LiDAR range $R_{\text{sens}}$, forward-facing camera, lane sensors).
+   - Generates observations strictly within line-of-sight and physical sensor horizons.
+
+3. **Received V2V Messages ($\mathcal{M}_i(t)$):**
+   - Peer-to-peer messages received from neighboring agents within communication radius $R_{\text{comm}}$, subject to simulated transmission latency, packet loss, and message expiration.
+
+4. **Private Local Knowledge Base / Belief State ($\mathcal{K}_i(t)$):**
+   - Each vehicle maintains its own private belief state:
+     $$\mathcal{K}_i(t) = \mathcal{O}_i(t) \cup \mathcal{M}_i(t) \cup \mathcal{G}_{\text{static\_map}}$$
+   - Each agent independently computes its route adaptation, collision avoidance, and yielding maneuvers using solely its local belief $\mathcal{K}_i(t)$.
+   - **The simulation scheduler/engine manages physical stepping and message transport, but NEVER secretly computes or overrides route decisions for agents.**
 
 ### 2.2 Deterministic Execution & Reproducibility
-- The simulation loop steps forward with a discrete, fixed timestep $\Delta t$ (e.g., $0.1\,\text{s}$).
-- All pseudorandom generators (agent spawn locations, packet loss probability, pedestrian crossing triggers) are parameterized by a master seed $\mathcal{S}$.
-- A given seed and scenario file produces bit-identical simulation trajectories across runs.
+- The simulation loop advances using a discrete, fixed timestep $\Delta t = 0.1\,\text{s}$ (10 Hz).
+- All stochastic processes (agent spawn distributions, packet loss triggers, pedestrian crossings) are governed by explicit, seedable pseudorandom generators (`RandomState(seed)`).
+- Identical scenario configurations and seeds produce bit-identical simulation trajectories.
 
-### 2.3 Layered Modularity & Low Coupling
-Components interact via strict Python interfaces and dataclasses, preventing direct dependencies between the visualization layer, web framework, and pure simulation physics.
+### 2.3 Headless Testability & Layer Decoupling
+- The core simulation engine is 100% pure Python and has zero runtime dependencies on Django, Channels, WebSockets, or browser DOM.
+- It can be initialized, stepped, inspected, and benchmarked headlessly via automated `pytest` suites and Gymnasium RL environments in milliseconds.
 
 ---
 
-## 3. Subsystem Breakdown
+## 3. Subsystem Layer Specifications
 
-### 3.1 Simulation Engine & Clock (`sim_engine/`)
-- **Clock & Ticker:** Manages simulation time $t$, stepping rate (ticks per second), pause/resume/step-forward state.
-- **Agent Lifecycle Manager:** Spawns agents at specified origins with assigned target destinations, tracking completion or collision status.
-- **Spatial Index:** Accelerates nearest-neighbor and range queries (used for collision proximity, line-of-sight, and V2V communication radius detection).
+### 3.1 Simulation Core (`sim_engine/core/` — Planned Phase 8)
+- **Responsibilities:** Fixed-step execution loop, authoritative world state coordinator, agent lifecycle (spawn, active, arrival, removal), event queue management, spatial partitioning.
+- **Clock Execution Model:**
+  - `step(dt)`: Advances world time by fixed $\Delta t$.
+  - Execution pipeline:
+    1. Update traffic signals and pedestrian states.
+    2. Route and deliver in-flight V2V packets whose latency period has elapsed.
+    3. Invoke each vehicle agent's `perceive_and_act(dt)` independently.
+    4. Validate vehicle kinematic updates and enforce speed/acceleration bounds.
+    5. Perform authoritative collision detection and near-miss logging.
+    6. Update metrics and construct immutable telemetry frame snapshot.
 
-### 3.2 Road Graph & Real-World Map Integration (`map_engine/`)
-- **NetworkX DiGraph Representation:** Road network modeled as a directed multigraph $G = (V, E)$, where nodes $V$ represent intersections and edges $E$ represent directed lanes/road segments with attributes (length, speed limit, lanes, coordinates).
-- **OpenStreetMap (OSM) Ingestion:** Ingests `.osm` XML files or utilizes OSMnx to query bounding boxes, parsing road geometries, lanes, traffic signal locations, and crosswalks.
-- **Deterministic Local Fallback Grid:** Includes an offline synthetic grid scenario with multiple intersections, lane varieties, and obstacles so full simulations and test suites run without external network calls.
-
-### 3.3 Vehicle Agents & Kinematics (`agents/`)
-- **Kinematic Model:** Implements bicycle or point-mass kinematic equations governing position $(x, y)$, heading angle $\theta$, velocity $v$, and acceleration $a$.
+### 3.2 Vehicle Agents & Kinematics (`sim_engine/agents/` — Planned Phases 7, 9, 10)
+- **Responsibilities:** Independent vehicle lifecycle, kinematic motion model along lane centerlines, acceleration/braking bounds, intersection queues, local decision interface.
+- **Kinematic Model:** Continuous longitudinal progression along directed graph edges $e = (u, v)$ with distance along edge $s \in [0, \text{length}(e)]$, lateral lane offset, velocity $v$, and acceleration $a \in [a_{\min}, a_{\max}]$.
 - **Agent Types:**
-  - *Standard Autonomous Vehicles (AV):* Follow lane centerlines, obey traffic rules, communicate with neighbors.
-  - *Emergency Vehicles (EV):* Ambulances or police vehicles with activated priority beacons and sirens.
-- **Agent Decision Pipeline:**
-  1. *Perceive:* Query onboard sensors (forward radar/LiDAR range $R_{\text{sens}}$).
-  2. *Communicate:* Send and receive V2V packets within radius $R_{\text{comm}}$.
-  3. *Update Belief:* Merge new information into local knowledge graph.
-  4. *Plan:* Evaluate path efficiency; trigger A* or RL re-route if road cost changes.
-  5. *Act:* Compute acceleration and steering angle $\mathbf{u} = [a, \delta]^T$.
+  - `StandardAV`: Regular autonomous vehicle adhering to traffic rules, speed limits, and cooperative V2V protocols.
+  - `EmergencyVehicle`: Priority vehicle (e.g., ambulance) broadcasting sirens and emergency priority tokens.
 
-### 3.4 V2V Communication Protocol & Network Emulation (`v2v/`)
-- **Decentralized Topology:** Peer-to-peer multi-hop message exchange without relying on a centralized traffic control server.
+### 3.3 Road Graph & Map Engine (`sim_engine/map/` — Planned Phases 4, 5)
+- **Responsibilities:** Directed multigraph representation $G = (V, E)$ using NetworkX; node coordinates, edge lengths, speed limits, lane counts, turn restrictions.
+- **Dual Graph Support:**
+  - *Deterministic Local Grid (Phase 4):* Synthetic grid scenario with multiple connected intersections, alternative routes, signalized junctions, and crosswalks. Requires no internet access.
+  - *OpenStreetMap Ingestion (Phase 5):* Optional module using OSMnx to download and parse bounding-box XML road networks, normalizing nodes and edges into the internal graph schema.
+
+### 3.4 Route Planning & Adaptive Rerouting (`sim_engine/planning/` — Planned Phases 6, 15)
+- **Responsibilities:** Shortest-path routing via NetworkX and A*; dynamic edge travel cost evaluation; adaptive rerouting on hazard detection.
+- **Edge Cost Formulation:**
+  $$\text{Cost}(e) = \frac{\text{Length}(e)}{v_{\text{limit}}(e)} \times \left(1 + \alpha \cdot \text{CongestionFactor}(e) + \beta \cdot \text{HazardWeight}(e)\right)$$
+- **Oscillation Prevention:** Rerouting is evaluated with an improvement threshold $\Delta C_{\text{threshold}}$ and a re-planning cooldown period $\tau_{\text{cooldown}}$ to avoid route thrashing.
+
+### 3.5 V2V Communication Subsystem (`sim_engine/v2v/` — Planned Phases 11–14)
+- **Responsibilities:** Peer-to-peer message protocol, spatial proximity detection ($d \le R_{\text{comm}}$), transmission latency, packet loss ($P_{\text{loss}}$), message expiration, and deduplication.
 - **Message Types:**
-  - `BEACON`: Periodic broadcast of agent state (ID, position, velocity, heading, intent).
-  - `HAZARD_ALERT`: Event-driven broadcast notifying of accidents, road closures, or stopped vehicles.
-  - `EMERGENCY_PRIORITY`: Broadcast from emergency vehicles requesting lane clearance.
-  - `COOPERATIVE_MANEUVER`: Negotiation between agents at unsignalized intersections or merges.
-- **Channel Degradation Simulation:**
-  - *Range Cutoff:* Messages only deliver if Euclidean distance $d(i, j) \le R_{\text{comm}}$.
-  - *Packet Loss:* Configurable packet loss rate $P_{\text{loss}} \in [0.0, 1.0]$.
-  - *Transmission Latency:* Message queue introduces latency $\tau_{\text{delay}}$ (in ticks).
-  - *Fallback Behavior:* If communication is degraded or lost, agents smoothly revert to conservative sensor-only driving.
+  - `BEACON`: Periodic broadcast (ID, position, speed, heading).
+  - `HAZARD_ALERT`: Event-driven alert (incident location, closure, congestion level).
+  - `EMERGENCY_PRIORITY`: Priority corridor clearance beacon.
+- **Failure Handling (Phase 14):** When packets are dropped or peers disconnect, agents fall back to local sensor observations and conservative headway following.
 
-### 3.5 Path Planning & Adaptive Rerouting (`planning/`)
-- **Global Path Planning:** Evaluates optimal paths using A* / Dijkstra over graph $G$.
-- **Dynamic Cost Matrix:** Edge cost function incorporates real-time parameters:
-  $$\text{Cost}(e) = \frac{\text{Length}(e)}{v_{\text{limit}}(e)} \times \left(1 + \alpha \cdot \text{Congestion}(e) + \beta \cdot \text{HazardLevel}(e)\right)$$
-- **Adaptive Rerouting Trigger:** Triggered dynamically upon receiving confirmed V2V hazard alerts or detecting persistent downstream blockages.
+### 3.6 Safety, Collisions & Traffic Rules (`sim_engine/safety/` — Planned Phases 16–18)
+- **Responsibilities:** Bounding-box and circle intersection checks, Time-To-Collision (TTC) calculations, Intelligent Driver Model (IDM) car-following, pedestrian crosswalk yielding, signal phase obedience, emergency corridor formation.
 
-### 3.6 Safety, Collision Avoidance & Traffic Elements (`safety/`)
-- **Collision Detection:** Bounding box and circle intersection tests calculating Time-to-Collision (TTC):
-  $$\text{TTC} = \frac{d_{\text{rel}}}{v_{\text{rel}}}$$
-- **Avoidance Protocols:** Longitudinal safe headway maintenance (Intelligent Driver Model - IDM), yielding at merges, emergency braking.
-- **Traffic Signals & Crosswalks:** Multi-phase traffic light state machines, pedestrian crossing behaviors, and strict pedestrian yielding rules.
-- **Emergency Vehicle Priority:** Non-emergency vehicles yield right-of-way by shifting to outer lanes or decelerating when an emergency beacon is detected.
+### 3.7 AI & Reinforcement Learning (`sim_engine/policies/` & `rl_engine/` — Planned Phases 19, 32–34)
+- **Interpretable Decision Policy (Phase 19):** Transparent, weighted scoring baseline evaluating travel time, congestion, risk, and communication confidence:
+  $$\text{Score}(\text{route}) = w_1 \cdot \text{Time} + w_2 \cdot \text{Congestion} + w_3 \cdot \text{Risk} - w_4 \cdot \text{Confidence}$$
+- **Gymnasium Environment (Phase 32):** Standard RL interface providing bounded vector observations and discrete/continuous action spaces for route selection.
+- **Stable-Baselines3 Model (Phases 33–34):** PPO agent trained on route selection with bounded training budget, fully decoupled from the baseline policy.
 
-### 3.7 AI & Reinforcement Learning Subsystem (`ai_engine/`)
-- **Gymnasium Interface (`gym_env/`):** Standard RL environment providing:
-  - *Observation Space:* Normalized vector or grid encoding ego-vehicle speed, distance to leaders, V2V hazard flags, lane indices, and upcoming path curvature.
-  - *Action Space:* Discrete (e.g., maintain route, reroute option 1, reroute option 2, decelerate, lane change) or Continuous acceleration/steering.
-  - *Reward Function:* Positive reward for reaching destination and maintaining efficiency; penalties for collisions, near-misses, speeding, red-light violations, and failing to yield to emergency vehicles.
-- **Stable-Baselines3 Integration:** Trained PPO / DQN policy loaded by agent decision controllers.
+### 3.8 Web Backend & Transport (`backend/` — Planned Phases 2, 21–22, 35)
+- **Responsibilities:** Django REST Framework API for scenario discovery, simulation lifecycle control (play/pause/step/reset), metrics querying, and experiment history persistence.
+- **Django Channels (ASGI / Daphne):** Streams authoritative simulation snapshots and V2V events over WebSockets at bounded frequencies (10–30 Hz).
 
-### 3.8 Backend Web & Transport Layer (`backend/`)
-- **Django Core:** Configuration, administrative interface, scenario persistence, and static asset serving.
-- **Django REST Framework (DRF):** Endpoints for scenario discovery, launching simulation runs, query metrics, and exporting benchmark logs.
-- **Django Channels (ASGI):** WebSocket protocol handling streaming simulation frames at configurable tick frequencies ($10 - 30\,\text{Hz}$) to connected visualization clients.
-
-### 3.9 Visualization & Frontend Client (`frontend/`)
-- **Three.js Scene Graph:** Renders real-world road network geometry, lane dividers, buildings, and textured vehicle 3D models.
-- **Visual Effects:** Dynamic spherical pulses representing V2V communication ranges, color-coded hazard warning indicators, emergency vehicle beacon flashes.
-- **Interactive HUD:** Live metrics panel displaying global simulation clock, active vehicle counts, collision counters, packet delivery ratios, and individual agent inspection drawers.
+### 3.9 Frontend & Visualization (`frontend/` — Planned Phases 23–30)
+- **Responsibilities:** TypeScript + Three.js application rendering 3D road networks, vehicles, pedestrians, traffic signals, communication range rings, and hazard indicators.
+- **Strict Rendering Boundary:** The frontend never computes physics or invents simulation state; it strictly interpolates authoritative state received from WebSockets.
 
 ---
 
-## 4. Communication & Data Contracts
+## 4. Top-Level Module Blueprint
 
-### 4.1 WebSocket Telemetry Frame (Backend $\rightarrow$ Frontend)
-```json
-{
-  "type": "SIMULATION_FRAME",
-  "tick": 1420,
-  "sim_time_sec": 142.0,
-  "vehicles": [
-    {
-      "id": "veh_001",
-      "type": "STANDARD",
-      "x": 124.5,
-      "y": 0.0,
-      "z": -86.2,
-      "heading": 1.57,
-      "speed": 12.4,
-      "state": "NAVIGATING",
-      "comm_radius": 50.0,
-      "active_route": ["node_12", "node_15", "node_22"]
-    },
-    {
-      "id": "ev_001",
-      "type": "EMERGENCY",
-      "x": 110.2,
-      "y": 0.0,
-      "z": -86.2,
-      "heading": 1.57,
-      "speed": 18.0,
-      "siren_active": true,
-      "comm_radius": 100.0
-    }
-  ],
-  "pedestrians": [
-    {
-      "id": "ped_004",
-      "x": 130.0,
-      "y": 0.0,
-      "z": -84.0,
-      "state": "CROSSING"
-    }
-  ],
-  "traffic_signals": [
-    {
-      "junction_id": "junc_04",
-      "phase": "GREEN",
-      "time_remaining": 8.5
-    }
-  ],
-  "v2v_events": [
-    {
-      "sender_id": "veh_001",
-      "message_type": "HAZARD_ALERT",
-      "payload": {"hazard": "ROAD_BLOCKED", "node": "node_15"},
-      "radius": 50.0
-    }
-  ],
-  "metrics": {
-    "active_agents": 24,
-    "completed_agents": 12,
-    "collision_count": 0,
-    "packet_delivery_rate": 0.94
-  }
-}
-```
-
-### 4.2 WebSocket Command Frame (Frontend $\rightarrow$ Backend)
-```json
-{
-  "action": "CONTROL_SIMULATION",
-  "command": "PAUSE" // "PLAY", "PAUSE", "STEP", "RESET", "INJECT_HAZARD"
-}
-```
+| Module Path | Responsibility | Intro Phase | Dependencies | Public Contract | Test Suite | Forbidden Dependencies |
+|---|---|---|---|---|---|---|
+| `sim_engine/domain/` | Typed domain dataclasses, enums, units, validation | Phase 03 | Standard library (`dataclasses`, `enum`, `typing`) | `VehicleState`, `RoadNode`, `RoadEdge`, `V2VMessage`, `Incident` | `tests/unit/test_domain_models.py` | Must NOT depend on Django, Channels, or Three.js |
+| `sim_engine/map/` | Road graph representation, OSM parser, synthetic grid | Phase 04 | NetworkX, NumPy, optional OSMnx | `RoadGraph`, `SyntheticGridGenerator`, `OSMImporter` | `tests/unit/test_road_graph.py` | Must NOT depend on vehicle agents or web layer |
+| `sim_engine/planning/` | A* baseline, dynamic cost fields, adaptive rerouting | Phase 06 | NetworkX, `sim_engine/map/` | `AStarPlanner`, `DynamicCostField`, `RouteEvaluator` | `tests/unit/test_planning.py` | Must NOT depend on global simulation scheduler |
+| `sim_engine/agents/` | Vehicle kinematics, agent lifecycle, belief state | Phase 07 | `sim_engine/domain/`, NumPy | `VehicleAgent`, `LocalKnowledgeBase`, `KinematicModel` | `tests/unit/test_agents.py` | Must NOT access global simulation state directly |
+| `sim_engine/core/` | Authoritative simulation clock, stepping loop, world state | Phase 08 | All `sim_engine/` subsystems | `SimulationEngine`, `SimulationClock`, `WorldState` | `tests/unit/test_sim_engine.py` | Must NOT depend on Django views or WebSocket consumers |
+| `sim_engine/v2v/` | Message validation, proximity detection, channel noise | Phase 11 | `sim_engine/domain/`, SciPy/NumPy | `V2VChannel`, `ProximityDetector`, `MessageDispatcher` | `tests/unit/test_v2v.py` | Must NOT modify agent routes directly |
+| `sim_engine/safety/` | Collision detection, IDM, signals, pedestrian yielding | Phase 16 | `sim_engine/domain/`, NumPy | `CollisionDetector`, `IDMController`, `TrafficSignalController` | `tests/unit/test_safety.py` | Must NOT depend on frontend rendering |
+| `sim_engine/policies/` | Interpretable AI decision policy (weighted scoring) | Phase 19 | `sim_engine/domain/` | `AIDecisionPolicy`, `RouteCandidateScorer` | `tests/unit/test_policy.py` | Must NOT require PyTorch or SB3 |
+| `backend/` | Django project, REST endpoints, ASGI Channels, persistence | Phase 02, 21 | Django, DRF, Channels, Daphne | REST API endpoints, WebSocket `/ws/simulation/` | `tests/integration/test_api.py` | Core simulation must run without `backend/` |
+| `rl_engine/` | Gymnasium environment, SB3 PPO training, model evaluation | Phase 32 | Gymnasium, Stable-Baselines3, PyTorch | `AMAPPEnv`, `train_ppo()`, `evaluate_policy()` | `tests/unit/test_gym_env.py` | Core simulation must function if SB3 is absent |
+| `frontend/` | TypeScript + Three.js 3D dashboard & HUD | Phase 23 | Node.js, Vite, Three.js | Browser UI, WebSocket client, Canvas renderer | Frontend test runner (Vitest/ESLint) | Must NOT compute authoritative vehicle movements |
 
 ---
 
-## 5. Directory Structure Strategy
+## 5. Dependency Strategy & Compatibility Matrix
 
-```text
-Adaptive-Multi-Agent-Path-Planning/
-├── .github/
-│   └── workflows/
-│       └── ci.yml                 # GitHub Actions CI workflow
-├── docs/
-│   ├── progress/
-│   │   └── PHASE_00.md            # Phase 0 execution report
-│   ├── decisions/
-│   │   └── ADR-001-modular-simulation-architecture.md
-│   ├── API.md                     # REST and WebSocket specifications
-│   └── TESTING.md                 # Testing standards and coverage
-├── sim_engine/                    # Pure Python authoritative simulation core
-│   ├── __init__.py
-│   ├── core/                      # Clock, engine loop, event queue
-│   ├── map/                       # Graph representation, OSM parser, local grid
-│   ├── agents/                    # Kinematics, vehicle models, agent state
-│   ├── v2v/                       # V2V protocol, channel noise, proximity
-│   ├── planning/                  # A*, Dijkstra, dynamic cost matrices
-│   ├── safety/                    # Collision detection, IDM, yielding, traffic lights
-│   ├── pedestrians/               # Pedestrian movement and crosswalk rules
-│   └── benchmarks/                # Performance evaluators, metrics collector
-├── rl_engine/                     # Reinforcement learning components
-│   ├── envs/                      # Gymnasium multi-agent environment
-│   ├── policies/                  # Route selection models & custom networks
-│   └── training/                  # SB3 training scripts and evaluation routines
-├── backend/                       # Django & DRF application
-│   ├── manage.py
-│   ├── config/                    # Django project settings, ASGI, routing
-│   ├── api/                       # DRF serializers, viewsets, endpoints
-│   └── channels/                  # WebSocket consumers and broadcast logic
-├── frontend/                      # Three.js + TypeScript dashboard
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── vite.config.ts
-│   └── src/
-│       ├── main.ts
-│       ├── scene/                 # Three.js scene, camera, lights, meshes
-│       ├── network/               # WebSocket & REST managers
-│       └── ui/                    # Dashboard HUD, telemetry indicators
-├── tests/                         # Comprehensive automated test suites
-│   ├── unit/                      # Isolated unit tests for all modules
-│   ├── integration/               # Multi-agent interaction & communication tests
-│   └── scenarios/                 # Deterministic regression scenarios
-├── data/                          # Map fixtures and scenarios
-│   ├── synthetic/                 # Local fallback grid graphs
-│   └── osm/                       # Real-world OSM sample extracts
-├── .gitignore
-├── ARCHITECTURE.md
-├── PROJECT_STATUS.md
-├── REQUIREMENTS_TRACEABILITY.md
-└── README.md
+```mermaid
+graph TD
+    subgraph CoreBackend["Backend & Simulation Stack"]
+        Python["Python 3.11.9 (Verified)"]
+        Django["Django 5.1.x"]
+        DRF["djangorestframework 3.15.x"]
+        Channels["channels 4.2.x & daphne 4.1.x"]
+        NumPy["numpy >= 1.26.0, < 2.0.0"]
+        NetworkX["networkx >= 3.2.0"]
+        SciPy["scipy >= 1.12.0"]
+    end
+
+    subgraph OptionalGeospatial["Optional Geospatial Stack"]
+        OSMnx["osmnx >= 1.9.0 (Optional)"]
+        Shapely["shapely >= 2.0.0"]
+    end
+
+    subgraph RLStack["Reinforcement Learning Stack"]
+        Gymnasium["gymnasium >= 0.29.1"]
+        SB3["stable-baselines3 >= 2.3.0"]
+        Torch["torch >= 2.2.0 (CPU)"]
+    end
+
+    subgraph FrontendStack["Frontend Stack (Node 22.x)"]
+        TypeScript["typescript >= 5.4.0"]
+        ThreeJS["three >= 0.165.0"]
+        Vite["vite >= 5.2.0"]
+    end
+
+    Python --> Django
+    Python --> NetworkX
+    Python --> NumPy
+    Django --> DRF
+    Django --> Channels
 ```
+
+### Dependency Groupings & Version Pinning Strategy
+
+1. **Core Simulation & Numerical Computing (Phases 3–20):**
+   - `python`: 3.11.9 (Verified host runtime)
+   - `networkx`: ~3.3 (Graph topology, A* algorithm)
+   - `numpy`: ~1.26.4 (Spatial coordinates, vector math, bounded < 2.0.0 for library stability)
+   - `scipy`: ~1.13.0 (Spatial distance computations, KDTree proximity queries)
+
+2. **Web Backend & Transport (Phases 2, 21–22):**
+   - `django`: ~5.1.2 (LTS/current stable release)
+   - `djangorestframework`: ~3.15.2 (REST serializers, views)
+   - `channels`: ~4.2.0 (ASGI WebSocket routing)
+   - `daphne`: ~4.1.2 (ASGI production server)
+   - `channels-redis`: ~4.2.0 (Optional Redis channel layer, with in-memory fallback)
+
+3. **Optional Geospatial (Phase 5):**
+   - `osmnx`: ~1.9.4
+   - `shapely`: ~2.0.4
+   - *Compatibility Guard:* OSMnx requires underlying C-libraries (GEOS/GDAL). Phase 5 will implement strict defensive imports: if OSMnx is uninstalled or fails on Windows, the system transparently utilizes the deterministic synthetic grid without crashing.
+
+4. **Reinforcement Learning (Phases 32–34):**
+   - `gymnasium`: ~0.29.1
+   - `stable-baselines3`: ~2.3.2
+   - `torch`: ~2.2.2+cpu (CPU-only build to keep installation lightweight and CI fast)
+
+5. **Testing & Code Quality (Phases 1–40):**
+   - `pytest`: ~8.2.0
+   - `pytest-cov`: ~5.0.0
+   - `pytest-django`: ~4.8.0
+   - `pytest-asyncio`: ~0.23.6
+   - `ruff`: ~0.4.4
+
+6. **Frontend Stack (Phases 23–30):**
+   - Node.js: 22.18.0 (Verified host runtime)
+   - npm: 10.9.3
+   - `three`: ~0.165.0
+   - `@types/three`: ~0.165.0
+   - `vite`: ~5.2.11
+   - `typescript`: ~5.4.5
+   - `eslint`: ~8.57.0
+
+---
+
+## 6. Technical Risks & Mitigation Strategies
+
+| Risk ID | Description | Severity | Mitigation Strategy |
+|---|---|---|---|
+| **TR-01** | Geospatial dependency installation failures (GDAL/GEOS with OSMnx on Windows) | Medium | Make OSMnx strictly optional via dynamic import guards; provide a complete offline synthetic grid as primary fallback. |
+| **TR-02** | PyTorch / SB3 CI runtime weight and build slowdown | Medium | Use CPU-only PyTorch wheels; confine model training to isolated bounded jobs (Phase 33), using small observation spaces. |
+| **TR-03** | High-frequency WebSocket streaming saturating browser thread | High | Decouple simulation tick rate from client frame rate; implement snapshot throttling (10–20 Hz) and client-side interpolation. |
+| **TR-04** | Route oscillation during multi-agent dynamic rerouting | High | Implement re-planning cooldown timers, hysteresis margins ($\Delta C > 15\%$), and staggered update intervals. |
+| **TR-05** | State desynchronization between backend physics and frontend 3D rendering | Critical | Backend is authoritative for all coordinates, states, and collisions. Frontend strictly interpolates backend snapshots and never creates collision events. |
+| **TR-06** | Flaky or non-deterministic tests in CI | High | Mandate fixed pseudorandom seeds across all unit, integration, and scenario tests; avoid wall-clock sleeps. |

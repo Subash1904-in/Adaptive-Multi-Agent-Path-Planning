@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 0 (Preparation)  
+**Current Phase:** Phase 1 (Repository audit and project blueprint)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.

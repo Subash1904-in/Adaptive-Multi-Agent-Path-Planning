@@ -54,13 +54,13 @@ The platform is designed around 14 core functional requirements defined in `Proj
 13. **AI Model Training Using Reinforcement Learning**
 14. **Real-Time 3D Visualization and Interactive Dashboard**
 
-For complete status and mapping, see [REQUIREMENTS_TRACEABILITY.md](file:///c:/Users/ssuba/Documents/Potatoooooo/Potatooo's%20Main%20project/Adaptive-Multi-Agent-Path-Planning/REQUIREMENTS_TRACEABILITY.md).
+For complete status and mapping, see [REQUIREMENTS_TRACEABILITY.md](REQUIREMENTS_TRACEABILITY.md).
 
 ---
 
 ## 4. System Architecture
 
-For architectural specifications, data contracts, and component boundaries, refer to [ARCHITECTURE.md](file:///c:/Users/ssuba/Documents/Potatoooooo/Potatooo's%20Main%20project/Adaptive-Multi-Agent-Path-Planning/ARCHITECTURE.md).
+For architectural specifications, data contracts, and component boundaries, refer to [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ```text
 AMAPP Architecture
@@ -81,7 +81,7 @@ AMAPP Architecture
 
 This project follows a strict 40-phase incremental development roadmap. Each phase delivers a functional, tested increment without premature code generation.
 
-Current status and ongoing progress are tracked in [PROJECT_STATUS.md](file:///c:/Users/ssuba/Documents/Potatoooooo/Potatooo's%20Main%20project/Adaptive-Multi-Agent-Path-Planning/PROJECT_STATUS.md).
+Current status and ongoing progress are tracked in [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
 ---
 
@@ -104,9 +104,11 @@ git --version     # Must be 2.40+
 
 ## 7. Documentation Directory
 
-- [PROJECT_STATUS.md](file:///c:/Users/ssuba/Documents/Potatoooooo/Potatooo's%20Main%20project/Adaptive-Multi-Agent-Path-Planning/PROJECT_STATUS.md): Primary status and handoff notes.
-- [ARCHITECTURE.md](file:///c:/Users/ssuba/Documents/Potatoooooo/Potatooo's%20Main%20project/Adaptive-Multi-Agent-Path-Planning/ARCHITECTURE.md): Comprehensive system architecture and data models.
-- [REQUIREMENTS_TRACEABILITY.md](file:///c:/Users/ssuba/Documents/Potatoooooo/Potatooo's%20Main%20project/Adaptive-Multi-Agent-Path-Planning/REQUIREMENTS_TRACEABILITY.md): 14 Functional Requirements traceability matrix.
-- [docs/progress/PHASE_00.md](file:///c:/Users/ssuba/Documents/Potatoooooo/Potatooo's%20Main%20project/Adaptive-Multi-Agent-Path-Planning/docs/progress/PHASE_00.md): Phase 0 preparation report.
-- [docs/TESTING.md](file:///c:/Users/ssuba/Documents/Potatoooooo/Potatooo's%20Main%20project/Adaptive-Multi-Agent-Path-Planning/docs/TESTING.md): Testing standards, fixtures, and regression policies.
-- [docs/API.md](file:///c:/Users/ssuba/Documents/Potatoooooo/Potatooo's%20Main%20project/Adaptive-Multi-Agent-Path-Planning/docs/API.md): API and WebSocket telemetry protocol contracts.
+- [PROJECT_STATUS.md](PROJECT_STATUS.md): Primary status and handoff notes.
+- [ARCHITECTURE.md](ARCHITECTURE.md): Comprehensive system architecture and data models.
+- [REQUIREMENTS_TRACEABILITY.md](REQUIREMENTS_TRACEABILITY.md): 14 Functional Requirements traceability matrix.
+- [docs/progress/PHASE_00.md](docs/progress/PHASE_00.md): Phase 0 preparation report.
+- [docs/progress/PHASE_01.md](docs/progress/PHASE_01.md): Phase 1 audit and blueprint report.
+- [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
+- [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
+- [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.
