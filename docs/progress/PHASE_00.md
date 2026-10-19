@@ -113,7 +113,7 @@
 ---
 
 ## 12. Git Commit Hash
-- **Pending Initial Commit:** Files staged and ready for initial commit on `main`.
+- **Commit SHA:** `bf91d9b` (Initial scaffold commit on `main`)
 
 ---
 

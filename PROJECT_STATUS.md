@@ -104,6 +104,8 @@
    - Set remote origin successfully.
 10. `git remote -v`:
     - Confirmed `origin` set to `https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning.git`.
+11. `git commit`:
+    - Created root commit `bf91d9b` on branch `main` containing initial documentation, CI workflow, and repository configuration.
 
 ---
 
