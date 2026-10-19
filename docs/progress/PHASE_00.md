@@ -124,5 +124,5 @@
 
 ## 13. Exact Handoff Instructions for the Next Phase
 1. Do not proceed with implementation of any application logic or simulation components until the user provides the Phase 01 prompt.
-2. The user will provide the prompt for **Phase 01: Backend Core Scaffold & Environment Setup**.
+2. The user will provide the prompt for **Phase 01: Repository audit and project blueprint**.
 3. Upon receiving the Phase 01 prompt, inspect the requested scope, initialize virtual environment and dependency specifications, and implement the requested increment.
