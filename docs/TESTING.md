@@ -84,15 +84,20 @@ def set_deterministic_seed():
 
 ---
 
-## 4. Active Test Suites & Commands (Phase 02)
+## 4. Active Test Suites & Commands (Phase 03)
 
 ### 4.1 Running Active Tests
 ```bash
-# Run backend test suite via pytest
+# Run entire backend test suite via pytest
 pytest
 
 # Run with verbose output
 pytest -v
+
+# Run specific domain test suites
+pytest backend/apps/core/tests/test_domain_values.py
+pytest backend/apps/core/tests/test_domain_models.py
+pytest backend/apps/core/tests/test_domain_serialization.py
 
 # Run Ruff linting
 ruff check backend
@@ -101,13 +106,28 @@ ruff check backend
 python backend/manage.py check
 ```
 
-### 4.2 Verified Test Coverage (Phase 02)
-- `backend/apps/core/tests/test_health.py`:
-  - `test_health_check_returns_http_200`: PASSED
-  - `test_health_check_content_type`: PASSED
-  - `test_health_check_payload_schema`: PASSED
-  - `test_health_check_unauthenticated_access`: PASSED
-  - `test_invalid_path_returns_http_404`: PASSED
+### 4.2 Verified Test Coverage (Phase 03 — 110 Tests Passing)
+- **Domain Value Types (`test_domain_values.py`, 33 passed):**
+  - Position2D: valid construction, integer conversion, non-numeric rejection, non-finite (NaN/inf) rejection, Euclidean distance, dict round-trip.
+  - GeoCoordinate: WGS84 boundary enforcement ([-90, 90] lat, [-180, 180] lon), non-numeric rejection, dict round-trip.
+  - Dimensions2D: strictly positive dimension validation (> 0), non-finite rejection, dict round-trip.
+- **Domain Models & Invariants (`test_domain_models.py`, 55 passed):**
+  - RoadNode: ID validation, Position2D typecheck, GeoCoordinate validation, metadata attribute dictionary.
+  - RoadEdge: ID validation, self-loop prevention (`start_node_id != end_node_id`), positive length and speed limit, lane count bounds.
+  - Route: ID validation, minimum 2-node sequence requirement, empty node rejection, non-negative metric bounds.
+  - Vehicle: defaults, speed capability bounds ($0 \le v \le v_{\max}$), heading normalization to $[0, 2\pi)$, enum state/type validation, Dimensions2D validation.
+  - Pedestrian: defaults, walking speed capability bounds ($0 \le v \le 1.4$ m/s), enum state validation.
+  - TrafficSignal: cycle duration ($> 0$), phase remaining bounds ($0 \le \text{remaining} \le \text{cycle}$), enum state validation.
+  - Obstacle: ID validation, Position2D/Dimensions2D typechecks, obstacle type enum validation, optional edge ID.
+  - Incident: ID validation, incident type / severity / status enum validation, non-negative reporting timestamp.
+  - V2VMessage: packet ID validation, sender ID, expiration timestamp ordering ($\text{expiry} \ge \text{timestamp}$), payload dictionary.
+  - SimulationConfig: discrete timestep range ($[0.001, 2.0]\,s$), random seed integer, communication radius, capacity, grid dimensions.
+- **Serialization & Codecs (`test_domain_serialization.py`, 17 passed):**
+  - Full round-trip equivalence (`from_dict(cls, to_dict(obj)) == obj`) across all 10 domain models and value objects.
+  - JSON string serialization and deserialization (`to_json`, `from_json`).
+  - Error handling: non-dict data, missing required fields, invalid enum string values, malformed JSON, unsupported classes.
+- **Core Health Endpoint (`test_health.py`, 5 passed):**
+  - Regression: HTTP 200, Content-Type, payload schema, unauthenticated access, 404 for invalid paths.
 
 ---
 

@@ -2,15 +2,15 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 2 (Project scaffold and development environment)  
+**Current Phase:** Phase 3 (Domain models and simulation contracts)  
 **Status Legend:**
-- `NOT STARTED`: Requirement specified and mapped; implementation not yet begun.
+- `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
 - `IMPLEMENTED`: Code implemented but awaiting complete integration/system testing.
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 2:* Phase 2 implements development infrastructure, backend scaffolding, and application health checks. None of the 14 major simulation functional requirements are implemented in this phase; all remain honestly classified as `NOT STARTED`.
+> *Note on Phase 3 (Domain Contracts Foundation):* Phase 3 establishes the strongly-typed domain model layer (`backend/apps/core/domain/`) with full unit test coverage (110 passed). These domain models (`Vehicle`, `RoadNode`, `RoadEdge`, `Route`, `Pedestrian`, `TrafficSignal`, `Obstacle`, `Incident`, `V2VMessage`, `SimulationConfig`) define the foundational data structures and serialization contracts supporting FR-01 through FR-14. However, because simulation engines, routing algorithms, message dispatchers, and RL policies are not yet implemented, all 14 functional requirements remain honestly classified as `NOT STARTED` functionally.
 
 ---
 
