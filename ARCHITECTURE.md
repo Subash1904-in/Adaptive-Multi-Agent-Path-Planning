@@ -56,7 +56,8 @@ flowchart TB
 ### Component Status Summary
 - **Backend Scaffold & Health API (`backend/`, `apps.core`):** **IMPLEMENTED & TESTED** in Phase 02 (Django 5.1.x, DRF 3.15.x, ASGI/WSGI entrypoints, `GET /api/v1/health/`, automated pytest suite passing).
 - **Simulation Domain Layer (`backend/apps/core/domain/`):** **IMPLEMENTED & TESTED** in Phase 03 (Typed dataclasses for 10 domain models, 3 immutable value types, 9 enumerations, validation boundaries, and JSON serialization contracts).
-- **Simulation Core & Subsystems (`sim_engine/*`):** **PLANNED ARCHITECTURAL BLUEPRINTS** (Phases 4–20).
+- **Road Graph & Synthetic City (`backend/apps/core/graph/`):** **IMPLEMENTED & TESTED** in Phase 04 (`RoadGraph` wrapping NetworkX `DiGraph`, `CityGridConfig`, `generate_synthetic_city_grid`, weak/strong connectivity analysis, traffic signal integration, 151 tests passing).
+- **Simulation Core & Subsystems (`sim_engine/*`):** **PLANNED ARCHITECTURAL BLUEPRINTS** (Phases 5–20).
 - **Transport Streaming & Advanced REST (`backend/channels/`, etc.):** **PLANNED** (Phases 21–22).
 - **Reinforcement Learning (`rl_engine/*`):** **PLANNED** (Phases 32–34).
 - **Frontend Dashboard (`frontend/*`):** **PLANNED** (Phases 23–30).
@@ -135,11 +136,17 @@ A fundamental requirement of AMAPP is the strict separation between global groun
   - `StandardAV`: Regular autonomous vehicle adhering to traffic rules, speed limits, and cooperative V2V protocols.
   - `EmergencyVehicle`: Priority vehicle (e.g., ambulance) broadcasting sirens and emergency priority tokens.
 
-### 3.3 Road Graph & Map Engine (`sim_engine/map/` — Planned Phases 4, 5)
-- **Responsibilities:** Directed multigraph representation $G = (V, E)$ using NetworkX; node coordinates, edge lengths, speed limits, lane counts, turn restrictions.
-- **Dual Graph Support:**
-  - *Deterministic Local Grid (Phase 4):* Synthetic grid scenario with multiple connected intersections, alternative routes, signalized junctions, and crosswalks. Requires no internet access.
-  - *OpenStreetMap Ingestion (Phase 5):* Optional module using OSMnx to download and parse bounding-box XML road networks, normalizing nodes and edges into the internal graph schema.
+### 3.3 Road Graph & Synthetic City Generator (`backend/apps/core/graph/` — IMPLEMENTED & TESTED in Phase 04)
+- **Responsibilities:** Directed road network graph representation $G = (V, E)$ wrapping NetworkX (`nx.DiGraph`); authoritative storage of typed `RoadNode` and `RoadEdge` domain entities; deterministic synthetic city grid generation; topological queries and reachability analysis.
+- **Implementation Components:**
+  - `RoadGraph`: Wrapper around `nx.DiGraph` enforcing unique node/edge IDs, valid endpoints, directed forward/reverse edge separation, self-loop prevention, traffic signal indexing, and export to JSON-compatible dictionary structures.
+  - `CityGridConfig`: Validated parameter set defining grid rows, columns, inter-intersection spacing in meters, base speed limits in m/s, lane counts, traffic signal locations, and deterministic pseudorandom seed.
+  - `generate_synthetic_city_grid`: Deterministic city network generator producing connected road grids with planar Cartesian coordinates, edge lengths agreeing with Euclidean node spacing, alternative paths, and signalized internal junctions. Fully offline with zero external network or map service dependencies.
+- **Topological Invariants & Connectivity:**
+  - *Weak Connectivity:* Underlying undirected graph is connected.
+  - *Strong Connectivity:* Every intersection is mutually reachable via directed paths (guaranteed in bidirectional grid mode).
+  - *Alternative Paths:* Grid topology provides multiple distinct paths between non-adjacent intersections for dynamic rerouting.
+- **OpenStreetMap Ingestion (`sim_engine/map/` — Planned Phase 5):** Optional module using OSMnx to download and parse bounding-box XML road networks, normalizing nodes and edges into the internal graph schema with synthetic grid fallback.
 
 ### 3.4 Route Planning & Adaptive Rerouting (`sim_engine/planning/` — Planned Phases 6, 15)
 - **Responsibilities:** Shortest-path routing via NetworkX and A*; dynamic edge travel cost evaluation; adaptive rerouting on hazard detection.
@@ -178,7 +185,8 @@ A fundamental requirement of AMAPP is the strict separation between global groun
 
 | Module Path | Responsibility | Intro Phase | Dependencies | Public Contract | Test Suite | Forbidden Dependencies |
 | `backend/apps/core/domain/` | Typed domain dataclasses, value objects, enums, units, validation, serialization | Phase 03 (IMPLEMENTED & TESTED) | Python Standard Library (`dataclasses`, `enum`, `typing`, `json`, `math`) | 10 Domain Models (`Vehicle`, `RoadNode`, `RoadEdge`, `Route`, `Pedestrian`, `TrafficSignal`, `Obstacle`, `Incident`, `V2VMessage`, `SimulationConfig`), 3 Value Types (`Position2D`, `GeoCoordinate`, `Dimensions2D`), `to_dict`, `from_dict`, `to_json`, `from_json` | `backend/apps/core/tests/test_domain_*.py` | Must NOT depend on Django ORM, Channels, or external geometry packages |
-| `sim_engine/map/` | Road graph representation, OSM parser, synthetic grid | Phase 04 | NetworkX, NumPy, optional OSMnx | `RoadGraph`, `SyntheticGridGenerator`, `OSMImporter` | `tests/unit/test_road_graph.py` | Must NOT depend on vehicle agents or web layer |
+| `backend/apps/core/graph/` | Directed road graph abstraction, synthetic city grid generator, connectivity analysis | Phase 04 (IMPLEMENTED & TESTED) | NetworkX, `backend/apps/core/domain/` | `RoadGraph`, `CityGridConfig`, `generate_synthetic_city_grid` | `backend/apps/core/tests/test_road_graph.py`, `backend/apps/core/tests/test_city_generator.py` | Must NOT depend on vehicle kinematics, routing, or web layer |
+| `sim_engine/map/` | OpenStreetMap parser and network normalization (OSMnx) | Phase 05 | NetworkX, NumPy, optional OSMnx | `OSMImporter`, `OSMNormalizer` | `tests/unit/test_osm_import.py` | Must NOT depend on vehicle agents or web layer |
 | `sim_engine/planning/` | A* baseline, dynamic cost fields, adaptive rerouting | Phase 06 | NetworkX, `sim_engine/map/` | `AStarPlanner`, `DynamicCostField`, `RouteEvaluator` | `tests/unit/test_planning.py` | Must NOT depend on global simulation scheduler |
 | `sim_engine/agents/` | Vehicle kinematics, agent lifecycle, belief state | Phase 07 | `sim_engine/domain/`, NumPy | `VehicleAgent`, `LocalKnowledgeBase`, `KinematicModel` | `tests/unit/test_agents.py` | Must NOT access global simulation state directly |
 | `sim_engine/core/` | Authoritative simulation clock, stepping loop, world state | Phase 08 | All `sim_engine/` subsystems | `SimulationEngine`, `SimulationClock`, `WorldState` | `tests/unit/test_sim_engine.py` | Must NOT depend on Django views or WebSocket consumers |

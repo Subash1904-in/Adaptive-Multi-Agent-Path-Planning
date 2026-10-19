@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 3 (Domain models and simulation contracts)  
+**Current Phase:** Phase 4 (Road graph and deterministic city)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 3 (Domain Contracts Foundation):* Phase 3 establishes the strongly-typed domain model layer (`backend/apps/core/domain/`) with full unit test coverage (110 passed). These domain models (`Vehicle`, `RoadNode`, `RoadEdge`, `Route`, `Pedestrian`, `TrafficSignal`, `Obstacle`, `Incident`, `V2VMessage`, `SimulationConfig`) define the foundational data structures and serialization contracts supporting FR-01 through FR-14. However, because simulation engines, routing algorithms, message dispatchers, and RL policies are not yet implemented, all 14 functional requirements remain honestly classified as `NOT STARTED` functionally.
+> *Note on Phase 4 (Road Graph & Synthetic City Infrastructure):* Phase 4 establishes the directed road network graph abstraction (`RoadGraph`) wrapping NetworkX and the deterministic synthetic city grid generator (`generate_synthetic_city_grid`) under `backend/apps/core/graph/` with full test coverage (151 total tests passing). This provides the structural topological foundation supporting FR-03 (offline fallback grid), FR-04, FR-05, and FR-07. However, because OpenStreetMap live ingestion (Phase 5), pathfinding algorithms (Phase 6), vehicle kinematic agents (Phase 7), and V2V protocols (Phase 11) have not yet been implemented, all 14 functional requirements remain honestly classified as `NOT STARTED` functionally.
 
 ---
 

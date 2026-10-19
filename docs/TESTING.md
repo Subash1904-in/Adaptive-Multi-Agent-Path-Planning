@@ -84,7 +84,7 @@ def set_deterministic_seed():
 
 ---
 
-## 4. Active Test Suites & Commands (Phase 03)
+## 4. Active Test Suites & Commands (Phase 04)
 
 ### 4.1 Running Active Tests
 ```bash
@@ -93,6 +93,10 @@ pytest
 
 # Run with verbose output
 pytest -v
+
+# Run specific graph test suites
+pytest backend/apps/core/tests/test_road_graph.py
+pytest backend/apps/core/tests/test_city_generator.py
 
 # Run specific domain test suites
 pytest backend/apps/core/tests/test_domain_values.py
@@ -106,26 +110,28 @@ ruff check backend
 python backend/manage.py check
 ```
 
-### 4.2 Verified Test Coverage (Phase 03 — 110 Tests Passing)
+### 4.2 Verified Test Coverage (Phase 04 — 151 Tests Passing)
+- **Road Network Graph Abstraction (`test_road_graph.py`, 25 passed):**
+  - Node storage: unique ID enforcement, typed RoadNode retrieval, duplicate ID rejection, missing node error.
+  - Directed edge storage: valid endpoint verification, duplicate edge ID rejection, directed pair collision rejection, distinct reverse edge support, missing edge error.
+  - Adjacency & neighborhoods: incoming/outgoing neighbor IDs, incoming/outgoing RoadEdge domain objects.
+  - Connectivity & reachability: weak vs strong connectivity distinction, directed path reachability, isolated node detection.
+  - Traffic signal integration: adding signals, node existence check, duplicate signal per node rejection, dictionary export.
+  - Graph integrity: `validate_topology` ensuring strict sync between domain storage and NetworkX graph.
+- **Deterministic Synthetic City Generator (`test_city_generator.py`, 16 passed):**
+  - Configuration validation: rows/cols $\ge 2$, positive spacing and speeds, lane bounds, speed variance range, intersection coordinate bounds.
+  - Default 3x3 grid: 9 nodes, 24 directed edges, 1 central traffic signal, length-spacing consistency, strong & weak connectivity.
+  - Alternative path verification: multiple distinct paths between diagonal corner nodes for dynamic rerouting.
+  - One-way grid: forward-only edges, weak connectivity without strong connectivity.
+  - Custom signalized intersections: selective signal placement.
+  - Deterministic reproducibility: bit-identical graph topology, coordinates, and edge attributes across repeated runs with identical seed.
+  - Seeded speed variance: reproducible speed distributions with identical seed, deterministic variation across differing seeds.
 - **Domain Value Types (`test_domain_values.py`, 33 passed):**
-  - Position2D: valid construction, integer conversion, non-numeric rejection, non-finite (NaN/inf) rejection, Euclidean distance, dict round-trip.
-  - GeoCoordinate: WGS84 boundary enforcement ([-90, 90] lat, [-180, 180] lon), non-numeric rejection, dict round-trip.
-  - Dimensions2D: strictly positive dimension validation (> 0), non-finite rejection, dict round-trip.
+  - Position2D, GeoCoordinate, Dimensions2D validations and round-trips.
 - **Domain Models & Invariants (`test_domain_models.py`, 55 passed):**
-  - RoadNode: ID validation, Position2D typecheck, GeoCoordinate validation, metadata attribute dictionary.
-  - RoadEdge: ID validation, self-loop prevention (`start_node_id != end_node_id`), positive length and speed limit, lane count bounds.
-  - Route: ID validation, minimum 2-node sequence requirement, empty node rejection, non-negative metric bounds.
-  - Vehicle: defaults, speed capability bounds ($0 \le v \le v_{\max}$), heading normalization to $[0, 2\pi)$, enum state/type validation, Dimensions2D validation.
-  - Pedestrian: defaults, walking speed capability bounds ($0 \le v \le 1.4$ m/s), enum state validation.
-  - TrafficSignal: cycle duration ($> 0$), phase remaining bounds ($0 \le \text{remaining} \le \text{cycle}$), enum state validation.
-  - Obstacle: ID validation, Position2D/Dimensions2D typechecks, obstacle type enum validation, optional edge ID.
-  - Incident: ID validation, incident type / severity / status enum validation, non-negative reporting timestamp.
-  - V2VMessage: packet ID validation, sender ID, expiration timestamp ordering ($\text{expiry} \ge \text{timestamp}$), payload dictionary.
-  - SimulationConfig: discrete timestep range ($[0.001, 2.0]\,s$), random seed integer, communication radius, capacity, grid dimensions.
+  - Invariant validation across all 10 domain models.
 - **Serialization & Codecs (`test_domain_serialization.py`, 17 passed):**
-  - Full round-trip equivalence (`from_dict(cls, to_dict(obj)) == obj`) across all 10 domain models and value objects.
-  - JSON string serialization and deserialization (`to_json`, `from_json`).
-  - Error handling: non-dict data, missing required fields, invalid enum string values, malformed JSON, unsupported classes.
+  - Full round-trip equivalence across all domain entities and JSON error handling.
 - **Core Health Endpoint (`test_health.py`, 5 passed):**
   - Regression: HTTP 200, Content-Type, payload schema, unauthenticated access, 404 for invalid paths.
 

@@ -1,10 +1,10 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 3 (Domain models and simulation contracts)
+- **Current Phase:** Phase 4 (Road graph and deterministic synthetic city)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 4 (Road graph and deterministic city) — **PENDING** (Awaiting user prompt)
-- **Last Updated:** 2026-10-19
+- **Next Phase:** Phase 5 (OpenStreetMap import) — **PENDING** (Awaiting user prompt)
+- **Last Updated:** 2026-10-20
 
 ---
 
@@ -18,7 +18,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 01** | **Repository audit and project blueprint** | **COMPLETED** | Technical audit completed, module blueprint, dependency strategy & planned API contracts established. |
 | **Phase 02** | **Project scaffold and development environment** | **COMPLETED** | Clean Python/Django scaffold, venv, dependencies, .env.example, health endpoint, automated tests & CI verified. |
 | **Phase 03** | **Domain models and simulation contracts** | **COMPLETED** | Typed domain models (10 entities, 3 value objects, 9 enums), validation invariants, JSON codecs & 110 tests passed. |
-| **Phase 04** | Road graph and deterministic city | Pending | Reproducible directed road graph, intersections, lanes, seed support, offline synthetic grid. |
+| **Phase 04** | **Road graph and deterministic city** | **COMPLETED** | Directed road graph (nx.DiGraph), domain integration, deterministic synthetic grid generator, 151 tests passed. |
 | **Phase 05** | OpenStreetMap import | Pending | Optional OSMnx road network import, normalization into internal graph, offline fallback. |
 | **Phase 06** | Route planning baseline | Pending | NetworkX and A* shortest path, travel time cost, road closures, unit test comparisons. |
 | **Phase 07** | Vehicle agents and lifecycle | Pending | Independent agents, start/dest nodes, speeds, route progress, spawn/arrive/remove lifecycle. |
@@ -58,7 +58,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 
 ---
 
-## 3. Implemented Features (Phases 0, 1, 2 & 3)
+## 3. Implemented Features (Phases 0, 1, 2, 3 & 4)
 - **Phase 0: Preparation & Repository Isolation:**
   - Initialized isolated Git repository on branch `main` connected to remote origin.
   - Implemented GitHub Actions CI workflow pipeline (`.github/workflows/ci.yml`) with verified pass.
@@ -93,22 +93,33 @@ This roadmap is strictly aligned with our agreed master development plan, divide
   - Implemented robust JSON-compatible serialization contracts (`to_dict`, `from_dict`, `to_json`, `from_json`) with round-trip guarantees and strict error handling (`SerializationError`).
   - Implemented 105 new automated tests across values, models, and serialization (total 110 passed in 0.51s).
   - Documented full evidence in `docs/progress/PHASE_03.md`.
+- **Phase 4: Road Graph & Deterministic Synthetic City:**
+  - Pinned runtime dependency `networkx>=3.3,<3.4` in `requirements.txt`.
+  - Created dedicated graph module in `backend/apps/core/graph/` decoupled from Django HTTP layer and database.
+  - Implemented `RoadGraph` wrapping `networkx.DiGraph`, with typed entity stores for `RoadNode`, `RoadEdge`, and `TrafficSignal`.
+  - Supported directed forward/reverse edge separation, self-loop prevention, connectivity analysis (weak vs strong), alternative path discovery, and clean serialization (`to_dict`).
+  - Implemented custom graph exceptions (`GraphValidationError`, `NodeNotFoundError`, `EdgeNotFoundError`, `DuplicateEntityError`).
+  - Implemented deterministic synthetic city generator `generate_synthetic_city_grid` with `CityGridConfig` dataclass.
+  - Guaranteed mathematical Euclidean consistency between planar positions and edge lengths ($L = \Delta x$ or $\Delta y$).
+  - Configurable grid dimensions ($R \times C$), intersection spacing, speed limits, lane counts, traffic signals, and bidirectional/one-way configurations.
+  - Strict seed reproducibility via local pseudorandom instances (`random.Random(seed)`).
+  - 100% offline operation with zero external map services or network dependencies.
+  - Added 41 new unit tests (25 graph tests, 16 generator tests) bringing total suite to 151 passed tests.
+  - Documented full evidence in `docs/progress/PHASE_04.md`.
 
 ---
 
-## 4. Files Created or Modified (Phase 3)
+## 4. Files Created or Modified (Phase 4)
 - **Created:**
-  - `backend/apps/core/domain/__init__.py`
-  - `backend/apps/core/domain/exceptions.py`
-  - `backend/apps/core/domain/enums.py`
-  - `backend/apps/core/domain/values.py`
-  - `backend/apps/core/domain/models.py`
-  - `backend/apps/core/domain/serialization.py`
-  - `backend/apps/core/tests/test_domain_values.py`
-  - `backend/apps/core/tests/test_domain_models.py`
-  - `backend/apps/core/tests/test_domain_serialization.py`
-  - `docs/progress/PHASE_03.md`
+  - `backend/apps/core/graph/__init__.py`
+  - `backend/apps/core/graph/exceptions.py`
+  - `backend/apps/core/graph/road_graph.py`
+  - `backend/apps/core/graph/generator.py`
+  - `backend/apps/core/tests/test_road_graph.py`
+  - `backend/apps/core/tests/test_city_generator.py`
+  - `docs/progress/PHASE_04.md`
 - **Modified:**
+  - `requirements.txt`
   - `ARCHITECTURE.md`
   - `REQUIREMENTS_TRACEABILITY.md`
   - `README.md`
@@ -118,30 +129,29 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 5. Commands Executed and Actual Results
-1. `.\.venv\Scripts\ruff.exe check backend --fix`: Formatted imports and verified compliance with 100-character line length limit. Exit code 0 (`All checks passed!`).
+1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
 2. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-3. `.\.venv\Scripts\pytest.exe`: Executed entire test suite; returned `110 passed in 0.51s` (exit code 0).
+3. `.\.venv\Scripts\pytest.exe`: Executed entire test suite; returned `151 passed in 0.82s` (exit code 0).
 
 ---
 
 ## 6. Test Results
+- **Road Graph Abstraction Tests (`test_road_graph.py`):** 25 passed.
+- **Synthetic City Generator Tests (`test_city_generator.py`):** 16 passed.
 - **Value Types Tests (`test_domain_values.py`):** 33 passed.
 - **Domain Models & Invariants Tests (`test_domain_models.py`):** 55 passed.
 - **Serialization & Codecs Tests (`test_domain_serialization.py`):** 17 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **110 passed, 0 failed in 0.51s**.
+- **Total:** **151 passed, 0 failed in 0.82s**.
 - **Django System Check:** 0 issues identified.
-- **Remote CI Run:** VERIFIED & PASSED ([GitHub Actions Run 39299795482](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39299795482)).
-  - `Backend Lint, Test & Coverage`: PASSED (Ruff, manage.py check, pytest: 110 passed in 0.68s)
-  - `Repository Hygiene & Documentation Integrity`: PASSED
-  - `Frontend Lint, Typecheck & Build`: PASSED (deferred cleanly)
+- **Remote CI Run:** Verified locally; awaiting push and remote GitHub Actions verification.
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Pure domain modeling complete. Ready for Phase 4 road graph representation and synthetic city generator.
+- **Notes:** Road graph abstraction and deterministic synthetic grid complete. Ready for Phase 5 OpenStreetMap import.
 
 ---
 
@@ -168,6 +178,6 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 9. Exact Next Steps
-1. Wait for user prompt for **Phase 04: Road graph and deterministic city**.
-2. Introduce NetworkX directed graph representation $G = (V, E)$ leveraging `RoadNode` and `RoadEdge` domain entities.
-3. Implement deterministic synthetic city grid generator with reproducible seeds and offline fallback.
+1. Push Phase 4 changes to remote repository and verify GitHub Actions CI run.
+2. Wait for user prompt for **Phase 05: OpenStreetMap import**.
+3. Implement optional OSMnx road network ingestion, coordinate projection, normalization into `RoadGraph`, and offline fallback.
