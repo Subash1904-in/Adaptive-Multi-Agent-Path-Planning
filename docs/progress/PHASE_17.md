@@ -170,10 +170,13 @@ TOTAL                                                                   14589   
 
 ## 7. CI Pipeline Acceptance Gate
 
-- The GitHub Actions CI pipeline is configured in `.github/workflows/ci.yml`.
-- Repository hygiene requires presence of `docs/progress/PHASE_17.md`.
-- Backend quality runs full test suite with `--cov-fail-under=80`.
-- All checks verified locally prior to push to `main`.
+- **GitHub Actions Authoritative Acceptance:** Verified 100% green run on `main`.
+- **Verified CI Run URL:** [https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39497881408](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39497881408)
+- **Git Commit SHA:** [`ed45049`](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/commit/ed45049)
+- **CI Jobs Breakdown:**
+  1. `Frontend Lint, Typecheck & Build`: **Success** (5s, ID 118887543688)
+  2. `Repository Hygiene & Documentation Integrity`: **Success** (5s, ID 118887544120) — verified all 27 mandatory documents and zero secret leaks.
+  3. `Backend Lint, Test & Coverage`: **Success** (40s, ID 118887544419) — `ruff check backend` passed with 0 errors, `python backend/manage.py check` identified 0 issues, and `pytest` passed **853/853 tests** in 10.64s with **95.83% (96%) line coverage**.
 
 ---
 
