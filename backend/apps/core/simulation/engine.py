@@ -4,7 +4,7 @@ Implements deterministic ordered tick sequencing, atomic tick rollback on failur
 pause/resume/single-step semantics, and point-in-time snapshot access.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from apps.core.communication.models import V2VMessagePacket
 from apps.core.communication.neighbors import NeighborRecord, NeighborTable
@@ -12,6 +12,8 @@ from apps.core.coordination.knowledge import VehicleKnowledgeStore
 from apps.core.coordination.models import TrafficReport
 from apps.core.domain.values import Position2D
 from apps.core.kinematics.models import MotionStepResult
+from apps.core.pedestrians.models import PedestrianSignalState
+from apps.core.safety.models import SafetyEventType
 from apps.core.signals.models import SignalQueryResult
 from apps.core.simulation.clock import SimulationClock
 from apps.core.simulation.exceptions import EngineStateError, TickExecutionError
@@ -175,6 +177,12 @@ class SimulationEngine:
             for ctrl in self.world.get_signals()
         }
 
+        pedestrian_rollback_states: dict[str, dict[str, Any]] = {
+            ped.pedestrian_id: ped.capture_state()
+            for ped in self.world.get_pedestrians()
+        }
+        pedestrian_metrics_rollback = self.world.pedestrian_metrics.capture_state()
+
         comm_rollback = None
         sched_rollback = None
         coord_rollback = None
@@ -271,6 +279,7 @@ class SimulationEngine:
 
         # 2.5, 2.7 & 3. Evaluate adaptive rerouting, safety overrides, and advance each agent
         step_results: dict[str, MotionStepResult] = {}
+        pedestrian_step_results: dict[str, Any] = {}
         routing_decisions = []
         safety_overrides = {}
         safety_events = []
@@ -309,8 +318,16 @@ class SimulationEngine:
                     agents=agents,
                     current_time_s=self.clock.elapsed_time_s,
                     scenario_id=scenario_id,
+                    pedestrians=self.world.get_pedestrians(),
                 )
+                for evt in safety_events:
+                    if evt.pedestrian_id:
+                        self.world.pedestrian_metrics.record_safety_event(
+                            is_collision=evt.is_overlap,
+                            is_near_miss=(evt.event_type == SafetyEventType.NEAR_MISS),
+                        )
 
+            # Advance vehicles
             for agent in agents:
                 vid = agent.vehicle.id
                 caller_accel = target_accels.get(vid) if target_accels else None
@@ -326,8 +343,30 @@ class SimulationEngine:
 
                 step_res = agent.step(dt=dt, target_accel=effective_accel)
                 step_results[vid] = step_res
+
+            # Advance pedestrians
+            current_signal_states = {c.id: c.signal.state for c in self.world.get_signals()}
+            for ped in self.world.get_pedestrians():
+                cw = None
+                ped_sig = PedestrianSignalState.WALK
+                if ped.current_crosswalk_id and self.world.has_crosswalk(ped.current_crosswalk_id):
+                    cw = self.world.get_crosswalk(ped.current_crosswalk_id)
+                    ped_sig = cw.get_pedestrian_signal_state(current_signal_states)
+
+                ped_res = ped.step(
+                    dt=dt,
+                    crosswalk=cw,
+                    signal_state=ped_sig,
+                )
+                pedestrian_step_results[ped.pedestrian_id] = ped_res
+                self.world.pedestrian_metrics.record_step(ped_res)
+
+            self.world.pedestrian_metrics.update_point_in_time_counts(
+                self.world.get_pedestrians()
+            )
         except Exception as exc:
-            # Atomic rollback: restore all agents, signals, comms, coord, routing, and safety
+            # Atomic rollback: restore all agents, signals, comms, coord, routing,
+            # safety, pedestrians
             for agent in agents:
                 vid = agent.vehicle.id
                 if vid in rollback_states:
@@ -365,6 +404,12 @@ class SimulationEngine:
                     r_sig_state, r_sig_rem = signal_rollback_states[ctrl.id]
                     ctrl.signal.state = r_sig_state
                     ctrl.signal.remaining_phase_s = r_sig_rem
+
+            for ped in self.world.get_pedestrians():
+                if ped.pedestrian_id in pedestrian_rollback_states:
+                    ped.restore_state(pedestrian_rollback_states[ped.pedestrian_id])
+            if pedestrian_metrics_rollback is not None:
+                self.world.pedestrian_metrics.restore_state(pedestrian_metrics_rollback)
 
             if comm_rollback is not None:
                 self.world.communication_network.restore_state(comm_rollback)
@@ -425,6 +470,12 @@ class SimulationEngine:
             [e.to_dict() for e in safety_events] if safety_events else None
         )
 
+        ped_metrics_dict = (
+            self.world.pedestrian_metrics.to_dict()
+            if (self.world.pedestrian_count > 0 or self.world.crosswalk_count > 0)
+            else None
+        )
+
         tick_result = TickResult(
             tick=new_tick,
             elapsed_time_s=self.clock.elapsed_time_s,
@@ -440,6 +491,8 @@ class SimulationEngine:
             routing_decisions=routing_dec_dicts,
             safety_metrics=safety_metrics,
             safety_events=safety_evt_dicts,
+            pedestrian_step_results=pedestrian_step_results,
+            pedestrian_metrics=ped_metrics_dict,
         )
 
         self.last_tick_result = tick_result

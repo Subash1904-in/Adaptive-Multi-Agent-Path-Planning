@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 16 (Collision Detection, Safe Separation, and Collision Avoidance)
+- **Current Phase:** Phase 17 (Pedestrian Agents, Crosswalks, and Traffic-Signal Interaction)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 17 (Pedestrians and Traffic Signals) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 18 (Emergency Vehicle Priority) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-21
 
 ---
@@ -31,7 +31,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 14** | **Communication latency, packet loss, and degradation** | **COMPLETED** | Multi-tick transit queues, deterministic latency, distance loss, two-state Markov burst loss, outages, links, partitions, 709 tests passed (96% coverage). |
 | **Phase 15** | **Adaptive rerouting and dynamic route adjustment** | **COMPLETED** | Vehicle-private dynamic edge costs, congestion/closure/hazard evaluation, benefit hysteresis & cooldown, safe route suffix replacement, rollback, 760 tests passed (95.69% coverage). |
 | **Phase 16** | **Collision detection and avoidance** | **COMPLETED** | 2D OBB SAT collision detection, safe separation distance, TTC estimation, 5-tier risk classification, controlled deceleration/emergency braking, deterministic conflict resolution, atomic rollback, 808 tests passed (96% coverage). |
-| **Phase 17** | Pedestrians and traffic signals | Pending | Pedestrian agents & crossing zones, signal phases, stop lines, intersection right-of-way. |
+| **Phase 17** | **Pedestrian agents, crosswalks, and traffic signals** | **COMPLETED** | Typed pedestrian agents, bounded kinematics, crosswalk corridor model, traffic signal integration & clearance policy, vehicle-pedestrian SAT OBB conflict detection & braking, atomic rollback, 853 tests passed (96% coverage). |
 | **Phase 18** | Emergency vehicle priority | Pending | Ambulance/emergency types, priority beacons, cooperative yielding and corridor creation. |
 | **Phase 19** | AI decision policy | Pending | Pluggable local decision policy evaluating travel time, congestion, risk, confidence scores. |
 | **Phase 20** | Backend integration checkpoint | Pending | End-to-end backend integration tests (incident, comms failure, emergency vehicle, arrival metrics). |
@@ -138,25 +138,58 @@ This roadmap is strictly aligned with our agreed master development plan, divide
   - Implemented delivery recovery and knowledge preservation (re-established connectivity allows new packets to flow without resurrecting expired packets or clearing existing local knowledge).
   - Extended metrics (`dropped_burst_loss`, `dropped_link_outage`, `dropped_partition`, `packets_queued_latency`, `packets_delivered_latency`).
   - Integrated network impairment into `SimulationEngine.step()` with atomic rollback guarantees (restores in-transit queues, PRNG states, channel state, outages, and partitions on step failure).
-  - Added 33 new automated tests across 3 new test suites (`test_communication_latency.py`, `test_communication_impairment.py`, `test_communication_degradation_integration.py`) bringing total test suite to 709 passing tests (96% coverage).
+  - Added 33 new automated tests bringing total test suite to 709 passing tests (96% coverage).
   - Documented full evidence in `docs/progress/PHASE_14.md`.
+- **Phase 15: Adaptive Rerouting and Dynamic Route Adjustment:**
+  - Implemented vehicle-private dynamic edge costs, congestion, closure, and hazard evaluation.
+  - Implemented benefit hysteresis thresholding and reroute cooldown to eliminate route flapping.
+  - Implemented atomic route replacement preserving traveled history and validated against road graph connectivity.
+  - Added 51 automated tests bringing total test suite to 760 passing tests (95.69% coverage).
+  - Documented full evidence in `docs/progress/PHASE_15.md`.
+- **Phase 16: Collision Detection, Safe Separation, and Collision Avoidance:**
+  - Implemented 2D Separating Axis Theorem (SAT) oriented bounding box (OBB) intersection detection.
+  - Implemented 5-tier safety risk classification (SAFE, MONITORING, ELEVATED, IMMINENT, COLLISION) and time-to-collision (TTC) calculations.
+  - Implemented longitudinal safe separation distance enforcement and vehicle control override policies.
+  - Added 48 automated tests bringing total test suite to 808 passing tests (96% coverage).
+  - Documented full evidence in `docs/progress/PHASE_16.md`.
+- **Phase 17: Pedestrian Agents, Crosswalks, and Traffic-Signal Interaction:**
+  - Implemented typed pedestrian domain models (`PedestrianLifecycleState`, `PedestrianSignalState`, `PedestrianConfig`, `PedestrianStepResult`).
+  - Implemented crosswalk corridor model (`Crosswalk`) with 2D vector projections, boundaries, waiting areas, and signal indication mapping (`RED` -> `WALK`, `YELLOW` -> `CLEARANCE`, `GREEN` -> `DONT_WALK`; unsignalized -> `WALK`).
+  - Implemented bounded pedestrian agent kinematics (`PedestrianAgent`) with target snapping and robust clearance policy (pedestrians in `CROSSING` state continue walking to exit curb even if signal turns `DONT_WALK`).
+  - Extended Phase 16 SAT OBB collision detection subsystem (`CollisionDetector.evaluate_vehicle_pedestrian`, `SafetyManager.evaluate_and_stage`) to evaluate vehicle-pedestrian conflicts, stage strong/emergency braking overrides, and log safety events with `pedestrian_id`.
+  - Authoritatively integrated pedestrian simulation into `SimulationEngine.step()` with single clock progression, atomic rollback guarantees, cumulative/point-in-time metrics tracking, and scenario builder support.
+  - Added 45 new automated tests across 6 dedicated test modules bringing total test suite to 853 passing tests (96% coverage).
+  - Documented full evidence in `docs/progress/PHASE_17.md`.
 
 ---
 
-## 4. Files Created or Modified (Phase 14)
+## 4. Files Created or Modified (Phase 17)
 - **Created:**
-  - `backend/apps/core/tests/test_communication_latency.py`
-  - `backend/apps/core/tests/test_communication_impairment.py`
-  - `backend/apps/core/tests/test_communication_degradation_integration.py`
-  - `docs/progress/PHASE_14.md`
+  - `backend/apps/core/pedestrians/__init__.py`
+  - `backend/apps/core/pedestrians/models.py`
+  - `backend/apps/core/pedestrians/exceptions.py`
+  - `backend/apps/core/pedestrians/crosswalk.py`
+  - `backend/apps/core/pedestrians/agent.py`
+  - `backend/apps/core/pedestrians/metrics.py`
+  - `backend/apps/core/tests/test_pedestrian_models_and_kinematics.py`
+  - `backend/apps/core/tests/test_pedestrian_crosswalk.py`
+  - `backend/apps/core/tests/test_pedestrian_signal_interaction.py`
+  - `backend/apps/core/tests/test_pedestrian_safety_and_collisions.py`
+  - `backend/apps/core/tests/test_pedestrian_engine_integration.py`
+  - `backend/apps/core/tests/test_pedestrian_scenarios.py`
+  - `docs/progress/PHASE_17.md`
 - **Modified:**
-  - `backend/apps/core/communication/models.py`
-  - `backend/apps/core/communication/metrics.py`
-  - `backend/apps/core/communication/exceptions.py`
-  - `backend/apps/core/communication/network.py`
-  - `backend/apps/core/communication/__init__.py`
+  - `backend/apps/core/safety/models.py`
+  - `backend/apps/core/safety/geometry.py`
+  - `backend/apps/core/safety/detection.py`
+  - `backend/apps/core/safety/manager.py`
+  - `backend/apps/core/simulation/models.py`
+  - `backend/apps/core/simulation/world.py`
+  - `backend/apps/core/simulation/engine.py`
+  - `backend/apps/core/scenarios/models.py`
+  - `backend/apps/core/scenarios/validation.py`
+  - `backend/apps/core/scenarios/builder.py`
   - `backend/apps/core/scenarios/examples.py`
-  - `backend/apps/core/scenarios/__init__.py`
   - `.github/workflows/ci.yml`
   - `PROJECT_STATUS.md`
   - `ARCHITECTURE.md`
@@ -169,30 +202,22 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ## 5. Commands Executed and Actual Results
 1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
 2. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-3. `.\.venv\Scripts\pytest.exe backend/apps/core/tests/ --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `709 passed in 5.17s`, `96% coverage` (exit code 0).
+3. `.\.venv\Scripts\pytest.exe backend/apps/core/tests/ --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `853 passed in 6.26s`, `96% coverage` (exit code 0).
 
 ---
 
 ## 6. Test Results
-- **Communication Latency & Multi-Tick Queues (`test_communication_latency.py`):** 9 passed.
-- **Packet Loss, Burst Loss, Outages & Partitions (`test_communication_impairment.py`):** 17 passed.
-- **Degradation, Neighbor & Engine Integration (`test_communication_degradation_integration.py`):** 7 passed.
-- **Adaptive Rerouting & Dynamic Costs (`test_routing_*.py`):** 97 passed.
-- **Network Degradation & Latency (`test_communication_degradation_*.py`, `test_communication_latency.py`, `test_communication_impairment.py`):** 33 passed.
-- **Coordination Models & Reports (`test_coordination_models.py`):** 21 passed.
-- **Vehicle Knowledge Stores (`test_coordination_knowledge.py`):** 11 passed.
-- **Deterministic Fusion & Conflicts (`test_coordination_fusion.py`):** 8 passed.
-- **Dissemination & Multi-Hop Forwarding (`test_coordination_dissemination.py`):** 5 passed.
-- **Simulation Engine Integration & Rollback (`test_coordination_engine_integration.py`):** 7 passed.
-- **Neighbor Tables & Coordinator (`test_communication_neighbors.py`):** 24 passed.
-- **Heartbeat Timing & Loss Detection (`test_communication_heartbeat.py`):** 8 passed.
-- **Neighbor Subsystem Engine Integration (`test_communication_neighbors_integration.py`):** 6 passed.
+- **Pedestrian Models & Kinematics (`test_pedestrian_models_and_kinematics.py`):** 12 passed.
+- **Crosswalk Geometry & Projection (`test_pedestrian_crosswalk.py`):** 10 passed.
+- **Signal Interaction & Clearance Policy (`test_pedestrian_signal_interaction.py`):** 6 passed.
+- **Vehicle-Pedestrian Safety & Collisions (`test_pedestrian_safety_and_collisions.py`):** 7 passed.
+- **Simulation Engine Integration & Rollback (`test_pedestrian_engine_integration.py`):** 6 passed.
+- **Pedestrian Scenario Orchestration (`test_pedestrian_scenarios.py`):** 4 passed.
 - **Safety Geometry & SAT Overlap (`test_safety_geometry.py`):** 18 passed.
 - **Safety Detection, TTC & Pairwise Classification (`test_safety_detection_and_ttc.py`):** 13 passed.
 - **Safety Policy & Simultaneous Conflict Resolution (`test_safety_policy.py`):** 9 passed.
 - **Safety Engine Integration & Atomic Rollback (`test_safety_engine_integration.py`):** 8 passed.
-- **Adaptive Rerouting Policy & Engine Integration (`test_routing_adaptive_policy.py`, `test_routing_engine_integration.py`, `test_routing_replacement.py`):** 36 passed.
-- **Routing Costs, Dynamic Graph & A* (`test_routing_*.py`):** 60 passed.
+- **Adaptive Rerouting & Dynamic Costs (`test_routing_*.py`):** 97 passed.
 - **Communication Degradation & Latency (`test_communication_*.py`):** 74 passed.
 - **V2V Coordination & Belief Dissemination (`test_coordination_*.py`):** 52 passed.
 - **Dynamic Neighbor Tables & Heartbeats (`test_communication_neighbors*.py`):** 38 passed.
@@ -200,7 +225,6 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Spatial Peer Discovery (`test_communication_discovery.py`):** 24 passed.
 - **Simulated Communication Network (`test_communication_network.py`):** 16 passed.
 - **Broadcast Scheduler (`test_communication_scheduler.py`):** 14 passed.
-- **Simulation Engine & Scenario Integration (`test_communication_engine_integration.py`):** 7 passed.
 - **Scenario Validation & Execution (`test_scenarios_*.py`):** 44 passed.
 - **Signal Controller & World Integration (`test_signals_*.py`):** 64 passed.
 - **Clock, World, & Engine (`test_simulation_*.py`):** 59 passed.
@@ -209,14 +233,14 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Road Graph & City Generator (`test_road_graph.py`, `test_city_generator.py`):** 41 passed.
 - **Domain Models, Values & Codecs (`test_domain_*.py`):** 105 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **808 passed, 0 failed in 5.98s**, **96% line coverage** (exceeds 80% threshold).
+- **Total:** **853 passed, 0 failed in 6.26s**, **96% line coverage** (exceeds 80% threshold).
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Safety subsystem (`backend/apps/core/safety/`) complete, deterministic, and fully integrated with `SimulationEngine.step()` with atomic rollback guarantees.
+- **Notes:** Pedestrian subsystem (`backend/apps/core/pedestrians/`) complete, deterministic, and fully integrated with `SimulationEngine.step()`, `WorldState`, traffic signals, and the safety subsystem with atomic rollback guarantees.
 - **Educational Disclaimer:** This simulation is developed solely for educational and research purposes and is NOT certified for physical vehicle deployment.
 
 ---
@@ -244,7 +268,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 9. Exact Next Steps
-1. Wait for user prompt for **Phase 17: Pedestrians and Traffic Signals**.
-2. Implement pedestrian agents, crossing zones, signal phases, stop lines, and intersection right-of-way.
+1. Await user prompt for **Phase 18: Emergency Vehicle Priority**.
+2. Implement emergency vehicle entity types (Ambulance, Fire, Police), priority beacons, cooperative yielding policies, and dynamic emergency corridor creation.
 
 

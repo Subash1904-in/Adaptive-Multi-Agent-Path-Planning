@@ -17,6 +17,15 @@ from apps.core.domain.models import SimulationConfig, TrafficSignal
 from apps.core.domain.values import Position2D
 from apps.core.graph.road_graph import RoadGraph
 from apps.core.kinematics.vehicle_agent import VehicleAgent
+from apps.core.pedestrians.agent import PedestrianAgent
+from apps.core.pedestrians.crosswalk import Crosswalk
+from apps.core.pedestrians.exceptions import (
+    CrosswalkNotFoundError,
+    DuplicatePedestrianError,
+    InvalidCrosswalkError,
+    PedestrianNotFoundError,
+)
+from apps.core.pedestrians.metrics import PedestrianMetrics
 from apps.core.routing.adapter import DynamicRouteAdapter
 from apps.core.routing.models import AdaptiveRoutingConfig
 from apps.core.safety.manager import SafetyManager
@@ -132,6 +141,13 @@ class WorldState:
             self.safety_config = SafetyConfig(enabled=False)
         self.safety_manager: SafetyManager = SafetyManager(config=self.safety_config)
         self._safety_baseline: Optional[dict[str, Any]] = None
+
+        # Initialize Pedestrian and Crosswalk subsystem
+        self._pedestrians: dict[str, PedestrianAgent] = {}
+        self._pedestrian_baselines: dict[str, dict[str, Any]] = {}
+        self._crosswalks: dict[str, Crosswalk] = {}
+        self.pedestrian_metrics: PedestrianMetrics = PedestrianMetrics()
+        self._pedestrian_metrics_baseline: Optional[dict[str, Any]] = None
 
         # Auto-register signals defined in the road_graph
         for sig in self.road_graph.get_traffic_signals().values():
@@ -397,6 +413,124 @@ class WorldState:
             self.communication_network.unregister_participant(agent_id)
         return agent
 
+    @property
+    def pedestrian_count(self) -> int:
+        """Total number of registered pedestrian agents in the world."""
+        return len(self._pedestrians)
+
+    @property
+    def pedestrian_ids(self) -> list[str]:
+        """List of all registered pedestrian identifiers in deterministic sorted order."""
+        return sorted(self._pedestrians.keys())
+
+    def get_pedestrians(self) -> list[PedestrianAgent]:
+        """Enumerate all registered pedestrian agents in deterministic sorted order."""
+        return [self._pedestrians[pid] for pid in sorted(self._pedestrians.keys())]
+
+    def add_pedestrian(self, pedestrian: PedestrianAgent) -> None:
+        """Register a pedestrian agent in the world state.
+
+        Args:
+            pedestrian: PedestrianAgent to register.
+
+        Raises:
+            TypeError: If pedestrian is not an instance of PedestrianAgent.
+            DuplicatePedestrianError: If a pedestrian with the same ID already exists.
+        """
+        if not isinstance(pedestrian, PedestrianAgent):
+            raise TypeError(f"Expected PedestrianAgent instance, got {type(pedestrian).__name__}.")
+        pid = pedestrian.pedestrian_id
+        if pid in self._pedestrians:
+            raise DuplicatePedestrianError(f"Pedestrian '{pid}' already registered.")
+        self._pedestrians[pid] = pedestrian
+        self._pedestrian_baselines[pid] = pedestrian.capture_state()
+
+    def register_pedestrian(self, pedestrian: PedestrianAgent) -> None:
+        """Alias for add_pedestrian."""
+        self.add_pedestrian(pedestrian)
+
+    def get_pedestrian(self, pedestrian_id: str) -> PedestrianAgent:
+        """Retrieve a registered pedestrian agent by ID."""
+        if pedestrian_id not in self._pedestrians:
+            raise PedestrianNotFoundError(f"Pedestrian '{pedestrian_id}' not found.")
+        return self._pedestrians[pedestrian_id]
+
+    def has_pedestrian(self, pedestrian_id: str) -> bool:
+        """Check whether a pedestrian identifier is registered in the world."""
+        return pedestrian_id in self._pedestrians
+
+    def remove_pedestrian(self, pedestrian_id: str) -> PedestrianAgent:
+        """Remove and return a registered pedestrian agent."""
+        if pedestrian_id not in self._pedestrians:
+            raise PedestrianNotFoundError(f"Pedestrian '{pedestrian_id}' not found.")
+        ped = self._pedestrians.pop(pedestrian_id)
+        self._pedestrian_baselines.pop(pedestrian_id, None)
+        return ped
+
+    @property
+    def crosswalk_count(self) -> int:
+        """Total number of registered crosswalks in the world."""
+        return len(self._crosswalks)
+
+    @property
+    def crosswalk_ids(self) -> list[str]:
+        """List of all registered crosswalk identifiers in deterministic sorted order."""
+        return sorted(self._crosswalks.keys())
+
+    def get_crosswalks(self) -> list[Crosswalk]:
+        """Enumerate all registered crosswalks in deterministic sorted order."""
+        return [self._crosswalks[cid] for cid in sorted(self._crosswalks.keys())]
+
+    def add_crosswalk(self, crosswalk: Crosswalk) -> None:
+        """Register a crosswalk in the world state.
+
+        Args:
+            crosswalk: Crosswalk to register.
+
+        Raises:
+            TypeError: If crosswalk is not an instance of Crosswalk.
+            InvalidCrosswalkError: If crosswalk ID exists or referenced nodes/edges do not exist.
+        """
+        if not isinstance(crosswalk, Crosswalk):
+            raise TypeError(f"Expected Crosswalk instance, got {type(crosswalk).__name__}.")
+        cid = crosswalk.crosswalk_id
+        if cid in self._crosswalks:
+            raise InvalidCrosswalkError(f"Crosswalk '{cid}' already registered.")
+
+        if crosswalk.associated_intersection_id:
+            if not self.road_graph.has_node(crosswalk.associated_intersection_id):
+                raise InvalidCrosswalkError(
+                    f"Crosswalk '{cid}' references non-existent intersection "
+                    f"'{crosswalk.associated_intersection_id}'."
+                )
+        for eid in crosswalk.associated_road_segment_ids:
+            if not self.road_graph.has_edge(eid):
+                raise InvalidCrosswalkError(
+                    f"Crosswalk '{cid}' references non-existent road segment '{eid}'."
+                )
+
+        self._crosswalks[cid] = crosswalk
+
+    def register_crosswalk(self, crosswalk: Crosswalk) -> None:
+        """Alias for add_crosswalk."""
+        self.add_crosswalk(crosswalk)
+
+    def get_crosswalk(self, crosswalk_id: str) -> Crosswalk:
+        """Retrieve a registered crosswalk by ID."""
+        if crosswalk_id not in self._crosswalks:
+            raise CrosswalkNotFoundError(f"Crosswalk '{crosswalk_id}' not found.")
+        return self._crosswalks[crosswalk_id]
+
+    def has_crosswalk(self, crosswalk_id: str) -> bool:
+        """Check whether a crosswalk identifier is registered in the world."""
+        return crosswalk_id in self._crosswalks
+
+    def remove_crosswalk(self, crosswalk_id: str) -> Crosswalk:
+        """Remove and return a registered crosswalk."""
+        if crosswalk_id not in self._crosswalks:
+            raise CrosswalkNotFoundError(f"Crosswalk '{crosswalk_id}' not found.")
+        return self._crosswalks.pop(crosswalk_id)
+
     def get_neighbor_table(self, vehicle_id: str) -> Optional[NeighborTable]:
         """Retrieve the neighbor table for a registered vehicle agent, or None."""
         return self.communication_network.get_neighbor_table(vehicle_id)
@@ -439,6 +573,9 @@ class WorldState:
         """Capture the current state of all registered agents and subsystems for reset."""
         for agent_id, agent in self._agents.items():
             self._agent_baselines[agent_id] = self._capture_agent_state(agent)
+        for ped_id, ped in self._pedestrians.items():
+            self._pedestrian_baselines[ped_id] = ped.capture_state()
+        self._pedestrian_metrics_baseline = self.pedestrian_metrics.capture_state()
         self._comm_baseline = self.communication_network.capture_state()
         self._sched_baseline = self.broadcast_scheduler.capture_state()
         self._coord_baseline = self.coordination_manager.capture_state()
@@ -450,6 +587,11 @@ class WorldState:
         for agent_id, baseline in self._agent_baselines.items():
             if agent_id in self._agents:
                 self._apply_agent_state(self._agents[agent_id], baseline)
+        for ped_id, baseline in self._pedestrian_baselines.items():
+            if ped_id in self._pedestrians:
+                self._pedestrians[ped_id].restore_state(baseline)
+        if self._pedestrian_metrics_baseline is not None:
+            self.pedestrian_metrics.restore_state(self._pedestrian_metrics_baseline)
         if self._comm_baseline is not None:
             self.communication_network.restore_state(self._comm_baseline)
         if self._sched_baseline is not None:
@@ -467,6 +609,7 @@ class WorldState:
         self.restore_baseline()
         for ctrl in self._signals.values():
             ctrl.reset()
+        self.pedestrian_metrics.reset()
         self.communication_network.reset()
         self.broadcast_scheduler.reset()
         self.coordination_manager.reset()
@@ -522,6 +665,12 @@ class WorldState:
         if self.safety_manager.config.enabled:
             safety_snap = self.safety_manager.metrics.to_dict()
 
+        ped_snaps = {p.pedestrian_id: p.capture_state() for p in self.get_pedestrians()}
+        cw_snaps = {c.crosswalk_id: c.to_dict() for c in self.get_crosswalks()}
+        ped_metrics_snap = (
+            self.pedestrian_metrics.to_dict() if (self._pedestrians or self._crosswalks) else None
+        )
+
         return WorldSnapshot(
             tick=self.clock.tick_count,
             elapsed_time_s=self.clock.elapsed_time_s,
@@ -534,6 +683,9 @@ class WorldState:
             coordination=coord_snap,
             routing=routing_snap,
             safety=safety_snap,
+            pedestrians=ped_snaps,
+            crosswalks=cw_snaps,
+            pedestrian_metrics=ped_metrics_snap,
             metadata=dict(self.metadata),
         )
 

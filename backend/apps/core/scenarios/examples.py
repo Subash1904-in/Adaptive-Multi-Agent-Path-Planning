@@ -16,6 +16,8 @@ from apps.core.kinematics.models import KinematicsConfig
 from apps.core.routing.models import AdaptiveRoutingConfig, CostMode, RoutingAlgorithm
 from apps.core.safety.models import SafetyConfig
 from apps.core.scenarios.models import (
+    CrosswalkScenarioDefinition,
+    PedestrianScenarioDefinition,
     RoadNetworkDefinition,
     RoadNetworkSourceType,
     ScenarioDefinition,
@@ -1226,5 +1228,248 @@ def create_unavoidable_collision_scenario(
         ),
         seed=seed,
     )
+
+
+def create_pedestrian_waiting_at_red_signal_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario where a pedestrian approaches a crosswalk and waits for a WALK indication.
+
+    The traffic signal for the conflicting vehicle approach is GREEN (so pedestrian indication is
+    DONT_WALK). The pedestrian stops at the waiting area and remains in WAITING_TO_CROSS state.
+    """
+    grid_cfg = CityGridConfig(
+        rows=2,
+        cols=2,
+        spacing_m=50.0,
+        speed_limit_mps=10.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    sig_def = TrafficSignalScenarioDefinition(
+        signal_id="sig_node_r0_c1",
+        node_id="node_r0_c1",
+        config=SignalCycleConfig(green_duration_s=20.0, yellow_duration_s=3.0, red_duration_s=20.0),
+        incoming_edge_ids=("edge_r0_c0_to_r0_c1",),
+    )
+    cw_def = CrosswalkScenarioDefinition(
+        crosswalk_id="cw_1",
+        entry_point=(48.0, -3.0),
+        exit_point=(48.0, 3.0),
+        width_m=4.0,
+        associated_intersection_id="node_r0_c1",
+        associated_road_segment_ids=("edge_r0_c0_to_r0_c1",),
+        signal_controller_id="sig_node_r0_c1",
+    )
+    ped_def = PedestrianScenarioDefinition(
+        pedestrian_id="ped_01",
+        initial_position=(48.0, -5.0),
+        destination_point=(48.0, 5.0),
+        crosswalk_id="cw_1",
+        walking_speed_mps=1.4,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_ped_waiting_red",
+            name="Pedestrian Waiting at Red Signal",
+            description="Pedestrian stops at crosswalk and waits for WALK indication.",
+        ),
+        road_network=rn,
+        vehicles=(),
+        signals=(sig_def,),
+        crosswalks=(cw_def,),
+        pedestrians=(ped_def,),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+
+
+def create_pedestrian_crossing_permitted_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 100,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario where a pedestrian crosses a crosswalk under a WALK indication."""
+    grid_cfg = CityGridConfig(
+        rows=2,
+        cols=2,
+        spacing_m=50.0,
+        speed_limit_mps=10.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    # Unsignalized crosswalk or signal granting WALK
+    cw_def = CrosswalkScenarioDefinition(
+        crosswalk_id="cw_walk",
+        entry_point=(48.0, -2.0),
+        exit_point=(48.0, 2.0),
+        width_m=4.0,
+        associated_intersection_id="node_r0_c1",
+        associated_road_segment_ids=("edge_r0_c0_to_r0_c1",),
+    )
+    ped_def = PedestrianScenarioDefinition(
+        pedestrian_id="ped_walker",
+        initial_position=(48.0, -2.0),
+        destination_point=(48.0, 3.0),
+        crosswalk_id="cw_walk",
+        walking_speed_mps=1.4,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_ped_crossing_walk",
+            name="Pedestrian Crossing with Permission",
+            description="Pedestrian crosses a crosswalk under a WALK indication and arrives.",
+        ),
+        road_network=rn,
+        vehicles=(),
+        crosswalks=(cw_def,),
+        pedestrians=(ped_def,),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+
+
+def create_vehicle_braking_for_pedestrian_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 100,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario where an approaching vehicle brakes to avoid a crossing pedestrian."""
+    grid_cfg = CityGridConfig(
+        rows=2,
+        cols=3,
+        spacing_m=50.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    # Vehicle approaching along edge from node_r0_c0 (0, 0) to node_r0_c1 (50, 0)
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_approaching",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+        initial_speed_mps=10.0,
+        kinematics=KinematicsConfig(max_speed_mps=12.0, max_deceleration_mps2=5.0),
+    )
+    cw_def = CrosswalkScenarioDefinition(
+        crosswalk_id="cw_yield",
+        entry_point=(35.0, -3.0),
+        exit_point=(35.0, 3.0),
+        width_m=4.0,
+        associated_road_segment_ids=("edge_r0_c0_to_r0_c1",),
+    )
+    ped_def = PedestrianScenarioDefinition(
+        pedestrian_id="ped_crossing",
+        initial_position=(35.0, -1.0),
+        destination_point=(35.0, 4.0),
+        crosswalk_id="cw_yield",
+        walking_speed_mps=1.2,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_veh_braking_for_ped",
+            name="Vehicle Braking for Pedestrian",
+            description=(
+                "Vehicle detects crossing pedestrian and engages collision avoidance braking."
+            ),
+        ),
+        road_network=rn,
+        vehicles=(v1,),
+        crosswalks=(cw_def,),
+        pedestrians=(ped_def,),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        safety_config=SafetyConfig(
+            enabled=True,
+            min_separation_m=3.0,
+            gentle_decel_mps2=2.0,
+            strong_decel_mps2=4.0,
+            emergency_decel_mps2=6.0,
+        ),
+        seed=seed,
+    )
+
+
+def create_unavoidable_vehicle_pedestrian_collision_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario where excessive vehicle speed results in an unavoidable collision
+    with a pedestrian.
+    """
+    grid_cfg = CityGridConfig(
+        rows=2,
+        cols=2,
+        spacing_m=50.0,
+        speed_limit_mps=25.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_fast",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c1",
+        initial_speed_mps=20.0,
+        kinematics=KinematicsConfig(max_speed_mps=25.0, max_deceleration_mps2=1.0),
+    )
+    cw_def = CrosswalkScenarioDefinition(
+        crosswalk_id="cw_hazard",
+        entry_point=(10.0, -2.0),
+        exit_point=(10.0, 2.0),
+        width_m=4.0,
+        associated_road_segment_ids=("edge_r0_c0_to_r0_c1",),
+    )
+    ped_def = PedestrianScenarioDefinition(
+        pedestrian_id="ped_in_path",
+        initial_position=(10.0, 0.0),
+        destination_point=(10.0, 3.0),
+        crosswalk_id="cw_hazard",
+        walking_speed_mps=0.5,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_unavoidable_ped_collision",
+            name="Unavoidable Vehicle-Pedestrian Collision",
+            description=(
+                "Vehicle unable to stop in time, causing geometric overlap and COLLISION event."
+            ),
+        ),
+        road_network=rn,
+        vehicles=(v1,),
+        crosswalks=(cw_def,),
+        pedestrians=(ped_def,),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        safety_config=SafetyConfig(
+            enabled=True,
+            min_separation_m=3.0,
+            gentle_decel_mps2=0.5,
+            strong_decel_mps2=0.8,
+            emergency_decel_mps2=1.0,
+        ),
+        seed=seed,
+    )
+
 
 

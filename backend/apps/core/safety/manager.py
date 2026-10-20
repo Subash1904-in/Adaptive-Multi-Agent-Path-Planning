@@ -38,13 +38,18 @@ class SafetyManager:
         agents: Sequence[VehicleAgent],
         current_time_s: float,
         scenario_id: Optional[str] = None,
-    ) -> tuple[dict[str, VehicleControlOverride], list[VehiclePairCollision], list[SafetyEvent]]:
-        """Evaluate multi-vehicle conflicts, stage control overrides, and log safety events.
+        pedestrians: Optional[Sequence[Any]] = None,
+    ) -> tuple[
+        dict[str, VehicleControlOverride], list[VehiclePairCollision], list[SafetyEvent]
+    ]:
+        """Evaluate multi-vehicle and pedestrian conflicts, stage control overrides,
+        and log safety events.
 
         Args:
             agents: Sequence of VehicleAgent instances in current world state.
             current_time_s: Current simulation elapsed time in seconds.
             scenario_id: Optional scenario identifier for event metadata.
+            pedestrians: Optional sequence of PedestrianAgent instances in current world state.
 
         Returns:
             Tuple of:
@@ -55,7 +60,7 @@ class SafetyManager:
         if not self.config.enabled:
             return ({}, [], [])
 
-        pair_collisions = self.detector.detect_all_conflicts(agents)
+        pair_collisions = self.detector.detect_all_conflicts(agents, pedestrians=pedestrians)
         overrides = self.policy.resolve_conflicts(agents, pair_collisions)
 
         new_events: list[SafetyEvent] = []
@@ -90,10 +95,17 @@ class SafetyManager:
                 evt_type = (
                     SafetyEventType.COLLISION if pair.is_overlap else SafetyEventType.NEAR_MISS
                 )
+                if pair.is_pedestrian_conflict:
+                    v_ids: tuple[str, ...] = (pair.vehicle_a_id,)
+                    ped_id: Optional[str] = pair.pedestrian_id
+                else:
+                    v_ids = (pair.vehicle_a_id, pair.vehicle_b_id)
+                    ped_id = None
+
                 event = SafetyEvent(
                     event_id=f"evt_{self._event_counter:06d}",
                     sim_time_s=current_time_s,
-                    vehicle_ids=(pair.vehicle_a_id, pair.vehicle_b_id),
+                    vehicle_ids=v_ids,
                     event_type=evt_type,
                     risk_category=pair.risk_level,
                     measured_separation_m=pair.distance_m,
@@ -102,6 +114,7 @@ class SafetyManager:
                     action_taken_b=pair.recommended_action_b,
                     is_overlap=pair.is_overlap,
                     scenario_id=scenario_id,
+                    pedestrian_id=ped_id,
                 )
                 new_events.append(event)
                 self.events.append(event)

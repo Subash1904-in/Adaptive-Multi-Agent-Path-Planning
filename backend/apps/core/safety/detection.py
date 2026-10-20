@@ -6,11 +6,12 @@ safe separation distance computation, and hierarchical risk classification.
 """
 
 import math
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 from apps.core.domain.enums import VehicleState
 from apps.core.domain.models import Vehicle
 from apps.core.kinematics.vehicle_agent import VehicleAgent
+from apps.core.pedestrians.models import PedestrianLifecycleState
 from apps.core.safety.exceptions import GeometryValidationError
 from apps.core.safety.geometry import (
     OrientedBoundingBox2D,
@@ -349,20 +350,150 @@ class CollisionDetector:
 
         return (action_a, decel_a, action_b, decel_b)
 
+    def _compute_vehicle_pedestrian_action(
+        self,
+        vehicle: Vehicle,
+        pos_ped: tuple[float, float],
+        risk: CollisionRiskLevel,
+        is_overlap: bool,
+    ) -> tuple[SafetyActionType, float]:
+        """Compute recommended braking action for vehicle facing a pedestrian conflict."""
+        if risk == CollisionRiskLevel.SAFE:
+            return (SafetyActionType.NONE, 0.0)
+
+        if risk in (CollisionRiskLevel.COLLISION, CollisionRiskLevel.IMMINENT):
+            action = SafetyActionType.EMERGENCY_BRAKE
+            decel = self.config.emergency_decel_mps2
+        elif risk == CollisionRiskLevel.HIGH_RISK:
+            action = SafetyActionType.STRONG_BRAKE
+            decel = self.config.strong_decel_mps2
+        else:  # CAUTION
+            action = SafetyActionType.GENTLE_BRAKE
+            decel = self.config.gentle_decel_mps2
+
+        if is_overlap:
+            return (action, decel)
+
+        dx = pos_ped[0] - vehicle.position.x
+        dy = pos_ped[1] - vehicle.position.y
+        dist = math.hypot(dx, dy)
+        if dist < 1e-6:
+            return (action, decel)
+
+        ux = dx / dist
+        uy = dy / dist
+        v_towards_p = (
+            math.cos(vehicle.heading_rad) * ux + math.sin(vehicle.heading_rad) * uy
+        ) * vehicle.speed_mps
+
+        if v_towards_p > 1e-3 or risk == CollisionRiskLevel.IMMINENT:
+            return (action, decel)
+
+        return (SafetyActionType.NONE, 0.0)
+
+    def evaluate_vehicle_pedestrian(
+        self,
+        vehicle: Vehicle,
+        pedestrian: Any,
+    ) -> VehiclePairCollision:
+        """Deterministically evaluate geometric overlap, separation, and risk with a pedestrian.
+
+        Args:
+            vehicle: Authoritative vehicle entity.
+            pedestrian: PedestrianAgent entity.
+
+        Returns:
+            VehiclePairCollision representing the vehicle-pedestrian conflict.
+        """
+        box_v = OrientedBoundingBox2D.from_vehicle(vehicle)
+        box_p = OrientedBoundingBox2D.from_pedestrian(
+            pedestrian,
+            length_m=self.config.pedestrian_length_m,
+            width_m=self.config.pedestrian_width_m,
+        )
+
+        is_overlap = check_obb_overlap_sat(
+            box_v, box_p, touching_is_overlap=self.config.touching_is_overlap
+        )
+        separation_dist_m = compute_obb_separation_distance(
+            box_v, box_p, touching_is_overlap=self.config.touching_is_overlap
+        )
+
+        pos_v = (vehicle.position.x, vehicle.position.y)
+        ped_pos = pedestrian.position
+        pos_p = (
+            ped_pos.x if hasattr(ped_pos, "x") else float(ped_pos[0]),
+            ped_pos.y if hasattr(ped_pos, "y") else float(ped_pos[1]),
+        )
+        vel_v = (
+            vehicle.speed_mps * math.cos(vehicle.heading_rad),
+            vehicle.speed_mps * math.sin(vehicle.heading_rad),
+        )
+        ped_speed = getattr(pedestrian, "speed_mps", 0.0)
+        ped_heading = getattr(pedestrian, "heading_rad", 0.0)
+        vel_p = (
+            ped_speed * math.cos(ped_heading),
+            ped_speed * math.sin(ped_heading),
+        )
+
+        closing_spd = compute_closing_speed(pos_v, vel_v, pos_p, vel_p)
+        safe_sep_m = compute_safe_separation_distance(
+            speed_a_mps=vehicle.speed_mps,
+            speed_b_mps=ped_speed,
+            closing_speed_mps=closing_spd,
+            config=self.config,
+        )
+        sep_violated = separation_dist_m < safe_sep_m
+
+        ttc_s = estimate_time_to_collision(separation_dist_m, closing_spd, is_overlap)
+        risk = classify_collision_risk(
+            is_overlap=is_overlap,
+            separation_distance_m=separation_dist_m,
+            ttc_s=ttc_s,
+            safe_separation_m=safe_sep_m,
+            config=self.config,
+        )
+
+        action_v, decel_v = self._compute_vehicle_pedestrian_action(
+            vehicle, pos_p, risk, is_overlap
+        )
+        ped_id = getattr(pedestrian, "pedestrian_id", getattr(pedestrian, "id", "pedestrian"))
+
+        return VehiclePairCollision(
+            vehicle_a_id=vehicle.id,
+            vehicle_b_id=ped_id,
+            distance_m=separation_dist_m,
+            ttc_s=ttc_s,
+            closing_speed_mps=closing_spd,
+            risk_level=risk,
+            is_overlap=is_overlap,
+            safe_separation_m=safe_sep_m,
+            separation_violated=sep_violated,
+            recommended_action_a=action_v,
+            recommended_action_b=SafetyActionType.NONE,
+            action_a_decel=decel_v,
+            action_b_decel=0.0,
+            is_pedestrian_conflict=True,
+            pedestrian_id=ped_id,
+        )
+
     def detect_all_conflicts(
         self,
         agents: Sequence[VehicleAgent],
+        pedestrians: Optional[Sequence[Any]] = None,
     ) -> list[VehiclePairCollision]:
-        """Detect conflicts across all active vehicles in deterministic canonical order.
+        """Detect conflicts across all active vehicles and pedestrians in deterministic order.
 
         Rules:
         - Only active vehicles (state in (EN_ROUTE, BLOCKED, STOPPED)) are evaluated.
         - Arrived vehicles (ARRIVED) and unassigned/idle vehicles (IDLE) are excluded.
+        - Active pedestrians (not ARRIVED or IDLE) are evaluated against active vehicles.
         - Canonical pair ordering: (min(v1.id, v2.id), max(v1.id, v2.id)).
         - Stable enumeration ensures order-independent deterministic outcomes.
 
         Args:
             agents: Sequence of VehicleAgent instances in current world state.
+            pedestrians: Optional sequence of PedestrianAgent instances in current world state.
 
         Returns:
             List of VehiclePairCollision results for all evaluated pairs.
@@ -379,11 +510,29 @@ class CollisionDetector:
         conflicts: list[VehiclePairCollision] = []
         n = len(sorted_agents)
 
+        # 1. Vehicle-Vehicle conflicts
         for i in range(n):
             for j in range(i + 1, n):
                 ag_a = sorted_agents[i]
                 ag_b = sorted_agents[j]
                 pair_result = self.evaluate_pair(ag_a.vehicle, ag_b.vehicle)
                 conflicts.append(pair_result)
+
+        # 2. Vehicle-Pedestrian conflicts
+        if pedestrians:
+            active_pedestrians = [
+                p
+                for p in pedestrians
+                if getattr(p, "state", None)
+                not in (PedestrianLifecycleState.IDLE, PedestrianLifecycleState.ARRIVED)
+            ]
+            sorted_pedestrians = sorted(
+                active_pedestrians,
+                key=lambda p: getattr(p, "pedestrian_id", getattr(p, "id", "")),
+            )
+            for ag in sorted_agents:
+                for ped in sorted_pedestrians:
+                    ped_conflict = self.evaluate_vehicle_pedestrian(ag.vehicle, ped)
+                    conflicts.append(ped_conflict)
 
         return conflicts

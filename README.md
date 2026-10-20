@@ -529,7 +529,45 @@ The platform includes an individual vehicle kinematics and route-following coord
   # Vehicles receive emergency braking commands to prevent predicted physical collision!
   ```
 
-### 6.19 Troubleshooting
+### 6.19 Pedestrian Agents, Crosswalks, and Traffic Signals (Phase 17)
+- **Module:** `backend/apps/core/pedestrians/`
+- **Key Classes:** `PedestrianAgent`, `Crosswalk`, `PedestrianLifecycleState`, `PedestrianSignalState`, `PedestrianConfig`, `PedestrianMetrics`.
+- **Capabilities:** Typed pedestrian agents with bounded kinematics and lifecycle states (`IDLE`, `APPROACHING_CROSSWALK`, `WAITING_TO_CROSS`, `CROSSING`, `WALKING`, `ARRIVED`, `BLOCKED`); geometric crosswalk corridor model with longitudinal and lateral 2D projections; signal indication mapping (`RED` -> `WALK`, `YELLOW` -> `CLEARANCE`, `GREEN` -> `DONT_WALK`; unsignalized -> `WALK`); clearance policy ensuring pedestrians crossing continue across the street upon signal change without stranding; vehicle-pedestrian conflict detection using the Phase 16 SAT OBB safety subsystem; authoritative single-clock engine execution; atomic rollback guarantees.
+- **Python API Usage Example:**
+  ```python
+  from apps.core.domain.values import Position2D
+  from apps.core.pedestrians import Crosswalk, PedestrianAgent, PedestrianLifecycleState
+  from apps.core.simulation import SimulationEngine, WorldState
+
+  # 1. Create a crosswalk corridor across a roadway
+  crosswalk = Crosswalk(
+      id="cw_main",
+      node_id="intersection_1",
+      entry_point=Position2D(x=50.0, y=-5.0),
+      exit_point=Position2D(x=50.0, y=5.0),
+      width_m=4.0,
+  )
+
+  # 2. Instantiate a pedestrian approaching the crosswalk
+  ped = PedestrianAgent(
+      pedestrian_id="ped_01",
+      position=Position2D(x=50.0, y=-5.0),
+      destination=Position2D(x=50.0, y=5.0),
+      desired_speed_mps=1.2,
+      crosswalk_id="cw_main",
+  )
+
+  # 3. Add to world and step simulation
+  world = WorldState()
+  world.add_crosswalk(crosswalk)
+  world.add_pedestrian(ped)
+
+  engine = SimulationEngine(world=world)
+  result = engine.step()
+  print(f"Pedestrian state: {ped.state.value}, position: ({ped.position.x}, {ped.position.y})")
+  ```
+
+### 6.20 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -558,6 +596,7 @@ The platform includes an individual vehicle kinematics and route-following coord
 - [docs/progress/PHASE_14.md](docs/progress/PHASE_14.md): Phase 14 communication latency, packet loss, network degradation, and recovery report.
 - [docs/progress/PHASE_15.md](docs/progress/PHASE_15.md): Phase 15 adaptive rerouting and dynamic route adjustment report.
 - [docs/progress/PHASE_16.md](docs/progress/PHASE_16.md): Phase 16 collision detection, safe separation, and avoidance report.
+- [docs/progress/PHASE_17.md](docs/progress/PHASE_17.md): Phase 17 pedestrian agents, crosswalks, and traffic signals report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

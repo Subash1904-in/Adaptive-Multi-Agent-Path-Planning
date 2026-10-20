@@ -14,6 +14,8 @@ from apps.core.routing.models import AdaptiveRoutingConfig, CostMode, RoutingAlg
 from apps.core.safety.models import SafetyConfig
 from apps.core.scenarios.exceptions import ScenarioValidationError
 from apps.core.scenarios.models import (
+    CrosswalkScenarioDefinition,
+    PedestrianScenarioDefinition,
     RoadNetworkSourceType,
     ScenarioDefinition,
     VehicleScenarioDefinition,
@@ -215,6 +217,77 @@ def validate_scenario(
             field="safety_config",
         )
 
+    # 8.7. Crosswalk validation
+    seen_crosswalk_ids: set[str] = set()
+    for idx, cw in enumerate(scenario.crosswalks):
+        if not isinstance(cw, CrosswalkScenarioDefinition):
+            raise ScenarioValidationError(
+                f"Crosswalk at index {idx} must be a CrosswalkScenarioDefinition instance.",
+                field=f"crosswalks[{idx}]",
+            )
+        if not cw.crosswalk_id or not cw.crosswalk_id.strip():
+            raise ScenarioValidationError(
+                f"Crosswalk at index {idx} has empty crosswalk_id.",
+                field=f"crosswalks[{idx}].crosswalk_id",
+            )
+        if cw.crosswalk_id in seen_crosswalk_ids:
+            raise ScenarioValidationError(
+                f"Duplicate crosswalk ID '{cw.crosswalk_id}' found in scenario.",
+                field="crosswalks",
+                details={"crosswalk_id": cw.crosswalk_id},
+            )
+        seen_crosswalk_ids.add(cw.crosswalk_id)
+
+        if cw.width_m <= 0.0:
+            raise ScenarioValidationError(
+                f"Crosswalk '{cw.crosswalk_id}' width_m must be strictly positive.",
+                field=f"crosswalks[{idx}].width_m",
+            )
+        if cw.entry_point == cw.exit_point:
+            raise ScenarioValidationError(
+                f"Crosswalk '{cw.crosswalk_id}' entry and exit points cannot be identical.",
+                field=f"crosswalks[{idx}].entry_point",
+            )
+
+    # 8.8. Pedestrian validation
+    seen_pedestrian_ids: set[str] = set()
+    for idx, ped in enumerate(scenario.pedestrians):
+        if not isinstance(ped, PedestrianScenarioDefinition):
+            raise ScenarioValidationError(
+                f"Pedestrian at index {idx} must be a PedestrianScenarioDefinition instance.",
+                field=f"pedestrians[{idx}]",
+            )
+        if not ped.pedestrian_id or not ped.pedestrian_id.strip():
+            raise ScenarioValidationError(
+                f"Pedestrian at index {idx} has empty pedestrian_id.",
+                field=f"pedestrians[{idx}].pedestrian_id",
+            )
+        if ped.pedestrian_id in seen_pedestrian_ids:
+            raise ScenarioValidationError(
+                f"Duplicate pedestrian ID '{ped.pedestrian_id}' found in scenario.",
+                field="pedestrians",
+                details={"pedestrian_id": ped.pedestrian_id},
+            )
+        seen_pedestrian_ids.add(ped.pedestrian_id)
+
+        if ped.walking_speed_mps <= 0.0:
+            raise ScenarioValidationError(
+                f"Pedestrian '{ped.pedestrian_id}' walking_speed_mps must be strictly positive.",
+                field=f"pedestrians[{idx}].walking_speed_mps",
+            )
+        if ped.max_speed_mps < ped.walking_speed_mps:
+            raise ScenarioValidationError(
+                f"Pedestrian '{ped.pedestrian_id}' max_speed_mps "
+                "cannot be less than walking speed.",
+                field=f"pedestrians[{idx}].max_speed_mps",
+            )
+        if ped.crosswalk_id and ped.crosswalk_id not in seen_crosswalk_ids:
+            raise ScenarioValidationError(
+                f"Pedestrian '{ped.pedestrian_id}' references unknown "
+                f"crosswalk '{ped.crosswalk_id}'.",
+                field=f"pedestrians[{idx}].crosswalk_id",
+            )
+
     # 9. Graph compatibility validation if graph is provided
     target_graph = graph or scenario.road_network.supplied_graph
     if target_graph is not None:
@@ -263,3 +336,23 @@ def validate_graph_compatibility(scenario: ScenarioDefinition, graph: RoadGraph)
                     field="signals.incoming_edge_ids",
                     details={"signal_id": s.signal_id, "edge_id": edge_id},
                 )
+
+    for cw in scenario.crosswalks:
+        if cw.associated_intersection_id and not graph.has_node(cw.associated_intersection_id):
+            raise ScenarioValidationError(
+                f"Crosswalk '{cw.crosswalk_id}' references unknown intersection "
+                f"'{cw.associated_intersection_id}'.",
+                field="crosswalks.associated_intersection_id",
+                details={
+                    "crosswalk_id": cw.crosswalk_id,
+                    "node_id": cw.associated_intersection_id,
+                },
+            )
+        for edge_id in cw.associated_road_segment_ids:
+            if not graph.has_edge(edge_id):
+                raise ScenarioValidationError(
+                    f"Crosswalk '{cw.crosswalk_id}' references unknown road segment '{edge_id}'.",
+                    field="crosswalks.associated_road_segment_ids",
+                    details={"crosswalk_id": cw.crosswalk_id, "edge_id": edge_id},
+                )
+

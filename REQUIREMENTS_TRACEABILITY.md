@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 15 (Adaptive Rerouting and Dynamic Route Adjustment)  
+**Current Phase:** Phase 17 (Pedestrian Agents, Crosswalks, and Traffic-Signal Interaction)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 15 (Adaptive Rerouting and Dynamic Route Adjustment):* Phase 15 implements vehicle-private dynamic edge costs ($C_v(e) = C_0(e) \cdot M_{\text{congestion}}(e) + P_{\text{hazard}}(e)$), avoidance of roads reported closed ($C_v(e) = \infty$), candidate route planning with Dijkstra/A*, pro-rated remaining route cost evaluation, benefit hysteresis ($\Delta C \ge \max(\Delta C_{\min}, \rho C_{\text{current}})$), rerouting cooldowns, repeat recalculation suppression via belief fingerprinting, safe active route suffix replacement preserving kinematic continuity and vehicle destination (`VehicleAgent.replace_remaining_route`), deterministic decisions, and full simulation engine integration with atomic rollback (760 total tests passing, 95.69% line coverage). This fulfills the dynamic route adjustment requirements of FR-07 (Adaptive Path Planning). Collision avoidance (Phase 16) and emergency vehicle priority (Phase 18) remain strictly deferred.
+> *Note on Phase 17 (Pedestrian Agents, Crosswalks, and Traffic-Signal Interaction):* Phase 17 implements typed pedestrian agents with bounded kinematics (`PedestrianAgent`), crosswalk corridor modeling with 2D vector projections (`Crosswalk`), traffic signal integration (`RED` -> `WALK`, `YELLOW` -> `CLEARANCE`, `GREEN` -> `DONT_WALK`; unsignalized -> `WALK`), clearance policy (pedestrians in `CROSSING` state continue walking to exit curb upon signal change), vehicle-pedestrian conflict detection using Phase 16 SAT OBB safety subsystem (`CollisionDetector.evaluate_vehicle_pedestrian`), braking overrides, authoritative single-clock engine execution, atomic rollback, and cumulative/point-in-time metrics tracking. 853 total tests passing, 96% line coverage. This fulfills the pedestrian simulation requirements of FR-04 and pedestrian collision avoidance requirements of FR-09. Emergency vehicle priority (Phase 18) remains strictly deferred.
 
 ---
 
@@ -21,12 +21,12 @@
 | **FR-01** | Vehicle-to-Vehicle (V2V) Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/` | Phase 11, 12, 13, 14, 27 | `NOT STARTED` | Phase 11–14 Protocol, Neighbors, Coordination & Degradation Tested (`test_communication_*.py`, `test_coordination_*.py`) |
 | **FR-02** | Multi-Agent Autonomous Vehicle Environment | `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 07, 08, 10, 25 | `NOT STARTED` | Phase 07, 08, 10 Tested (`test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`) |
 | **FR-03** | Real-World Map Integration | `backend/apps/core/graph/` | Phase 04, 05, 24 | `NOT STARTED` | Phase 04 & 05 Foundation Tested (`test_osm_*.py`, `test_road_graph.py`) |
-| **FR-04** | Traffic and Pedestrian Simulation | `backend/apps/core/signals/`, `sim_engine/safety/`, `sim_engine/pedestrians/` | Phase 09, 17, 25, 29 | `NOT STARTED` | Phase 09 Signals Tested (`test_signals_*.py`) |
+| **FR-04** | Traffic and Pedestrian Simulation | `backend/apps/core/signals/`, `backend/apps/core/pedestrians/`, `backend/apps/core/safety/` | Phase 09, 17, 25, 29 | `TESTED` | Phase 09 Signals & Phase 17 Pedestrians Tested (`test_signals_*.py`, `test_pedestrian_*.py`) |
 | **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 06, 07, 08, 10, 30, 31 | `NOT STARTED` | Phase 06–10 Tested (`test_routing_*.py`, `test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`) |
 | **FR-06** | Decentralized Vehicle Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/`, `sim_engine/agents/` | Phase 11, 12, 13, 14 | `NOT STARTED` | Phase 11–14 Protocol, Discovery, Neighbors, Knowledge & Outages Tested (`test_communication_*.py`, `test_coordination_*.py`) |
 | **FR-07** | Adaptive Path Planning | `backend/apps/core/routing/`, `sim_engine/planning/` | Phase 06, 15, 28 | `NOT STARTED` | Phase 06 & 15 Baseline & Adaptive Rerouting Tested (`test_routing_*.py`) |
 | **FR-08** | AI-Based Decision-Making | `sim_engine/agents/`, `rl_engine/policies/` | Phase 19, 34 | `NOT STARTED` | Pending Phase 19 |
-| **FR-09** | Collision Detection and Avoidance | `sim_engine/safety/` | Phase 16, 37 | `NOT STARTED` | Pending Phase 16 |
+| **FR-09** | Collision Detection and Avoidance | `backend/apps/core/safety/` | Phase 16, 17, 37 | `TESTED` | Phase 16 V2V & Phase 17 Vehicle-Pedestrian Collision Avoidance Tested (`test_safety_*.py`, `test_pedestrian_safety_and_collisions.py`) |
 | **FR-10** | Emergency Vehicle Priority | `sim_engine/agents/`, `sim_engine/safety/` | Phase 18, 25, 29 | `NOT STARTED` | Pending Phase 18 |
 | **FR-11** | Communication Range Detection | `backend/apps/core/communication/discovery.py`, `backend/apps/core/communication/neighbors.py` | Phase 11, 12, 14, 27 | `NOT STARTED` | Phase 11, 12, 14 Spatial Discovery, Tables & Distance Loss Tested (`test_communication_discovery.py`, `test_communication_impairment.py`) |
 | **FR-12** | Communication Failure Handling | `backend/apps/core/communication/network.py`, `backend/apps/core/communication/neighbors.py` | Phase 11, 12, 14, 27 | `NOT STARTED` | Phase 11, 12, 14 Latency, Loss, Burst Channels, Outages & Recovery Tested (`test_communication_latency.py`, `test_communication_impairment.py`, `test_communication_degradation_integration.py`) |
@@ -68,9 +68,9 @@
 ### FR-04: Traffic and Pedestrian Simulation
 - **Requirement Statement:** Simulate realistic traffic conditions and vehicle movements; include traffic signals, congestion, pedestrian crossings, and unexpected road conditions.
 - **Target Phases:** Phase 09 (Vehicle movement and traffic rules), Phase 17 (Pedestrians and traffic signals), Phase 25 (Vehicle and pedestrian visualization), Phase 29 (Traffic incidents and scenario controls).
-- **Components:** `sim_engine/safety/traffic_signals.py`, `sim_engine/pedestrians/pedestrian.py`, `sim_engine/map/crosswalk.py`
-- **Verification Plan:** State machine tests for 4-phase traffic lights, pedestrian crosswalk crossing logic, and vehicle yield enforcement.
-- **Current Status:** `NOT STARTED`
+- **Components:** `backend/apps/core/signals/`, `backend/apps/core/pedestrians/`, `backend/apps/core/safety/`
+- **Verification Plan:** State machine tests for 4-phase traffic lights, pedestrian crosswalk corridor model, signalized and unsignalized pedestrian crossing logic, clearance policy, and vehicle yield/braking enforcement (`test_signals_*.py`, `test_pedestrian_*.py`: 109 tests passing).
+- **Current Status:** `TESTED (Phase 09 Traffic Signals & Phase 17 Pedestrian Agents, Crosswalks, and Signal Interaction Complete)`
 
 ---
 
@@ -114,8 +114,8 @@
 - **Requirement Statement:** Detect nearby vehicles, pedestrians, and obstacles; implement collision avoidance mechanisms and maintain safe distances.
 - **Target Phases:** Phase 16 (Collision detection and avoidance), Phase 17 (Pedestrians and traffic signals), Phase 37 (Automated testing and regression).
 - **Components:** `backend/apps/core/safety/` (`geometry.py`, `detection.py`, `policy.py`, `manager.py`, `metrics.py`, `models.py`)
-- **Verification Plan:** 2D OBB Separating Axis Theorem overlap tests, closing speed and Time-To-Collision (TTC) calculations, minimum safe separation distance enforcement, controlled deceleration and emergency braking overrides, conservative multi-conflict resolution, atomic rollback, and deterministic scenario fixtures (`test_safety_*.py`: 48 tests passing).
-- **Current Status:** `IN PROGRESS (Phase 16 V2V Collision Detection, Safe Separation, and Avoidance Complete; Pedestrian/Obstacle safety scoped to Phase 17)`
+- **Verification Plan:** 2D OBB Separating Axis Theorem overlap tests, closing speed and Time-To-Collision (TTC) calculations, minimum safe separation distance enforcement, controlled deceleration and emergency braking overrides, conservative multi-conflict resolution, vehicle-pedestrian conflict detection, atomic rollback, and deterministic scenario fixtures (`test_safety_*.py`, `test_pedestrian_safety_and_collisions.py`: 55 tests passing).
+- **Current Status:** `TESTED (Phase 16 V2V & Phase 17 Vehicle-Pedestrian Collision Detection, Safe Separation, and Avoidance Complete)`
 
 ---
 

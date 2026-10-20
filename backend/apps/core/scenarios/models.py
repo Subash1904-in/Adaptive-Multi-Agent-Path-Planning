@@ -145,6 +145,74 @@ class RoadNetworkDefinition:
 
 
 @dataclass(frozen=True)
+class CrosswalkScenarioDefinition:
+    """Specification of a crosswalk in a scenario."""
+
+    crosswalk_id: str
+    entry_point: tuple[float, float]
+    exit_point: tuple[float, float]
+    width_m: float = 3.0
+    associated_intersection_id: Optional[str] = None
+    associated_road_segment_ids: tuple[str, ...] = field(default_factory=tuple)
+    signal_controller_id: Optional[str] = None
+    walk_signal_phase: Optional[str] = None
+    clearance_signal_phase: Optional[str] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize crosswalk definition to dictionary."""
+        return {
+            "crosswalk_id": self.crosswalk_id,
+            "entry_point": list(self.entry_point),
+            "exit_point": list(self.exit_point),
+            "width_m": self.width_m,
+            "associated_intersection_id": self.associated_intersection_id,
+            "associated_road_segment_ids": list(self.associated_road_segment_ids),
+            "signal_controller_id": self.signal_controller_id,
+            "walk_signal_phase": self.walk_signal_phase,
+            "clearance_signal_phase": self.clearance_signal_phase,
+            "metadata": dict(self.metadata),
+        }
+
+
+@dataclass(frozen=True)
+class PedestrianScenarioDefinition:
+    """Deployment specification for a pedestrian agent in a scenario."""
+
+    pedestrian_id: str
+    initial_position: tuple[float, float]
+    destination_point: tuple[float, float]
+    crosswalk_id: Optional[str] = None
+    initial_heading_rad: float = 0.0
+    initial_speed_mps: float = 0.0
+    walking_speed_mps: float = 1.4
+    max_speed_mps: float = 2.0
+    length_m: float = 0.6
+    width_m: float = 0.6
+    arrival_tolerance_m: float = 0.5
+    waiting_distance_m: float = 1.5
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize pedestrian definition to dictionary."""
+        return {
+            "pedestrian_id": self.pedestrian_id,
+            "initial_position": list(self.initial_position),
+            "destination_point": list(self.destination_point),
+            "crosswalk_id": self.crosswalk_id,
+            "initial_heading_rad": round(self.initial_heading_rad, 4),
+            "initial_speed_mps": round(self.initial_speed_mps, 4),
+            "walking_speed_mps": round(self.walking_speed_mps, 4),
+            "max_speed_mps": round(self.max_speed_mps, 4),
+            "length_m": round(self.length_m, 4),
+            "width_m": round(self.width_m, 4),
+            "arrival_tolerance_m": round(self.arrival_tolerance_m, 4),
+            "waiting_distance_m": round(self.waiting_distance_m, 4),
+            "metadata": dict(self.metadata),
+        }
+
+
+@dataclass(frozen=True)
 class ScenarioDefinition:
     """Authoritative declaration of a complete simulation scenario."""
 
@@ -152,6 +220,8 @@ class ScenarioDefinition:
     road_network: RoadNetworkDefinition
     vehicles: tuple[VehicleScenarioDefinition, ...]
     signals: tuple[TrafficSignalScenarioDefinition, ...] = field(default_factory=tuple)
+    pedestrians: tuple[PedestrianScenarioDefinition, ...] = field(default_factory=tuple)
+    crosswalks: tuple[CrosswalkScenarioDefinition, ...] = field(default_factory=tuple)
     time_step_s: float = 0.1
     max_ticks: Optional[int] = None
     max_duration_s: Optional[float] = None
@@ -183,6 +253,8 @@ class ScenarioDefinition:
             "road_network": self.road_network.to_dict(),
             "vehicles": [v.to_dict() for v in self.vehicles],
             "signals": [s.to_dict() for s in self.signals],
+            "pedestrians": [p.to_dict() for p in self.pedestrians],
+            "crosswalks": [c.to_dict() for c in self.crosswalks],
             "time_step_s": round(self.time_step_s, 6),
             "max_ticks": self.max_ticks,
             "max_duration_s": (

@@ -72,6 +72,8 @@ class SafetyConfig:
     near_miss_distance_m: float = 4.0
     touching_is_overlap: bool = True
     log_events: bool = True
+    pedestrian_length_m: float = 0.6
+    pedestrian_width_m: float = 0.6
 
     def __post_init__(self) -> None:
         """Validate numeric bounds and monotonic ordering invariants."""
@@ -86,6 +88,8 @@ class SafetyConfig:
             ("ttc_high_risk_s", self.ttc_high_risk_s),
             ("ttc_caution_s", self.ttc_caution_s),
             ("near_miss_distance_m", self.near_miss_distance_m),
+            ("pedestrian_length_m", self.pedestrian_length_m),
+            ("pedestrian_width_m", self.pedestrian_width_m),
         ]
         for name, val in numeric_fields:
             if not isinstance(val, (int, float)):
@@ -106,6 +110,18 @@ class SafetyConfig:
                 f"min_separation_m must be strictly positive, got {self.min_separation_m}.",
                 param_name="min_separation_m",
                 param_value=self.min_separation_m,
+            )
+        if self.pedestrian_length_m <= 0.0:
+            raise InvalidSafetyConfigError(
+                f"pedestrian_length_m must be strictly positive, got {self.pedestrian_length_m}.",
+                param_name="pedestrian_length_m",
+                param_value=self.pedestrian_length_m,
+            )
+        if self.pedestrian_width_m <= 0.0:
+            raise InvalidSafetyConfigError(
+                f"pedestrian_width_m must be strictly positive, got {self.pedestrian_width_m}.",
+                param_name="pedestrian_width_m",
+                param_value=self.pedestrian_width_m,
             )
         if self.reaction_time_s < 0.0:
             raise InvalidSafetyConfigError(
@@ -177,6 +193,8 @@ class SafetyConfig:
             "near_miss_distance_m": self.near_miss_distance_m,
             "touching_is_overlap": self.touching_is_overlap,
             "log_events": self.log_events,
+            "pedestrian_length_m": self.pedestrian_length_m,
+            "pedestrian_width_m": self.pedestrian_width_m,
         }
 
 
@@ -205,7 +223,9 @@ class VehicleControlOverride:
 
 @dataclass(frozen=True)
 class VehiclePairCollision:
-    """Deterministic evaluation outcome between a canonical pair of vehicles."""
+    """Deterministic evaluation outcome between a canonical pair of vehicles or
+    a vehicle and pedestrian.
+    """
 
     vehicle_a_id: str
     vehicle_b_id: str
@@ -220,6 +240,8 @@ class VehiclePairCollision:
     recommended_action_b: SafetyActionType
     action_a_decel: float
     action_b_decel: float
+    is_pedestrian_conflict: bool = False
+    pedestrian_id: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize pair evaluation to dictionary."""
@@ -237,6 +259,8 @@ class VehiclePairCollision:
             "recommended_action_b": self.recommended_action_b.value,
             "action_a_decel": round(self.action_a_decel, 4),
             "action_b_decel": round(self.action_b_decel, 4),
+            "is_pedestrian_conflict": self.is_pedestrian_conflict,
+            "pedestrian_id": self.pedestrian_id,
         }
 
 
@@ -246,7 +270,7 @@ class SafetyEvent:
 
     event_id: str
     sim_time_s: float
-    vehicle_ids: tuple[str, str]
+    vehicle_ids: tuple[str, ...]
     event_type: SafetyEventType
     risk_category: CollisionRiskLevel
     measured_separation_m: float
@@ -256,6 +280,7 @@ class SafetyEvent:
     is_overlap: bool
     edge_context: Optional[str] = None
     scenario_id: Optional[str] = None
+    pedestrian_id: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize safety event to a plain JSON-compatible dictionary."""
@@ -274,4 +299,5 @@ class SafetyEvent:
             "is_overlap": self.is_overlap,
             "edge_context": self.edge_context,
             "scenario_id": self.scenario_id,
+            "pedestrian_id": self.pedestrian_id,
         }

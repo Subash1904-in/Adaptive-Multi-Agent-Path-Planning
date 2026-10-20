@@ -753,7 +753,99 @@ Adaptive rerouting is integrated directly into `SimulationEngine.step()`:
 ### 11.7 Scope Boundaries with Future Phases
 - **Phase 15 Scope**: Vehicle-private dynamic costs, congestion/closure/hazard route evaluation, cooldown/hysteresis prevention of route flapping, safe active route replacement, and atomic rollback.
 - **Strictly Deferred**:
-  - **No Collision Avoidance (Phase 16)**: Maneuvering and braking to avoid vehicle collisions remain deferred.
   - **No Emergency Priority (Phase 18)**: Emergency vehicle corridor creation and yielding remain deferred.
+
+---
+
+## 12. Collision Detection, Safe Separation, and Collision Avoidance (Phase 16)
+
+### 12.1 Core Architectural Principles
+Phase 16 establishes the safety subsystem (`apps.core.safety`), providing:
+- **2D Oriented Bounding Box (OBB) & SAT Overlap Detection**: Uses the Separating Axis Theorem (SAT) over 4 normal projection axes to evaluate polygon intersection with exact geometric separation distance.
+- **Kinematic Relative Motion & Closing Speed**: Vector projection of relative velocity along displacement to classify closing, receding, and parallel agents.
+- **Safe Separation Distance Policy**: Headway calculated as $d_{\text{safe}} = d_0 + v_{\text{rel}}^{+} T_r + \frac{v^2}{2 a_{\text{brake}}}$.
+- **Time-to-Collision (TTC) Estimation**: Deterministic $\text{TTC} = d_{\text{separation}} / v_{\text{closing}}$.
+- **5-Tier Risk Classification**: Deterministically categorizes conflicts into `COLLISION`, `IMMINENT` ($\text{TTC} \le 1.5\text{s}$), `HIGH_RISK` ($\text{TTC} \le 3.0\text{s}$), `CAUTION` ($\text{TTC} \le 5.0\text{s}$), and `SAFE`.
+- **Conservative Simultaneous Conflict Resolution**: Strongest deceleration override wins when vehicles face multiple conflicts, obeying acceleration and deceleration physical bounds.
+- **SimulationEngine Integration & Atomic Rollback**: Pre-tick snapshots capture vehicle state and safety metrics; failure restores all states atomically.
+
+---
+
+## 13. Pedestrian Agents, Crosswalks, and Traffic-Signal Interaction (Phase 17)
+
+### 13.1 Pedestrian Agent State Machine and Lifecycle
+Phase 17 introduces typed pedestrian agents in `apps.core.pedestrians` governed by a validated finite-state machine (`PedestrianLifecycleState`):
+- `IDLE`: Initialized, waiting to begin journey.
+- `APPROACHING_CROSSWALK`: Moving toward crosswalk entry waiting area.
+- `WAITING_TO_CROSS`: Positioned at waiting area, yielding to opposing traffic signal (`DONT_WALK`).
+- `CROSSING`: Permitted to cross under `WALK` or clearing under active clearance policy.
+- `WALKING`: Traversing sidewalk or unsignalized corridor.
+- `ARRIVED`: Reached final destination curb or node; halted.
+- `BLOCKED`: Traversal physically prevented.
+
+Transitions are validated via `validate_pedestrian_transition(from_state, to_state)` ensuring illegal jumps (e.g. `ARRIVED` to `CROSSING`) raise `InvalidPedestrianStateError`.
+
+### 13.2 Pedestrian Kinematics & Bounded Walking Velocity
+Pedestrians execute bounded, goal-directed 2D planar motion:
+- **Kinematic Bounds**: Speed $v \in [v_{\min}, v_{\max}]$ with standard default $1.2\text{ m/s}$ (bounded in $[0.5, 2.5]\text{ m/s}$).
+- **Target Stepping & Overshoot Prevention**: Given current position $\mathbf{p}_t$, destination $\mathbf{p}_{\text{dest}}$, and step duration $\Delta t$, distance to target $d = \|\mathbf{p}_{\text{dest}} - \mathbf{p}_t\|$. If $v \Delta t \ge d$, the pedestrian snaps precisely to $\mathbf{p}_{\text{dest}}$ and transitions to `ARRIVED`, eliminating positional overshoot or oscillating stepping artifacts.
+
+### 13.3 Crosswalk Corridor Model & 2D Vector Projection
+Crosswalks (`Crosswalk`) are modeled as geometric rectangular corridors connecting entry point $\mathbf{p}_{\text{entry}}$ to exit point $\mathbf{p}_{\text{exit}}$ with width $W$ (default $4.0\text{m}$) and curb waiting radius $R_{\text{wait}}$ (default $2.5\text{m}$):
+- **Corridor Vector**: Unit longitudinal direction $\hat{\mathbf{u}} = (\mathbf{p}_{\text{exit}} - \mathbf{p}_{\text{entry}}) / L$.
+- **Lateral Unit Vector**: $\hat{\mathbf{w}} = (-\hat{u}_y, \hat{u}_x)$.
+- **Corridor Bounds**: A 2D point $\mathbf{p}$ lies inside the crosswalk if:
+  $$s_{\text{long}} = (\mathbf{p} - \mathbf{p}_{\text{entry}}) \cdot \hat{\mathbf{u}} \in [0, L] \quad \text{and} \quad |s_{\text{lat}}| = |(\mathbf{p} - \mathbf{p}_{\text{entry}}) \cdot \hat{\mathbf{w}}| \le W / 2$$
+- **Waiting Area**: A pedestrian is at the waiting area if $\|\mathbf{p} - \mathbf{p}_{\text{entry}}\| \le R_{\text{wait}}$.
+
+### 13.4 Signal Integration & Clearance Policy
+Crosswalks optionally bind to an intersection `TrafficSignal` via `signal_id` or `node_id`:
+- **Indication Mapping**:
+  - Vehicle Signal `RED` $\longrightarrow$ Pedestrian `WALK` (crossing permitted).
+  - Vehicle Signal `YELLOW` $\longrightarrow$ Pedestrian `CLEARANCE` (flashing don't walk).
+  - Vehicle Signal `GREEN` $\longrightarrow$ Pedestrian `DONT_WALK` (crossing prohibited).
+  - Unsignalized Crosswalk $\longrightarrow$ Always `WALK`.
+- **Clearance Policy**: When a pedestrian is already in the `CROSSING` state within the crosswalk corridor and the traffic signal transitions to `CLEARANCE` or `DONT_WALK`, the pedestrian **continues walking across the corridor to the exit curb**. They are never stranded, teleported, or abruptly set to `BLOCKED` mid-street.
+- **Entry Policy**: Pedestrians in `WAITING_TO_CROSS` or `APPROACHING_CROSSWALK` state enter the crosswalk only when the pedestrian indication is strictly `WALK`.
+
+### 13.5 Vehicle-Pedestrian Conflict Detection & Braking Overrides
+Vehicle–pedestrian interactions are integrated into the Phase 16 SAT OBB safety subsystem:
+- **Pedestrian Bounding Box**: Pedestrians are modeled as oriented bounding boxes with length $0.6\text{m}$, width $0.6\text{m}$, and heading along their velocity vector (`OrientedBoundingBox2D.from_pedestrian`).
+- **Vehicle-Pedestrian Evaluation (`CollisionDetector.evaluate_vehicle_pedestrian`)**:
+  - Evaluates geometric separation distance $d_{\text{sep}}$ and closing velocity $v_{\text{closing}}$.
+  - Detects physical overlap (`COLLISION`) and computes TTC.
+  - Classifies risk levels (`IMMINENT`, `HIGH_RISK`, `CAUTION`, `SAFE`).
+  - Recommends controlled strong braking (`STRONG_BRAKE`) or emergency stop (`EMERGENCY_BRAKE`).
+- **SafetyManager Integration**: Evaluates all vehicle–pedestrian pairs alongside vehicle–vehicle pairs, applies conservative braking overrides to vehicles, and logs immutable `SafetyEvent` records referencing `pedestrian_id`.
+
+### 13.6 Authoritative Single-Clock Execution Sequence in SimulationEngine
+`SimulationEngine.step()` enforces a strictly deterministic execution sequence per tick:
+1. **Safety Pre-Tick Evaluation**: Evaluates pairwise vehicle–vehicle and vehicle–pedestrian conflicts based on initial tick positions; stages braking overrides.
+2. **Pre-Tick Rollback Snapshot**: Captures state for all vehicles, routes, communication networks, coordination stores, adaptive routers, traffic signals, safety metrics, and pedestrian agents.
+3. **Adaptive Rerouting & V2V Processing**: Inboxes processed, beliefs updated, routes adapted.
+4. **Pedestrian Stepping**: Each pedestrian observes current crosswalk signal state, executes lifecycle transitions, advances along their trajectory, and updates pedestrian metrics.
+5. **Vehicle Kinematics Stepping**: Vehicles advance along their routes subject to safety braking overrides and speed limits.
+6. **Traffic Signal Progression**: Signal controllers advance cycle elapsed time according to the single simulation clock.
+7. **Post-Tick Metric Aggregation & Snapshot Capture**: `WorldSnapshot` and `TickResult` assembled with vehicle, pedestrian, signal, and crosswalk states.
+
+### 13.7 Atomic Rollback Guarantees
+If an exception occurs during stepping:
+- Every pedestrian agent is restored via `restore_state(snapshot)`.
+- All vehicle kinematics, routes, V2V networks, knowledge stores, safety overrides, and pedestrian metrics are restored to the exact pre-tick baseline.
+- `SimulationEngine` re-raises `SimulationStepError` ensuring zero partial-state corruption.
+
+### 13.8 Pedestrian Cumulative and Point-in-Time Metrics
+`PedestrianMetrics` tracks:
+- `active_pedestrians`, `waiting_pedestrians`, `crossing_pedestrians`, `arrived_pedestrians`, `blocked_pedestrians`.
+- `total_distance_m`, `total_waiting_time_s`, `total_crossing_time_s`.
+- `completed_crossings`, `crosswalk_conflicts`, `near_misses`, `collisions`.
+
+### 13.9 Scope Boundaries with Future Phases
+- **Phase 17 Scope**: Typed pedestrian agents, bounded kinematics, crosswalk corridor model, traffic signal integration, clearance policy, vehicle-pedestrian SAT OBB conflict detection & braking overrides, atomic rollback, and scenario builder support.
+- **Strictly Deferred**:
+  - **No Emergency Vehicles (Phase 18)**: Emergency vehicles and priority yielding deferred to Phase 18.
+  - **No Reinforcement Learning (Phases 32–34)**.
+  - **No Frontend 3D Visualizer (Phases 23–25)**.
+
 
 

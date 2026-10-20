@@ -72,6 +72,9 @@ class WorldSnapshot:
     coordination: Optional[dict[str, Any]] = None
     routing: Optional[dict[str, Any]] = None
     safety: Optional[dict[str, Any]] = None
+    pedestrians: dict[str, Any] = field(default_factory=dict)
+    crosswalks: dict[str, Any] = field(default_factory=dict)
+    pedestrian_metrics: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize world snapshot to a plain JSON-compatible dictionary."""
@@ -110,6 +113,17 @@ class WorldSnapshot:
             "coordination": coord_dict,
             "routing": routing_dict,
             "safety": safety_dict,
+            "pedestrians": {
+                pid: snap.to_dict() if hasattr(snap, "to_dict") else snap
+                for pid, snap in self.pedestrians.items()
+            },
+            "crosswalks": {
+                cwid: cw.to_dict() if hasattr(cw, "to_dict") else cw
+                for cwid, cw in self.crosswalks.items()
+            },
+            "pedestrian_metrics": (
+                dict(self.pedestrian_metrics) if self.pedestrian_metrics else None
+            ),
             "metadata": dict(self.metadata),
         }
 
@@ -132,6 +146,8 @@ class TickResult:
     routing_decisions: Optional[list[dict[str, Any]]] = None
     safety_metrics: Optional[dict[str, Any]] = None
     safety_events: Optional[list[dict[str, Any]]] = None
+    pedestrian_step_results: dict[str, Any] = field(default_factory=dict)
+    pedestrian_metrics: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize tick result to a plain JSON-compatible dictionary."""
@@ -162,6 +178,13 @@ class TickResult:
             ),
             "safety_events": (
                 list(self.safety_events) if self.safety_events else None
+            ),
+            "pedestrian_step_results": {
+                pid: res.to_dict() if hasattr(res, "to_dict") else res
+                for pid, res in self.pedestrian_step_results.items()
+            },
+            "pedestrian_metrics": (
+                dict(self.pedestrian_metrics) if self.pedestrian_metrics else None
             ),
             "arrived_agent_ids": list(self.arrived_agent_ids),
             "active_agent_ids": list(self.active_agent_ids),

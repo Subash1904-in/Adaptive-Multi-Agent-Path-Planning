@@ -7,7 +7,7 @@ and squared-distance broadphase filtering.
 
 import math
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 from apps.core.domain.models import Vehicle
 from apps.core.domain.values import Dimensions2D, Position2D
@@ -185,6 +185,42 @@ class OrientedBoundingBox2D:
             heading_rad=vehicle.heading_rad,
             vehicle_id=vehicle.id,
         )
+
+    @classmethod
+    def from_pedestrian(
+        cls,
+        pedestrian: Any,
+        length_m: float = 0.6,
+        width_m: float = 0.6,
+    ) -> "OrientedBoundingBox2D":
+        """Construct an OrientedBoundingBox2D from a pedestrian agent entity.
+
+        Args:
+            pedestrian: PedestrianAgent or compatible entity.
+            length_m: Default longitudinal depth if not configured on agent.
+            width_m: Default lateral width if not configured on agent.
+
+        Returns:
+            OrientedBoundingBox2D matching pedestrian position, dimensions, and heading.
+        """
+        pos = pedestrian.position
+        cx = pos.x if hasattr(pos, "x") else float(pos[0])
+        cy = pos.y if hasattr(pos, "y") else float(pos[1])
+        heading = getattr(pedestrian, "heading_rad", 0.0)
+        cfg = getattr(pedestrian, "config", None)
+        l_m = getattr(cfg, "length_m", length_m) if cfg is not None else length_m
+        w_m = getattr(cfg, "width_m", width_m) if cfg is not None else width_m
+        pid = getattr(pedestrian, "pedestrian_id", getattr(pedestrian, "id", "pedestrian"))
+
+        return cls(
+            center_x=cx,
+            center_y=cy,
+            length_m=l_m,
+            width_m=w_m,
+            heading_rad=heading,
+            vehicle_id=pid,
+        )
+
 
 
 def check_obb_overlap_sat(

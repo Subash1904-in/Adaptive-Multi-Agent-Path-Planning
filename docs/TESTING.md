@@ -197,17 +197,42 @@ python backend/manage.py check
   - Safe separation distance computation with reaction time and braking distance terms.
   - Time-To-Collision (TTC) estimation with non-closing / receding vehicle safety bounds.
   - 5-tier risk classification: `COLLISION`, `IMMINENT`, `HIGH_RISK`, `CAUTION`, `SAFE`.
-  - Canonical sorted pair evaluation and self-pairing rejection.
+- **Pedestrian Models & Kinematics (`test_pedestrian_models_and_kinematics.py`, 12 passed)**
+  - Pedestrian lifecycle states (`IDLE`, `APPROACHING_CROSSWALK`, `WAITING_TO_CROSS`, `CROSSING`, `WALKING`, `ARRIVED`, `BLOCKED`).
+  - Strict transition validation (`validate_pedestrian_transition`) and error handling (`InvalidPedestrianStateError`).
+  - Bounded velocity kinematics, target snapping at destination, and zero-overshoot guarantees.
+  - Serialization (`to_dict()`) and deserialization compatibility.
+- **Pedestrian Crosswalk Geometry & Projection (`test_pedestrian_crosswalk.py`, 10 passed)**
+  - 2D crosswalk corridor modeling between entry and exit curb points.
+  - Longitudinal and lateral unit vector projections.
+  - `is_point_inside` corridor boundary determination.
+  - Waiting area proximity evaluation (`is_at_waiting_area`).
+  - Signal state translation (`RED` -> `WALK`, `YELLOW` -> `CLEARANCE`, `GREEN` -> `DONT_WALK`; unsignalized -> `WALK`).
+- **Signal Interaction & Clearance Policy (`test_pedestrian_signal_interaction.py`, 6 passed)**
+  - Pedestrians in `WAITING_TO_CROSS` yield at entry curb while traffic signal is `GREEN` (`DONT_WALK`).
+  - Pedestrians enter crosswalk and transition to `CROSSING` once signal switches to `RED` (`WALK`).
+  - Robust clearance policy: Pedestrians in `CROSSING` state continue walking across the corridor to exit curb upon signal change to `DONT_WALK` (no mid-street stranding or teleportation).
+  - Vehicles continue respecting red signals in the presence of pedestrians.
+  - Order-independent pedestrian registration and deterministic replay.
+- **Vehicle-Pedestrian Safety & Collisions (`test_pedestrian_safety_and_collisions.py`, 7 passed)**
+  - Bounding box creation for pedestrians (`OrientedBoundingBox2D.from_pedestrian`).
+  - Vehicle-pedestrian conflict detection, separation distance, and TTC estimation via SAT OBB.
+  - 5-tier safety risk classification (`COLLISION`, `IMMINENT`, `HIGH_RISK`, `CAUTION`, `SAFE`).
+  - Controlled strong braking and emergency stopping overrides applied to vehicles for crossing pedestrians.
+  - `SafetyManager` logs immutable `SafetyEvent` records referencing `pedestrian_id`.
+  - Truthful recording of unavoidable collisions.
+- **Simulation Engine Integration & Atomic Rollback (`test_pedestrian_engine_integration.py`, 6 passed)**
+  - Single-clock progression: pedestrian stepping and metric updates in authoritative `SimulationEngine.step()`.
+  - Pre-tick snapshot capture and atomic rollback: failure restores all pedestrian agents to exact previous state.
+  - `WorldState.reset()` cleanly restores pedestrians, crosswalks, vehicles, and signals to scenario baseline.
+  - Full tick result and world snapshot generation including pedestrian state dictionaries.
+- **Pedestrian Scenario Orchestration (`test_pedestrian_scenarios.py`, 4 passed)**
+  - Scenario validation and building for crosswalks and pedestrian definitions.
+  - Execution of Phase 17 scenario templates: waiting at red signal, crossing permitted, vehicle braking for pedestrian, unavoidable collision.
+- **Safety Geometry & SAT Overlap (`test_safety_geometry.py`, 18 passed)**
+- **Safety Detection, TTC & Pairwise Classification (`test_safety_detection_and_ttc.py`, 13 passed)**
 - **Safety Policy & Simultaneous Conflict Resolution (`test_safety_policy.py`, 9 passed)**
-  - Braking action selection (`GENTLE_BRAKE`, `STRONG_BRAKE`, `EMERGENCY_BRAKE`).
-  - Kinematic bounds clamping (acceleration never exceeds vehicle deceleration capability; speed cannot become negative).
-  - Conservative multi-conflict resolution: selects strongest deceleration override regardless of pair iteration order.
-  - SafetyMetrics cumulative recording, snapshot capture, and atomic restoration.
 - **Safety Engine Integration, Deterministic Scenarios & Rollback (`test_safety_engine_integration.py`, 8 passed)**
-  - End-to-end SimulationEngine.step() safety evaluation from frozen pre-tick world snapshots.
-  - Normal acceleration override verification under elevated risk.
-  - Atomic rollback: failure during agent step restores pre-tick vehicle positions, speeds, routing, comms, and safety metrics without double-counting.
-  - Deterministic execution of Phase 16 scenario templates: head-on collision avoidance, rear-end headway protection, intersection crossing conflict, unavoidable collision, and replay reproducibility.
 - **Adaptive Dynamic Costs & Edge Evaluation (`test_routing_dynamic_costs.py`, 17 passed)**
 - **Adaptive Rerouting Policy & Cooldowns (`test_routing_adaptive_policy.py`, 13 passed)**
 - **Safe Active Route Replacement (`test_routing_replacement.py`, 7 passed)**
@@ -261,8 +286,8 @@ python backend/manage.py check
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 16: **96%** coverage across 808 passing tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_16.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 17: **96%** coverage across 853 passing tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_17.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend Deferred Cleanly:** Frontend build/lint/typecheck job runs in Node 22.x, deferring execution cleanly until `frontend/package.json` is introduced.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.

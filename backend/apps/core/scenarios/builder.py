@@ -17,6 +17,9 @@ from apps.core.graph.osm_models import OSMImportConfig
 from apps.core.graph.osm_service import import_osm_road_network
 from apps.core.graph.road_graph import RoadGraph
 from apps.core.kinematics.vehicle_agent import VehicleAgent
+from apps.core.pedestrians.agent import PedestrianAgent
+from apps.core.pedestrians.crosswalk import Crosswalk
+from apps.core.pedestrians.models import PedestrianConfig
 from apps.core.routing.exceptions import NoPathFoundError
 from apps.core.routing.planner import RoutePlanner
 from apps.core.scenarios.exceptions import (
@@ -124,6 +127,12 @@ class ScenarioBuilder:
 
         # 6. Explicit traffic signal registration
         self._register_signals(world, graph)
+
+        # 6.5. Explicit crosswalk registration
+        self._register_crosswalks(world)
+
+        # 6.7. Pedestrian agent registration
+        self._register_pedestrians(world)
 
         # 7. Route planning and vehicle agent registration
         excluded_vehicles: list[str] = []
@@ -289,3 +298,60 @@ class ScenarioBuilder:
                     scenario_id=self.scenario.metadata.id,
                     cause=exc,
                 ) from exc
+
+    def _register_crosswalks(self, world: WorldState) -> None:
+        """Register crosswalks defined in the scenario definition."""
+        sorted_crosswalks = sorted(self.scenario.crosswalks, key=lambda c: c.crosswalk_id)
+        for cw_def in sorted_crosswalks:
+            try:
+                crosswalk = Crosswalk(
+                    crosswalk_id=cw_def.crosswalk_id,
+                    entry_point=cw_def.entry_point,
+                    exit_point=cw_def.exit_point,
+                    width_m=cw_def.width_m,
+                    associated_intersection_id=cw_def.associated_intersection_id,
+                    associated_road_segment_ids=cw_def.associated_road_segment_ids,
+                    signal_controller_id=cw_def.signal_controller_id,
+                    walk_signal_phase=cw_def.walk_signal_phase,
+                    clearance_signal_phase=cw_def.clearance_signal_phase,
+                    metadata=cw_def.metadata,
+                )
+                world.register_crosswalk(crosswalk)
+            except Exception as exc:
+                raise ScenarioBuilderError(
+                    f"Failed to register crosswalk '{cw_def.crosswalk_id}': {exc}",
+                    scenario_id=self.scenario.metadata.id,
+                    cause=exc,
+                ) from exc
+
+    def _register_pedestrians(self, world: WorldState) -> None:
+        """Register pedestrian agents defined in the scenario definition."""
+        sorted_pedestrians = sorted(self.scenario.pedestrians, key=lambda p: p.pedestrian_id)
+        for ped_def in sorted_pedestrians:
+            try:
+                config = PedestrianConfig(
+                    walking_speed_mps=ped_def.walking_speed_mps,
+                    max_speed_mps=ped_def.max_speed_mps,
+                    length_m=ped_def.length_m,
+                    width_m=ped_def.width_m,
+                    arrival_tolerance_m=ped_def.arrival_tolerance_m,
+                    waiting_distance_m=ped_def.waiting_distance_m,
+                )
+                ped_agent = PedestrianAgent(
+                    pedestrian_id=ped_def.pedestrian_id,
+                    initial_position=ped_def.initial_position,
+                    destination_point=ped_def.destination_point,
+                    crosswalk_id=ped_def.crosswalk_id,
+                    config=config,
+                    initial_heading_rad=ped_def.initial_heading_rad,
+                    initial_speed_mps=ped_def.initial_speed_mps,
+                )
+                ped_agent.start()
+                world.register_pedestrian(ped_agent)
+            except Exception as exc:
+                raise ScenarioBuilderError(
+                    f"Failed to register pedestrian '{ped_def.pedestrian_id}': {exc}",
+                    scenario_id=self.scenario.metadata.id,
+                    cause=exc,
+                ) from exc
+
