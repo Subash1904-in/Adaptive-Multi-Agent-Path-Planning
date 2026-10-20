@@ -510,4 +510,3 @@ class SimulatedCommunicationNetwork:
         if not self.config.enabled or self.neighbor_manager is None:
             return
         self.neighbor_manager.perform_maintenance(current_time_s)
-

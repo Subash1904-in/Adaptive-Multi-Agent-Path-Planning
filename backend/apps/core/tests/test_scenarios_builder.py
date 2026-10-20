@@ -270,4 +270,3 @@ def test_builder_fails_on_agent_creation_error(monkeypatch):
     monkeypatch.setattr("apps.core.scenarios.builder.VehicleAgent", bad_agent)
     with pytest.raises(ScenarioBuilderError, match="Failed to instantiate agent"):
         builder.build()
-

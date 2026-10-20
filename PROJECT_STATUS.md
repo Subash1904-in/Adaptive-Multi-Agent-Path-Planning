@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 12 (Dynamic Neighbor Tables, Heartbeats, and Neighbor Loss Detection)
+- **Current Phase:** Phase 13 (Decentralized V2V Coordination and Shared Traffic Knowledge)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 13 (Decentralized V2V Coordination) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 14 (Communication Failures, Latency, and Network Degradation) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-20
 
 ---
@@ -27,7 +27,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 10** | **Scenario orchestration and simulation configuration** | **COMPLETED** | Typed scenario configuration, builder assembly, execution runner, deterministic replay, 485 tests passed (97.14% coverage). |
 | **Phase 11** | **V2V communication protocol and spatial peer discovery** | **COMPLETED** | Typed V2V message protocol, spatial peer discovery ($d \le R$, 50m default), in-memory network, periodic broadcast scheduler, metrics, atomic rollback, 586 tests passed (96.70% coverage). |
 | **Phase 12** | **Dynamic neighbor tables, heartbeats, and loss detection** | **COMPLETED** | Per-vehicle neighbor tables, simulation-time heartbeats, stale-neighbor transitions ($t_{\text{now}} - t_{\text{last\_hb}} \ge T_{\text{timeout}}$), grace-period removal, atomic rollback, 624 tests passed (96.78% coverage). |
-| **Phase 13** | Decentralized V2V coordination | Pending | P2P sharing of congestion, incidents, hazards; private agent knowledge stores. |
+| **Phase 13** | **Decentralized V2V coordination** | **COMPLETED** | Vehicle-private knowledge stores, typed reports, deterministic belief fusion, multi-hop dissemination, atomic rollback, 676 tests passed (96% coverage). |
 
 | **Phase 14** | Communication failures and recovery | Pending | Configurable latency, packet loss, disconnection, timeout, fallback to local sensors. |
 | **Phase 15** | Adaptive rerouting | Pending | Dynamic route-cost updates, reroute on closure/accident/congestion, cooldown & oscillation prevention. |
@@ -113,22 +113,46 @@ This roadmap is strictly aligned with our agreed master development plan, divide
   - Added 38 automated tests (24 neighbor table unit, 8 heartbeat/timeout, 6 engine integration/rollback) bringing total test suite to 624 passing tests (96.78% coverage).
   - Documented full evidence in `docs/progress/PHASE_12.md`.
 
+- **Phase 13: Decentralized V2V Coordination and Shared Traffic Knowledge:**
+  - Implemented `apps.core.coordination` package for decentralized, privacy-preserving information sharing.
+  - Implemented typed, immutable traffic reports: `CongestionReport`, `RoadClosureReport`, `HazardReport` with strict validation contracts.
+  - Implemented isolated `VehicleKnowledgeStore` per vehicle (strict local access, no omniscient global truth or cross-vehicle state leakage).
+  - Implemented belief-state model (`BeliefRecord`) tracking confidence ($0 \le c \le 1$), freshness, source attribution, evidence report IDs, and dispute status.
+  - Implemented deterministic information fusion (`InformationFusion`) with canonical sorting for order-invariant fusion, bounded corroboration boost without duplicate inflation, and deterministic road-closure / reopening conflict resolution.
+  - Implemented V2V dissemination (`DisseminationManager`) supporting multi-hop propagation, hop limits (`max_forwarding_hops`), relay path tracking, forwarding caches, and strict cycle/loop prevention.
+  - Integrated coordination subsystem with `WorldState` and `SimulationEngine` (`pre-tick` state rollback, inbox processing, report forwarding, and periodic expiration).
+  - Enforced route immobility invariant: receiving traffic reports updates local knowledge and beliefs only; vehicle routes and kinematics remain strictly unchanged.
+  - Extended atomic rollback guarantees: full restoration of all vehicle knowledge stores, belief records, sequence counters, and coordination metrics on stepping failure.
+  - Added 52 automated tests bringing total test suite to 676 passing tests (96% coverage).
+  - Documented full evidence in `docs/progress/PHASE_13.md`.
+
 ---
 
-## 4. Files Created or Modified (Phase 12)
+## 4. Files Created or Modified (Phase 13)
 - **Created:**
-  - `backend/apps/core/communication/neighbors.py`
-  - `backend/apps/core/tests/test_communication_neighbors.py`
-  - `backend/apps/core/tests/test_communication_heartbeat.py`
-  - `backend/apps/core/tests/test_communication_neighbors_integration.py`
-  - `docs/progress/PHASE_12.md`
+  - `backend/apps/core/coordination/__init__.py`
+  - `backend/apps/core/coordination/models.py`
+  - `backend/apps/core/coordination/exceptions.py`
+  - `backend/apps/core/coordination/fusion.py`
+  - `backend/apps/core/coordination/knowledge.py`
+  - `backend/apps/core/coordination/dissemination.py`
+  - `backend/apps/core/coordination/manager.py`
+  - `backend/apps/core/tests/test_coordination_models.py`
+  - `backend/apps/core/tests/test_coordination_knowledge.py`
+  - `backend/apps/core/tests/test_coordination_fusion.py`
+  - `backend/apps/core/tests/test_coordination_dissemination.py`
+  - `backend/apps/core/tests/test_coordination_engine_integration.py`
+  - `docs/progress/PHASE_13.md`
 - **Modified:**
-  - `backend/apps/core/communication/exceptions.py`
   - `backend/apps/core/communication/models.py`
-  - `backend/apps/core/communication/network.py`
-  - `backend/apps/core/communication/__init__.py`
-  - `backend/apps/core/simulation/engine.py`
+  - `backend/apps/core/simulation/models.py`
   - `backend/apps/core/simulation/world.py`
+  - `backend/apps/core/simulation/engine.py`
+  - `backend/apps/core/scenarios/models.py`
+  - `backend/apps/core/scenarios/validation.py`
+  - `backend/apps/core/scenarios/builder.py`
+  - `backend/apps/core/scenarios/examples.py`
+  - `backend/apps/core/scenarios/__init__.py`
   - `.github/workflows/ci.yml`
   - `PROJECT_STATUS.md`
   - `ARCHITECTURE.md`
@@ -141,11 +165,16 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ## 5. Commands Executed and Actual Results
 1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
 2. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `624 passed in 6.32s`, `96.78% coverage` (exit code 0).
+3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `676 passed in 9.32s`, `96% coverage` (exit code 0).
 
 ---
 
 ## 6. Test Results
+- **Coordination Models & Reports (`test_coordination_models.py`):** 21 passed.
+- **Vehicle Knowledge Stores (`test_coordination_knowledge.py`):** 11 passed.
+- **Deterministic Fusion & Conflicts (`test_coordination_fusion.py`):** 8 passed.
+- **Dissemination & Multi-Hop Forwarding (`test_coordination_dissemination.py`):** 5 passed.
+- **Simulation Engine Integration & Rollback (`test_coordination_engine_integration.py`):** 7 passed.
 - **Neighbor Tables & Coordinator (`test_communication_neighbors.py`):** 24 passed.
 - **Heartbeat Timing & Loss Detection (`test_communication_heartbeat.py`):** 8 passed.
 - **Neighbor Subsystem Engine Integration (`test_communication_neighbors_integration.py`):** 6 passed.
@@ -163,14 +192,14 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Road Graph & City Generator (`test_road_graph.py`, `test_city_generator.py`):** 41 passed.
 - **Domain Models, Values & Codecs (`test_domain_*.py`):** 105 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **624 passed, 0 failed in 6.32s**, **96.78% line coverage** (exceeds 80% threshold).
+- **Total:** **676 passed, 0 failed in 9.32s**, **96% line coverage** (exceeds 80% threshold).
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Dynamic neighbor tables, simulation-time heartbeats, and loss detection (`backend/apps/core/communication/neighbors.py`) complete, deterministic, and fully integrated with `WorldState` and `SimulationEngine`.
+- **Notes:** Decentralized V2V coordination and shared traffic knowledge (`backend/apps/core/coordination/`) complete, deterministic, and fully integrated with `WorldState` and `SimulationEngine`.
 
 ---
 

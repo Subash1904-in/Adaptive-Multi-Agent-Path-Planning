@@ -69,6 +69,7 @@ class WorldSnapshot:
     metadata: dict[str, Any]
     signals: dict[str, Any] = field(default_factory=dict)
     communication: Optional[dict[str, Any]] = None
+    coordination: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize world snapshot to a plain JSON-compatible dictionary."""
@@ -76,6 +77,11 @@ class WorldSnapshot:
             self.communication.to_dict()
             if hasattr(self.communication, "to_dict")
             else self.communication
+        )
+        coord_dict = (
+            self.coordination.to_dict()
+            if hasattr(self.coordination, "to_dict")
+            else self.coordination
         )
         return {
             "tick": self.tick,
@@ -89,6 +95,7 @@ class WorldSnapshot:
                 for sid, snap in self.signals.items()
             },
             "communication": comm_dict,
+            "coordination": coord_dict,
             "metadata": dict(self.metadata),
         }
 
@@ -106,6 +113,7 @@ class TickResult:
     active_agent_ids: list[str]
     signal_states: dict[str, Any] = field(default_factory=dict)
     communication_metrics: Optional[dict[str, int]] = None
+    coordination_metrics: Optional[dict[str, int]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize tick result to a plain JSON-compatible dictionary."""
@@ -121,6 +129,9 @@ class TickResult:
             },
             "communication_metrics": (
                 dict(self.communication_metrics) if self.communication_metrics else None
+            ),
+            "coordination_metrics": (
+                dict(self.coordination_metrics) if self.coordination_metrics else None
             ),
             "arrived_agent_ids": list(self.arrived_agent_ids),
             "active_agent_ids": list(self.active_agent_ids),

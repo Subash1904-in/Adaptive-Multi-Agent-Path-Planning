@@ -198,4 +198,3 @@ def test_runner_reset_failure_raises(monkeypatch):
     monkeypatch.setattr(runner.engine, "reset", bad_reset)
     with pytest.raises(ScenarioResetError):
         runner.reset()
-

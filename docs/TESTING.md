@@ -180,6 +180,11 @@ python backend/manage.py check
   - Bit-identical outcomes across separately constructed scenarios with identical configurations and seeds.
   - Bit-identical replay after `runner.reset()` (matching snapshots and results).
   - Tick-by-tick intermediate step result determinism (distances, speeds, headings, positions).
+- **Coordination Models & Reports (`test_coordination_models.py`, 21 passed)**
+- **Vehicle Knowledge Stores (`test_coordination_knowledge.py`, 11 passed)**
+- **Deterministic Fusion & Conflicts (`test_coordination_fusion.py`, 8 passed)**
+- **Dissemination & Multi-Hop Forwarding (`test_coordination_dissemination.py`, 5 passed)**
+- **Simulation Engine Integration & Rollback (`test_coordination_engine_integration.py`, 7 passed)**
 - **Neighbor Tables & Coordinator (`test_communication_neighbors.py`, 24 passed)**
 - **Heartbeat Timing & Loss Detection (`test_communication_heartbeat.py`, 8 passed)**
 - **Neighbor Subsystem Engine Integration (`test_communication_neighbors_integration.py`, 6 passed)**
@@ -221,8 +226,8 @@ python backend/manage.py check
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 12: **96.78%** coverage across 624 passing tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_12.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 13: **96%** coverage across 676 passing tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_13.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend Deferred Cleanly:** Frontend build/lint/typecheck job runs in Node 22.x, deferring execution cleanly until `frontend/package.json` is introduced.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.

@@ -256,7 +256,10 @@ def test_negative_initial_speed_raises(base_scenario):
 
 def test_invalid_kinematics_type_raises(base_scenario):
     bad_kin = VehicleScenarioDefinition(
-        vehicle_id="v", start_node_id="a", destination_node_id="b", kinematics="bad"  # type: ignore
+        vehicle_id="v",
+        start_node_id="a",
+        destination_node_id="b",
+        kinematics="bad",  # type: ignore
     )
     with pytest.raises(ScenarioValidationError, match="kinematics must be KinematicsConfig"):
         validate_scenario(

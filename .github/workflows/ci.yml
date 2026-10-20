@@ -45,6 +45,7 @@ jobs:
             "docs/progress/PHASE_10.md"
             "docs/progress/PHASE_11.md"
             "docs/progress/PHASE_12.md"
+            "docs/progress/PHASE_13.md"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"
@@ -112,7 +113,7 @@ jobs:
         run: |
           python backend/manage.py check
 
-      - name: Run Full Automated Test Suite with Coverage (Phases 2-12)
+      - name: Run Full Automated Test Suite with Coverage (Phases 2-13)
         shell: bash
         run: |
           pytest --cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80
@@ -141,6 +142,6 @@ jobs:
             npm run typecheck
             npm run build
           else
-            echo "Phase 12 verified: Dynamic Neighbor Tables, Heartbeats, and Neighbor Loss Detection active; frontend/package.json not yet declared. Node 22.x environment verified."
+            echo "Phase 13 verified: Decentralized V2V Coordination and Shared Traffic Knowledge active; frontend/package.json not yet declared. Node 22.x environment verified."
           fi
 

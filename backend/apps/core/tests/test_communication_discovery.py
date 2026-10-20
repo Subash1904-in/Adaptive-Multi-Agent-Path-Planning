@@ -53,8 +53,8 @@ class TestSpatialPeerDiscovery:
         sender_pos = Position2D(x=0.0, y=0.0)
         candidates = {
             "veh_boundary": Position2D(x=50.0, y=0.0),  # d = 50.0 == R
-            "veh_inside": Position2D(x=30.0, y=0.0),    # d = 30.0 < R
-            "veh_outside": Position2D(x=50.001, y=0.0), # d > R
+            "veh_inside": Position2D(x=30.0, y=0.0),  # d = 30.0 < R
+            "veh_outside": Position2D(x=50.001, y=0.0),  # d > R
         }
         peers = disc.find_peers("veh_sender", sender_pos, candidates)
         assert "veh_inside" in peers
@@ -68,8 +68,8 @@ class TestSpatialPeerDiscovery:
         candidates = {
             "veh_z": Position2D(x=10.0, y=0.0),  # d = 10
             "veh_a": Position2D(x=10.0, y=0.0),  # d = 10 (same distance as z, tie break 'a' < 'z')
-            "veh_m": Position2D(x=5.0, y=0.0),   # d = 5 (closest)
-            "veh_far": Position2D(x=40.0, y=0.0),# d = 40
+            "veh_m": Position2D(x=5.0, y=0.0),  # d = 5 (closest)
+            "veh_far": Position2D(x=40.0, y=0.0),  # d = 40
         }
         peers = disc.find_peers("veh_sender", sender_pos, candidates)
         assert peers == ["veh_m", "veh_a", "veh_z", "veh_far"]
@@ -97,7 +97,7 @@ class TestSpatialPeerDiscovery:
         candidates = {
             "veh_valid": Position2D(x=10.0, y=0.0),
             "veh_tuple": (10.0, 0.0),  # type: ignore[dict-item]
-            "veh_none": None,           # type: ignore[dict-item]
+            "veh_none": None,  # type: ignore[dict-item]
         }
         peers = disc.find_peers("veh_sender", sender_pos, candidates)
         assert peers == ["veh_valid"]
@@ -107,7 +107,7 @@ class TestSpatialPeerDiscovery:
         sender_pos = Position2D(x=1_000_000.0, y=2_000_000.0)
         candidates = {
             "veh_close": Position2D(x=1_000_010.0, y=2_000_010.0),  # d = ~14.14m <= 50m
-            "veh_far": Position2D(x=1_000_100.0, y=2_000_000.0),    # d = 100m > 50m
+            "veh_far": Position2D(x=1_000_100.0, y=2_000_000.0),  # d = 100m > 50m
         }
         peers = disc.find_peers("veh_sender", sender_pos, candidates)
         assert peers == ["veh_close"]

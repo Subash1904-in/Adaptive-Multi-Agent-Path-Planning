@@ -162,4 +162,3 @@ class InvalidUpdateIntervalError(CommunicationValidationError):
             msg, field="neighbor_update_interval_s", details={"interval_s": interval_s}
         )
         self.interval_s = interval_s
-

@@ -86,4 +86,3 @@ __all__ = [
     "deserialize_message",
     "serialize_message",
 ]
-

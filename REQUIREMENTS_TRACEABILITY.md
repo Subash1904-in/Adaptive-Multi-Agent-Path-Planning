@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 12 (Dynamic Neighbor Tables, Heartbeats, and Neighbor Loss Detection)  
+**Current Phase:** Phase 13 (Decentralized V2V Coordination and Shared Traffic Knowledge)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 12 (Dynamic Neighbor Tables, Heartbeats, and Neighbor Loss Detection):* Phase 12 implements dynamic, per-vehicle neighbor tables (`NeighborTable`) maintaining communication knowledge (`NeighborRecord`), simulation-time heartbeats and timeout loss detection ($t_{\text{now}} - t_{\text{last\_hb}} \ge T_{\text{timeout}}$), configurable stale and removal policies (`STALE_THEN_REMOVE`, `REMOVE_IMMEDIATELY`, `MARK_STALE`), deterministic sequence tracking, and atomic rollback integration across the simulation engine and world state (624 total tests passing, 96.78% line coverage). This fulfills the dynamic tracking layer for FR-01 (V2V Communication), FR-06 (Decentralized Vehicle Communication), FR-11 (Communication Range Detection), and FR-12 (Communication Failure Handling). Decentralized cooperative coordination (Phase 13), adaptive rerouting (Phase 15), and collision avoidance (Phase 16) remain deferred to their designated future phases.
+> *Note on Phase 13 (Decentralized V2V Coordination and Shared Traffic Knowledge):* Phase 13 implements vehicle-private knowledge stores (`VehicleKnowledgeStore`), typed traffic reports (`CongestionReport`, `RoadClosureReport`, `HazardReport`), deterministic order-invariant belief fusion (`InformationFusion`), bounded multi-hop dissemination (`DisseminationManager`), forwarding limits and cycle prevention, and atomic rollback integration across the simulation engine and world state (676 total tests passing, 96% line coverage). This fulfills the decentralized traffic knowledge sharing layer for FR-01 (V2V Communication) and FR-06 (Decentralized Vehicle Communication). Adaptive rerouting (Phase 15) and collision avoidance (Phase 16) remain deferred to their designated future phases.
 
 ---
 
@@ -18,12 +18,12 @@
 
 | Req # | Requirement Name | Implementation Modules | Target Phases | Current Status | Test Coverage |
 |---|---|---|---|---|---|
-| **FR-01** | Vehicle-to-Vehicle (V2V) Communication | `backend/apps/core/communication/` | Phase 11, 12, 13, 27 | `NOT STARTED` | Phase 11 & 12 Protocol, Neighbors & Delivery Tested (`test_communication_*.py`) |
+| **FR-01** | Vehicle-to-Vehicle (V2V) Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/` | Phase 11, 12, 13, 27 | `NOT STARTED` | Phase 11–13 Protocol, Neighbors & Coordination Tested (`test_communication_*.py`, `test_coordination_*.py`) |
 | **FR-02** | Multi-Agent Autonomous Vehicle Environment | `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 07, 08, 10, 25 | `NOT STARTED` | Phase 07, 08, 10 Tested (`test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`) |
 | **FR-03** | Real-World Map Integration | `backend/apps/core/graph/` | Phase 04, 05, 24 | `NOT STARTED` | Phase 04 & 05 Foundation Tested (`test_osm_*.py`, `test_road_graph.py`) |
 | **FR-04** | Traffic and Pedestrian Simulation | `backend/apps/core/signals/`, `sim_engine/safety/`, `sim_engine/pedestrians/` | Phase 09, 17, 25, 29 | `NOT STARTED` | Phase 09 Signals Tested (`test_signals_*.py`) |
 | **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 06, 07, 08, 10, 30, 31 | `NOT STARTED` | Phase 06–10 Tested (`test_routing_*.py`, `test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`) |
-| **FR-06** | Decentralized Vehicle Communication | `backend/apps/core/communication/`, `sim_engine/agents/` | Phase 11, 12, 13 | `NOT STARTED` | Phase 11 & 12 Protocol, Discovery & Neighbors Tested (`test_communication_*.py`) |
+| **FR-06** | Decentralized Vehicle Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/`, `sim_engine/agents/` | Phase 11, 12, 13 | `NOT STARTED` | Phase 11–13 Protocol, Discovery, Neighbors & Knowledge Tested (`test_communication_*.py`, `test_coordination_*.py`) |
 | **FR-07** | Adaptive Path Planning | `backend/apps/core/routing/`, `sim_engine/planning/` | Phase 06, 15, 28 | `NOT STARTED` | Phase 06 Baseline Tested (`test_routing_*.py`) |
 | **FR-08** | AI-Based Decision-Making | `sim_engine/agents/`, `rl_engine/policies/` | Phase 19, 34 | `NOT STARTED` | Pending Phase 19 |
 | **FR-09** | Collision Detection and Avoidance | `sim_engine/safety/` | Phase 16, 37 | `NOT STARTED` | Pending Phase 16 |

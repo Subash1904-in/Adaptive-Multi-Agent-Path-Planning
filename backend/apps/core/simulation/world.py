@@ -10,6 +10,9 @@ from apps.core.communication.models import CommunicationConfig
 from apps.core.communication.neighbors import NeighborTable
 from apps.core.communication.network import SimulatedCommunicationNetwork
 from apps.core.communication.scheduler import BroadcastScheduler
+from apps.core.coordination.knowledge import VehicleKnowledgeStore
+from apps.core.coordination.manager import CoordinationManager
+from apps.core.coordination.models import CoordinationConfig
 from apps.core.domain.models import SimulationConfig, TrafficSignal
 from apps.core.domain.values import Position2D
 from apps.core.graph.road_graph import RoadGraph
@@ -44,6 +47,7 @@ class WorldState:
         clock: Optional[SimulationClock] = None,
         metadata: Optional[dict[str, Any]] = None,
         communication_config: Optional[CommunicationConfig] = None,
+        coordination_config: Optional[CoordinationConfig] = None,
     ) -> None:
         """Initialize the world state container.
 
@@ -53,6 +57,7 @@ class WorldState:
             clock: Optional authoritative SimulationClock. If omitted, initialized with config dt.
             metadata: Optional user-defined dictionary for simulation context.
             communication_config: Optional CommunicationConfig governing V2V parameters.
+            coordination_config: Optional CoordinationConfig governing knowledge sharing.
 
         Raises:
             TypeError: If road_graph is not an instance of RoadGraph.
@@ -62,9 +67,7 @@ class WorldState:
 
         self.road_graph: RoadGraph = road_graph
         self.config: SimulationConfig = config or SimulationConfig()
-        self.clock: SimulationClock = clock or SimulationClock(
-            time_step_s=self.config.time_step_s
-        )
+        self.clock: SimulationClock = clock or SimulationClock(time_step_s=self.config.time_step_s)
         self.metadata: dict[str, Any] = dict(metadata or {})
 
         self._agents: dict[str, VehicleAgent] = {}
@@ -91,6 +94,17 @@ class WorldState:
         )
         self._comm_baseline: Optional[dict[str, Any]] = None
         self._sched_baseline: Optional[dict[str, Any]] = None
+
+        # Initialize Decentralized V2V Coordination subsystem
+        if coordination_config is not None:
+            self.coordination_config: CoordinationConfig = coordination_config
+        else:
+            self.coordination_config = CoordinationConfig(enabled=self.communication_config.enabled)
+        self.coordination_manager: CoordinationManager = CoordinationManager(
+            config=self.coordination_config,
+            road_graph=self.road_graph,
+        )
+        self._coord_baseline: Optional[dict[str, Any]] = None
 
         # Auto-register signals defined in the road_graph
         for sig in self.road_graph.get_traffic_signals().values():
@@ -311,6 +325,10 @@ class WorldState:
             and not self.communication_network.is_participant_registered(agent_id)
         ):
             self.communication_network.register_participant(agent_id)
+        if self.coordination_manager.config.enabled and not self.coordination_manager.has_vehicle(
+            agent_id
+        ):
+            self.coordination_manager.register_vehicle(agent_id)
 
     def get_agent(self, agent_id: str) -> VehicleAgent:
         """Retrieve a registered vehicle agent by identifier.
@@ -396,6 +414,7 @@ class WorldState:
             self._agent_baselines[agent_id] = self._capture_agent_state(agent)
         self._comm_baseline = self.communication_network.capture_state()
         self._sched_baseline = self.broadcast_scheduler.capture_state()
+        self._coord_baseline = self.coordination_manager.capture_state()
 
     def restore_baseline(self) -> None:
         """Restore all registered agents and subsystems to their recorded baseline states."""
@@ -406,6 +425,8 @@ class WorldState:
             self.communication_network.restore_state(self._comm_baseline)
         if self._sched_baseline is not None:
             self.broadcast_scheduler.restore_state(self._sched_baseline)
+        if self._coord_baseline is not None:
+            self.coordination_manager.restore_state(self._coord_baseline)
 
     def reset(self) -> None:
         """Reset the simulation clock to tick 0 and restore all agents, signals, and comms."""
@@ -415,10 +436,15 @@ class WorldState:
             ctrl.reset()
         self.communication_network.reset()
         self.broadcast_scheduler.reset()
+        self.coordination_manager.reset()
         if self.communication_network.config.enabled:
             for aid in self._agents:
                 if not self.communication_network.is_participant_registered(aid):
                     self.communication_network.register_participant(aid)
+        if self.coordination_manager.config.enabled:
+            for aid in self._agents:
+                if not self.coordination_manager.has_vehicle(aid):
+                    self.coordination_manager.register_vehicle(aid)
 
     def get_snapshot(self) -> WorldSnapshot:
         """Generate an immutable point-in-time snapshot of world, agents, signals, and comms.
@@ -443,13 +469,15 @@ class WorldState:
                 target_node_id=v.target_node_id,
             )
 
-        signal_snaps = {
-            c.id: c.get_snapshot(self.clock.elapsed_time_s) for c in self.get_signals()
-        }
+        signal_snaps = {c.id: c.get_snapshot(self.clock.elapsed_time_s) for c in self.get_signals()}
 
         comm_snap = None
         if self.communication_network.config.enabled:
             comm_snap = self.communication_network.get_snapshot(self.clock.elapsed_time_s).to_dict()
+
+        coord_snap = None
+        if self.coordination_manager.config.enabled:
+            coord_snap = self.coordination_manager.get_snapshot(self.clock.elapsed_time_s).to_dict()
 
         return WorldSnapshot(
             tick=self.clock.tick_count,
@@ -460,5 +488,10 @@ class WorldState:
             vehicles=vehicle_snaps,
             signals=signal_snaps,
             communication=comm_snap,
+            coordination=coord_snap,
             metadata=dict(self.metadata),
         )
+
+    def get_knowledge_store(self, vehicle_id: str) -> VehicleKnowledgeStore:
+        """Retrieve private knowledge store for a specific registered vehicle."""
+        return self.coordination_manager.get_store(vehicle_id)

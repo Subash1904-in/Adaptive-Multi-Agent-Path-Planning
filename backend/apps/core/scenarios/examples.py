@@ -8,6 +8,8 @@ Provides compact, offline, and deterministic scenario templates illustrating:
 - Tick-limited execution termination
 """
 
+from apps.core.communication.models import CommunicationConfig
+from apps.core.coordination.models import CoordinationConfig
 from apps.core.domain.enums import VehicleType
 from apps.core.graph.generator import CityGridConfig
 from apps.core.kinematics.models import KinematicsConfig
@@ -258,5 +260,140 @@ def create_tick_limited_scenario(
         time_step_s=0.1,
         max_ticks=max_ticks,
         stop_on_all_arrived=True,
+        seed=seed,
+    )
+
+
+def create_congestion_sharing_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario demonstrating peer-to-peer V2V congestion report sharing."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_leader",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r2_c2",
+        algorithm=RoutingAlgorithm.ASTAR,
+        cost_mode=CostMode.DISTANCE,
+    )
+    v2 = VehicleScenarioDefinition(
+        vehicle_id="veh_follower",
+        start_node_id="node_r0_c1",
+        destination_node_id="node_r2_c2",
+        algorithm=RoutingAlgorithm.ASTAR,
+        cost_mode=CostMode.DISTANCE,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_congestion_sharing",
+            name="V2V Congestion Knowledge Sharing",
+            description="Two vehicles in range sharing decentralized edge congestion observations.",
+        ),
+        road_network=rn,
+        vehicles=(v1, v2),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        v2v_config=CommunicationConfig(enabled=True, range_m=120.0),
+        coordination_config=CoordinationConfig(enabled=True),
+        seed=seed,
+    )
+
+
+def create_road_closure_sharing_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario demonstrating decentralized road-closure and reopening reporting."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_observer",
+        start_node_id="node_r1_c0",
+        destination_node_id="node_r1_c2",
+    )
+    v2 = VehicleScenarioDefinition(
+        vehicle_id="veh_approaching",
+        start_node_id="node_r0_c1",
+        destination_node_id="node_r2_c1",
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_closure_sharing",
+            name="V2V Road Closure Information Exchange",
+            description="Vehicles exchange road closure reports without altering graph topology.",
+        ),
+        road_network=rn,
+        vehicles=(v1, v2),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        v2v_config=CommunicationConfig(enabled=True, range_m=150.0),
+        coordination_config=CoordinationConfig(enabled=True),
+        seed=seed,
+    )
+
+
+def create_hazard_dissemination_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario demonstrating multi-hop roadway hazard dissemination."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=4,
+        spacing_m=80.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_A", start_node_id="node_r0_c0", destination_node_id="node_r0_c3"
+    )
+    v2 = VehicleScenarioDefinition(
+        vehicle_id="veh_B", start_node_id="node_r0_c1", destination_node_id="node_r0_c3"
+    )
+    v3 = VehicleScenarioDefinition(
+        vehicle_id="veh_C", start_node_id="node_r0_c2", destination_node_id="node_r0_c3"
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_hazard_dissemination",
+            name="V2V Multi-Hop Hazard Alert Dissemination",
+            description="Hazard alert propagated across multiple hops to alert distant vehicles.",
+        ),
+        road_network=rn,
+        vehicles=(v1, v2, v3),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        v2v_config=CommunicationConfig(enabled=True, range_m=100.0),
+        coordination_config=CoordinationConfig(enabled=True, max_forwarding_hops=3),
         seed=seed,
     )

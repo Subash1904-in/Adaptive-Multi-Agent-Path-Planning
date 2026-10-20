@@ -10,6 +10,7 @@ from enum import Enum
 from typing import Any, Optional, Union
 
 from apps.core.communication.models import CommunicationConfig
+from apps.core.coordination.models import CoordinationConfig
 from apps.core.domain.enums import VehicleType
 from apps.core.graph.generator import CityGridConfig
 from apps.core.graph.osm_models import OSMImportConfig
@@ -82,11 +83,7 @@ class VehicleScenarioDefinition:
             if isinstance(self.algorithm, RoutingAlgorithm)
             else str(self.algorithm)
         )
-        cost = (
-            self.cost_mode.value
-            if isinstance(self.cost_mode, CostMode)
-            else str(self.cost_mode)
-        )
+        cost = self.cost_mode.value if isinstance(self.cost_mode, CostMode) else str(self.cost_mode)
         v_type = (
             self.vehicle_type.value
             if hasattr(self.vehicle_type, "value")
@@ -162,6 +159,7 @@ class ScenarioDefinition:
     allow_unreachable_vehicles: bool = False
     simulation_metadata: dict[str, Any] = field(default_factory=dict)
     v2v_config: Optional[CommunicationConfig] = None
+    coordination_config: Optional[CoordinationConfig] = None
 
     @property
     def effective_max_ticks(self) -> Optional[int]:
@@ -192,6 +190,9 @@ class ScenarioDefinition:
             "seed": self.seed,
             "allow_unreachable_vehicles": self.allow_unreachable_vehicles,
             "v2v_config": self.v2v_config.to_dict() if self.v2v_config else None,
+            "coordination_config": (
+                self.coordination_config.to_dict() if self.coordination_config else None
+            ),
             "simulation_metadata": dict(self.simulation_metadata),
         }
 

@@ -359,7 +359,60 @@ The platform includes an individual vehicle kinematics and route-following coord
   # Output: Neighbor: veh_B, Status: active, Distance: 25.0m
   ```
 
-### 6.15 Troubleshooting
+### 6.15 Decentralized V2V Coordination and Shared Traffic Knowledge (Phase 13)
+- **Subsystem:** Decentralized traffic information exchange and belief state management under `backend/apps/core/coordination/`.
+- **Key Classes:** `CongestionReport`, `RoadClosureReport`, `HazardReport`, `VehicleKnowledgeStore`, `InformationFusion`, `DisseminationManager`, `CoordinationManager`, `BeliefRecord`.
+- **Capabilities:** Typed traffic reports, vehicle-private knowledge stores (no omniscient global truth), deterministic order-invariant belief fusion, bounded corroboration boost without duplicate inflation, multi-hop dissemination with hop limits and cycle prevention, atomic rollback, and strict route immobility invariant (sharing information only, no automatic route changes).
+- **Python API Usage Example:**
+  ```python
+  from apps.core.coordination import (
+      CongestionLevel,
+      CongestionReport,
+      CoordinationConfig,
+      CoordinationManager,
+      DisseminationManager,
+      ReportType,
+  )
+  from apps.core.domain.values import Position2D
+
+  # 1. Initialize coordination manager with private stores
+  coord_mgr = CoordinationManager(config=CoordinationConfig(enabled=True, max_forwarding_hops=3))
+  coord_mgr.register_vehicle("veh_1")
+  coord_mgr.register_vehicle("veh_2")
+
+  # 2. Vehicle 1 observes congestion and publishes locally
+  report = CongestionReport(
+      report_id="cong_e1_001",
+      report_type=ReportType.CONGESTION,
+      reporting_vehicle_id="veh_1",
+      edge_id="e1",
+      timestamp_s=5.0,
+      congestion_level=CongestionLevel.HIGH,
+      congestion_score=0.75,
+      confidence=0.8,
+  )
+  coord_mgr.publish_local_observation("veh_1", report)
+
+  # 3. Create V2V packet and deliver to Vehicle 2
+  packet = DisseminationManager.create_report_packet(
+      sender_id="veh_1",
+      sender_position=Position2D(x=0.0, y=0.0),
+      sender_heading_rad=0.0,
+      sender_speed_mps=10.0,
+      sequence_number=1,
+      report=report,
+      current_time_s=5.0,
+  )
+  coord_mgr.process_inbox_messages("veh_2", [packet], current_time_s=5.0)
+
+  # 4. Inspect vehicle-private knowledge store and derived belief
+  store_v2 = coord_mgr.get_store("veh_2")
+  belief = store_v2.get_belief("e1")
+  print(f"Vehicle 2 belief on e1: {belief.attributes['congestion_level']}, conf={belief.confidence}")
+  # Note: Vehicle 2's route is strictly NOT modified solely by receiving this report.
+  ```
+
+### 6.16 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -384,6 +437,7 @@ The platform includes an individual vehicle kinematics and route-following coord
 - [docs/progress/PHASE_10.md](docs/progress/PHASE_10.md): Phase 10 scenario orchestration and simulation configuration report.
 - [docs/progress/PHASE_11.md](docs/progress/PHASE_11.md): Phase 11 V2V communication protocol and spatial peer discovery report.
 - [docs/progress/PHASE_12.md](docs/progress/PHASE_12.md): Phase 12 dynamic neighbor tables, heartbeats, and loss detection report.
+- [docs/progress/PHASE_13.md](docs/progress/PHASE_13.md): Phase 13 decentralized V2V coordination and shared traffic knowledge report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

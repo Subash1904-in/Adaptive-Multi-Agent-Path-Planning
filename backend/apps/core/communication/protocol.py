@@ -157,10 +157,6 @@ def deserialize_message(raw_json: str) -> V2VMessagePacket:
     try:
         return V2VMessagePacket.from_json(raw_json)
     except CommunicationValidationError as exc:
-        raise MessageSerializationError(
-            f"Validation failed during deserialization: {exc}"
-        ) from exc
+        raise MessageSerializationError(f"Validation failed during deserialization: {exc}") from exc
     except Exception as exc:
-        raise MessageSerializationError(
-            f"Unexpected error deserializing message: {exc}"
-        ) from exc
+        raise MessageSerializationError(f"Unexpected error deserializing message: {exc}") from exc

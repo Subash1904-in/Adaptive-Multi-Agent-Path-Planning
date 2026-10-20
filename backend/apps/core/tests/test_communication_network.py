@@ -66,7 +66,7 @@ class TestSimulatedCommunicationNetwork:
         """Under NEXT_TICK delivery, messages are in transit until advance_tick is called."""
         candidates = {
             "v1": Position2D(x=0.0, y=0.0),
-            "v2": Position2D(x=20.0, y=0.0),   # in range (20m <= 50m)
+            "v2": Position2D(x=20.0, y=0.0),  # in range (20m <= 50m)
             "v3": Position2D(x=100.0, y=0.0),  # out of range (100m > 50m)
         }
         msg = self._create_packet("v1", x=0.0, y=0.0)

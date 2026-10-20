@@ -68,9 +68,7 @@ class VehicleStatusPayload:
                 else None
             ),
             "acceleration_mps2": (
-                round(self.acceleration_mps2, 4)
-                if self.acceleration_mps2 is not None
-                else None
+                round(self.acceleration_mps2, 4) if self.acceleration_mps2 is not None else None
             ),
             "custom_data": dict(self.custom_data),
         }
@@ -202,9 +200,7 @@ class V2VMessagePacket:
                     field="expiry_timestamp_s",
                 )
         if not isinstance(self.payload, dict):
-            raise CommunicationValidationError(
-                "payload must be a dictionary.", field="payload"
-            )
+            raise CommunicationValidationError("payload must be a dictionary.", field="payload")
         if self.correlation_id is not None:
             if not isinstance(self.correlation_id, str) or not self.correlation_id.strip():
                 raise CommunicationValidationError(
@@ -239,9 +235,7 @@ class V2VMessagePacket:
             "message_type": self.message_type.value,
             "recipient_id": self.recipient_id,
             "expiry_timestamp_s": (
-                round(self.expiry_timestamp_s, 6)
-                if self.expiry_timestamp_s is not None
-                else None
+                round(self.expiry_timestamp_s, 6) if self.expiry_timestamp_s is not None else None
             ),
             "payload": dict(self.payload),
             "correlation_id": self.correlation_id,
@@ -553,4 +547,3 @@ class CommunicationSnapshot:
         if self.neighbor_metrics is not None:
             d["neighbor_metrics"] = dict(self.neighbor_metrics)
         return d
-

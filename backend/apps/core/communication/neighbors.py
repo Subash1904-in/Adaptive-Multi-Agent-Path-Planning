@@ -116,7 +116,6 @@ class NeighborRecord:
             )
             raise InvalidNeighborDataError(msg, field="last_sequence_number")
         if not isinstance(self.status, NeighborStatus):
-
             raise InvalidNeighborDataError(f"Invalid status: {self.status}.", field="status")
         if self.last_message_id is not None and (
             not isinstance(self.last_message_id, str) or not self.last_message_id.strip()

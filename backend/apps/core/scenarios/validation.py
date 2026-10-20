@@ -7,6 +7,7 @@ on ScenarioDefinition before construction and execution.
 from typing import Optional
 
 from apps.core.communication.models import CommunicationConfig
+from apps.core.coordination.models import CoordinationConfig
 from apps.core.graph.road_graph import RoadGraph
 from apps.core.kinematics.models import KinematicsConfig
 from apps.core.routing.models import CostMode, RoutingAlgorithm
@@ -180,15 +181,22 @@ def validate_scenario(
         seen_signal_nodes.add(s.node_id)
 
     # 6. Communication configuration validation
-    if scenario.v2v_config is not None and not isinstance(
-        scenario.v2v_config, CommunicationConfig
-    ):
+    if scenario.v2v_config is not None and not isinstance(scenario.v2v_config, CommunicationConfig):
         raise ScenarioValidationError(
             "v2v_config must be an instance of CommunicationConfig.",
             field="v2v_config",
         )
 
-    # 7. Graph compatibility validation if graph is provided
+    # 7. Coordination configuration validation
+    if scenario.coordination_config is not None and not isinstance(
+        scenario.coordination_config, CoordinationConfig
+    ):
+        raise ScenarioValidationError(
+            "coordination_config must be an instance of CoordinationConfig.",
+            field="coordination_config",
+        )
+
+    # 8. Graph compatibility validation if graph is provided
     target_graph = graph or scenario.road_network.supplied_graph
     if target_graph is not None:
         validate_graph_compatibility(scenario, target_graph)

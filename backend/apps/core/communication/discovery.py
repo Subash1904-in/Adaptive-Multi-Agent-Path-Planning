@@ -42,11 +42,7 @@ class SpatialPeerDiscovery:
             InvalidRangeError: If range_m is non-numeric, non-finite, or <= 0.0.
             ValueError: If max_peers is not a positive integer.
         """
-        if (
-            not isinstance(range_m, (int, float))
-            or not math.isfinite(range_m)
-            or range_m <= 0.0
-        ):
+        if not isinstance(range_m, (int, float)) or not math.isfinite(range_m) or range_m <= 0.0:
             raise InvalidRangeError(range_m)
 
         if max_peers is not None:

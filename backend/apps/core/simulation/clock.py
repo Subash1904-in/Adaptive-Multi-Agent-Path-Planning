@@ -50,9 +50,7 @@ class SimulationClock:
         if not math.isfinite(dt):
             raise InvalidTimeStepError(f"time_step_s must be finite, got {dt}.", dt_s=dt)
         if dt <= 0.0:
-            raise InvalidTimeStepError(
-                f"time_step_s must be strictly positive, got {dt}.", dt_s=dt
-            )
+            raise InvalidTimeStepError(f"time_step_s must be strictly positive, got {dt}.", dt_s=dt)
         if not (cls.MIN_DT_S <= dt <= cls.MAX_DT_S):
             raise InvalidTimeStepError(
                 f"time_step_s {dt}s is outside allowable bounds [{cls.MIN_DT_S}, {cls.MAX_DT_S}].",
