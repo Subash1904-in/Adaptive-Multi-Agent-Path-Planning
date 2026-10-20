@@ -172,7 +172,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Serialization & Codecs Tests (`test_domain_serialization.py`):** 17 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
 - **Total:** **377 passed, 0 failed in 3.54s**, **97.08% line coverage** (exceeds 80% threshold).
-- **Remote CI Run:** Verification pending push for Phase 8.
+- **Remote CI Run:** [39380569928](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39380569928) — All 3 jobs passed (commit `a58b114`).
 
 ---
 
