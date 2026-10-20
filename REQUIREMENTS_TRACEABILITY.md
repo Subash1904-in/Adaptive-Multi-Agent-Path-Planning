@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 5 (OpenStreetMap import and road network normalization)  
+**Current Phase:** Phase 6 (Route planning baseline: Dijkstra, A* and travel-time routing)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 5 (OpenStreetMap Ingestion & Normalization Infrastructure):* Phase 5 establishes the OpenStreetMap import subsystem (`BoundingBox`, `LocalPlanarProjector`, `normalize_osm_graph`, `import_osm_road_network`) under `backend/apps/core/graph/` with full offline fallback to the Phase 4 deterministic synthetic city grid and automated test coverage (211 total tests passing). This provides the structural and geospatial network substrate supporting FR-03, FR-04, FR-05, and FR-07. However, because pathfinding algorithms (Phase 6), vehicle kinematic agents (Phase 7), V2V protocols (Phase 11), and 3D road rendering (Phase 24) have not yet been implemented, all 14 functional requirements remain honestly classified as `NOT STARTED` functionally.
+> *Note on Phase 6 (Route Planning Baseline Infrastructure):* Phase 6 establishes the baseline shortest-path routing subsystem (`RoutePlanner`, `find_route`, `dijkstra_search`, `astar_search`) under `backend/apps/core/routing/` supporting both distance and travel-time optimization, non-mutating edge closures, and heuristic admissibility checks (257 total tests passing). This provides the algorithmic pathfinding foundation for FR-05 and FR-07. However, because vehicle kinematic movement (Phase 7), traffic rules (Phase 9), V2V messaging (Phase 11), and dynamic adaptive rerouting (Phase 15) have not yet been implemented, all 14 functional requirements remain honestly classified as `NOT STARTED` functionally until simulation integration is completed.
 
 ---
 
@@ -22,9 +22,9 @@
 | **FR-02** | Multi-Agent Autonomous Vehicle Environment | `sim_engine/agents/`, `sim_engine/core/` | Phase 07, 10, 25 | `NOT STARTED` | Pending Phase 07 |
 | **FR-03** | Real-World Map Integration | `backend/apps/core/graph/` | Phase 04, 05, 24 | `NOT STARTED` | Phase 04 & 05 Foundation Tested (`test_osm_*.py`, `test_road_graph.py`) |
 | **FR-04** | Traffic and Pedestrian Simulation | `sim_engine/safety/`, `sim_engine/pedestrians/` | Phase 09, 17, 25, 29 | `NOT STARTED` | Pending Phase 09 |
-| **FR-05** | Motion Planning and Performance Benchmarking | `sim_engine/planning/`, `sim_engine/benchmarks/` | Phase 06, 30, 31 | `NOT STARTED` | Pending Phase 06 |
+| **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `sim_engine/benchmarks/` | Phase 06, 30, 31 | `NOT STARTED` | Phase 06 Baseline Tested (`test_routing_*.py`) |
 | **FR-06** | Decentralized Vehicle Communication | `sim_engine/v2v/`, `sim_engine/agents/` | Phase 11, 12, 13 | `NOT STARTED` | Pending Phase 11 |
-| **FR-07** | Adaptive Path Planning | `sim_engine/planning/`, `sim_engine/agents/` | Phase 06, 15, 28 | `NOT STARTED` | Pending Phase 06 |
+| **FR-07** | Adaptive Path Planning | `backend/apps/core/routing/`, `sim_engine/planning/` | Phase 06, 15, 28 | `NOT STARTED` | Phase 06 Baseline Tested (`test_routing_*.py`) |
 | **FR-08** | AI-Based Decision-Making | `sim_engine/agents/`, `rl_engine/policies/` | Phase 19, 34 | `NOT STARTED` | Pending Phase 19 |
 | **FR-09** | Collision Detection and Avoidance | `sim_engine/safety/` | Phase 16, 37 | `NOT STARTED` | Pending Phase 16 |
 | **FR-10** | Emergency Vehicle Priority | `sim_engine/agents/`, `sim_engine/safety/` | Phase 18, 25, 29 | `NOT STARTED` | Pending Phase 18 |

@@ -165,9 +165,27 @@ The platform supports ingesting real-world road networks from OpenStreetMap via 
 - **Dependency:** `osmnx>=2.0.0,<2.1.0` is declared in `requirements.txt`.
 - **Offline Reliability:** All automated unit tests run 100% offline using mock fixtures.
 - **Deterministic Fallback:** When OSMnx is not installed or when Overpass queries fail/timeout, `import_osm_road_network(config)` seamlessly falls back to the Phase 4 deterministic synthetic city grid when `allow_fallback=True`.
-- **Safety Boundaries:** Bounding boxes exceeding $0.25^\circ$ span (~25 km) or with invalid orientations are strictly rejected to prevent runaway network requests.
+### 6.8 Route Planning Baseline (Dijkstra, A* and Travel-Time Routing)
+The platform includes a dedicated, high-performance shortest-path route planner under `backend/apps/core/routing/`:
+- **Algorithms:** Dijkstra search (`dijkstra_search`) and custom A* search (`astar_search`).
+- **Cost Modes:** Shortest distance (`CostMode.DISTANCE`, meters) and fastest estimated travel time (`CostMode.TRAVEL_TIME`, seconds).
+- **Road Closures:** Pass `closed_edge_ids={"edge_id"}` to simulate construction or incident closures without mutating the road network.
+- **Python API Usage Example:**
+  ```python
+  from apps.core.routing import find_route
 
-### 6.8 Troubleshooting
+  # Find fastest route using A*
+  result = find_route(
+      road_graph,
+      start_node_id="node_1",
+      destination_node_id="node_10",
+      algorithm="astar",
+      cost_mode="travel_time",
+  )
+  print(f"Path nodes: {result.node_ids}, Duration: {result.estimated_duration_s:.1f}s")
+  ```
+
+### 6.9 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -185,6 +203,7 @@ The platform supports ingesting real-world road networks from OpenStreetMap via 
 - [docs/progress/PHASE_03.md](docs/progress/PHASE_03.md): Phase 3 domain models and simulation contracts report.
 - [docs/progress/PHASE_04.md](docs/progress/PHASE_04.md): Phase 4 road graph and deterministic city report.
 - [docs/progress/PHASE_05.md](docs/progress/PHASE_05.md): Phase 5 OpenStreetMap import and road network normalization report.
+- [docs/progress/PHASE_06.md](docs/progress/PHASE_06.md): Phase 6 route planning baseline (Dijkstra, A* and travel time) report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

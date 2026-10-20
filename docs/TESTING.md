@@ -84,11 +84,11 @@ def set_deterministic_seed():
 
 ---
 
-## 4. Active Test Suites & Commands (Phase 05)
+## 4. Active Test Suites & Commands (Phase 06)
 
 ### 4.1 Running Active Tests
 ```bash
-# Run entire backend test suite via pytest (211 passed)
+# Run entire backend test suite via pytest (257 passed)
 pytest
 
 # Run with full coverage report and 80% failure threshold
@@ -96,6 +96,12 @@ pytest --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80
 
 # Run with verbose output
 pytest -v
+
+# Run specific routing test suites (Phase 06)
+pytest backend/apps/core/tests/test_routing_costs_and_heuristics.py
+pytest backend/apps/core/tests/test_routing_dijkstra.py
+pytest backend/apps/core/tests/test_routing_astar.py
+pytest backend/apps/core/tests/test_routing_planner.py
 
 # Run specific OSM test suites (Phase 05)
 pytest backend/apps/core/tests/test_osm_models_and_projector.py
@@ -118,44 +124,51 @@ ruff check backend
 python backend/manage.py check
 ```
 
-### 4.2 Verified Test Coverage (Phase 05 — 211 Tests Passing)
-- **OSM Models, Bounds & Planar Projector (`test_osm_models_and_projector.py`, 31 passed):**
-  - BoundingBox validation: range checks ($[-90, 90]$, $[-180, 180]$), non-numeric and non-finite rejection, strict ordering (`north > south`, `east > west`), span limits ($\le 0.25^\circ$).
-  - BoundingBox conversion: `to_osmnx_bbox` converting to `(west, south, east, north)`, dictionary serialization and deserialization.
-  - LocalPlanarProjector: origin projection to $(0.0, 0.0)$, Cartesian meters displacement matching geodesic formulas, bidirectional unproject round-trip restoration, invalid coordinate rejection.
-  - Configuration & Results: `OSMImportConfig` mode/timeout validation, `OSMImportResult` serialization via `to_dict()`.
-- **OSM Graph Normalization Pipeline (`test_osm_normalizer.py`, 12 passed):**
-  - Node normalization: WGS84 coordinates to `GeoCoordinate` and `Position2D`, deterministic node IDs (`osm_node_{id}`), skipping malformed/uninitialized nodes.
-  - Edge normalization: one-way vs. bidirectional road generation, forward and reverse directed edge separation, deterministic edge IDs (`osm_edge_{u}_{v}`).
-  - Attribute extraction: speed limit parsing (km/h, mph, numeric strings, road class fallbacks), lane count parsing, length calculation fallback via Euclidean distance.
-  - Invariant enforcement: skipping parallel edges in simple graph, skipping self-loops, skipping edges with nonexistent endpoints, raising `OSMEmptyGraphError` on empty input.
-- **OSM Import Service & Fallback (`test_osm_service_and_fallback.py`, 17 passed):**
-  - End-to-end orchestration: successful acquisition and normalization returning `source_type="osm"`.
-  - Fallback policy: missing OSMnx, service unavailable, timeouts, and empty graphs fall back to synthetic grid when `allow_fallback=True`.
-  - Strict error raising: raising `OSMNotInstalledError`, `OSMServiceUnavailableError`, `OSMTimeoutError`, or `OSMEmptyGraphError` when `allow_fallback=False`.
-  - Bounds integrity: invalid bounding boxes raise `InvalidBoundingBoxError` immediately and are never disguised by synthetic fallback.
-  - Fallback determinism: identical seeds produce bit-identical graph topology; custom `fallback_config` options are strictly respected.
-  - Acquisition error classification: verifying timeout, connection error, and empty response mappings.
-- **Road Network Graph Abstraction (`test_road_graph.py`, 25 passed):**
-  - Node storage, directed edge storage, adjacency & neighborhoods, weak vs strong connectivity, traffic signals, topology validation.
-- **Deterministic Synthetic City Generator (`test_city_generator.py`, 16 passed):**
-  - Dimensions, spacing, speed limits, alternative paths, one-way grids, signal placement, deterministic seeded reproducibility.
-- **Domain Value Types (`test_domain_values.py`, 33 passed):**
-  - Position2D, GeoCoordinate, Dimensions2D validations and round-trips.
-- **Domain Models & Invariants (`test_domain_models.py`, 55 passed):**
-  - Invariant validation across all 10 domain models.
-- **Serialization & Codecs (`test_domain_serialization.py`, 17 passed):**
-  - Full round-trip equivalence across all domain entities and JSON error handling.
-- **Core Health Endpoint (`test_health.py`, 5 passed):**
-  - Regression: HTTP 200, Content-Type, payload schema, unauthenticated access, 404 for invalid paths.
+### 4.2 Verified Test Coverage (Phase 06 — 257 Tests Passing, 96.76% Coverage)
+- **Routing Costs, Traversability & Heuristics (`test_routing_costs_and_heuristics.py`, 18 passed):**
+  - Edge cost calculation: scalar distance in meters, scalar travel time in seconds, validation of non-positive/non-finite length and speed limits.
+  - Route metrics aggregation: summation of lengths and durations.
+  - Traversability: filtering against closed edge IDs.
+  - Heuristic admissibility: Euclidean distance lower-bound validation on graph edges, travel-time speed bounds, automatic safe $h=0$ fallback on inadmissible geometries, forced zero heuristic.
+  - Routing models: `RoutingRequest` and `RoutingResult` validation invariants, string coercion, serialization.
+- **Dijkstra Shortest Path Search (`test_routing_dijkstra.py`, 11 passed):**
+  - Optimal paths: shortest distance vs fastest travel time trade-off (choosing shorter slow street vs longer high-speed highway).
+  - One-way restrictions: traversal strictly obeys edge directionality.
+  - Start == destination: zero-cost result, 0 expanded nodes, `route=None` preserving `Route` invariants.
+  - Missing nodes: raising `RoutingNodeNotFoundError`.
+  - Disconnected nodes: raising `NoPathFoundError`.
+  - Closures: rerouting around closed edges; total blockage error reporting with closure count; direction-specific closures.
+  - Determinism: repeatable sequence and metrics across multiple executions.
+- **Custom A\* Pathfinding (`test_routing_astar.py`, 9 passed):**
+  - Distance and travel-time optimal routing.
+  - Optimality verification: exact cost equivalence between A* and Dijkstra across multi-node queries on synthetic city grids.
+  - Directionality and one-way constraints.
+  - Reopening and stale queue entries: robust priority queue pruning.
+  - Inadmissible graph safe fallback: graceful $h=0$ execution.
+  - Deterministic tie-breaking on symmetric grid paths.
+- **Route Planner & Cross-Algorithm Comparison (`test_routing_planner.py`, 8 passed):**
+  - High-level `RoutePlanner` facade and `find_route` convenience dispatcher.
+  - Graph immutability: verifying input `RoadGraph` node and edge structures are completely unchanged by path searches.
+  - Route continuity: verifying every consecutive node pair $(u, v)$ has a matching directed edge in `edge_ids`.
+  - NetworkX reference comparison: matching ground-truth shortest path costs computed by `nx.shortest_path_length` for both distance and travel time.
+  - Real-world OSM graph routing: path planning over an offline normalized OSM network fixture.
+- **OSM Models, Bounds & Planar Projector (`test_osm_models_and_projector.py`, 31 passed)**
+- **OSM Graph Normalization Pipeline (`test_osm_normalizer.py`, 12 passed)**
+- **OSM Import Service & Fallback (`test_osm_service_and_fallback.py`, 17 passed)**
+- **Road Network Graph Abstraction (`test_road_graph.py`, 25 passed)**
+- **Deterministic Synthetic City Generator (`test_city_generator.py`, 16 passed)**
+- **Domain Value Types (`test_domain_values.py`, 33 passed)**
+- **Domain Models & Invariants (`test_domain_models.py`, 55 passed)**
+- **Serialization & Codecs (`test_domain_serialization.py`, 17 passed)**
+- **Core Health Endpoint (`test_health.py`, 5 passed)**
 
 ---
 
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 05: 96.04% coverage).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_05.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 06: **96.76%** coverage).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_06.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend Deferred Cleanly:** Frontend build/lint/typecheck job runs in Node 22.x, deferring execution cleanly until `frontend/package.json` is introduced.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.

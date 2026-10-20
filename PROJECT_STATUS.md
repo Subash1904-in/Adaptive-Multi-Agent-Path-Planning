@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 5 (OpenStreetMap import and road network normalization)
+- **Current Phase:** Phase 6 (Route planning baseline: Dijkstra, A* and travel-time routing)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 6 (Route planning baseline) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 7 (Vehicle agents and lifecycle) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-20
 
 ---
@@ -20,7 +20,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 03** | **Domain models and simulation contracts** | **COMPLETED** | Typed domain models (10 entities, 3 value objects, 9 enums), validation invariants, JSON codecs & 110 tests passed. |
 | **Phase 04** | **Road graph and deterministic city** | **COMPLETED** | Directed road graph (nx.DiGraph), domain integration, deterministic synthetic grid generator, 151 tests passed. |
 | **Phase 05** | **OpenStreetMap import** | **COMPLETED** | BoundingBox validation, LocalPlanarProjector, OSMnx acquisition adapter, RoadGraph normalizer, offline fallback, 211 tests passed. |
-| **Phase 06** | Route planning baseline | Pending | NetworkX and A* shortest path, travel time cost, road closures, unit test comparisons. |
+| **Phase 06** | **Route planning baseline** | **COMPLETED** | Dijkstra, custom A*, distance/travel-time cost modes, road closures, heuristic admissibility, 257 tests passed (96.76% coverage). |
 | **Phase 07** | Vehicle agents and lifecycle | Pending | Independent agents, start/dest nodes, speeds, route progress, spawn/arrive/remove lifecycle. |
 | **Phase 08** | Simulation clock and world state | Pending | Deterministic simulation engine, fixed time steps, pause/resume/step/reset, authoritative state. |
 | **Phase 09** | Vehicle movement and traffic rules | Pending | Progression along edges, speed limits, acceleration/deceleration bounds, intersections, queues. |
@@ -146,11 +146,15 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ## 5. Commands Executed and Actual Results
 1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
 2. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `211 passed in 2.50s`, `96.04% coverage` (exit code 0).
+3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `257 passed in 2.70s`, `96.76% coverage` (exit code 0).
 
 ---
 
 ## 6. Test Results
+- **Routing Costs, Traversability & Heuristics (`test_routing_costs_and_heuristics.py`):** 18 passed.
+- **Dijkstra Shortest Path Search (`test_routing_dijkstra.py`):** 11 passed.
+- **Custom A\* Pathfinding (`test_routing_astar.py`):** 9 passed.
+- **Route Planner & Cross-Algorithm Comparison (`test_routing_planner.py`):** 8 passed.
 - **OSM Models & Projector Tests (`test_osm_models_and_projector.py`):** 31 passed.
 - **OSM Normalizer Tests (`test_osm_normalizer.py`):** 12 passed.
 - **OSM Service & Fallback Tests (`test_osm_service_and_fallback.py`):** 17 passed.
@@ -160,18 +164,15 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Domain Models & Invariants Tests (`test_domain_models.py`):** 55 passed.
 - **Serialization & Codecs Tests (`test_domain_serialization.py`):** 17 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **211 passed, 0 failed in 2.50s**, **96.04% line coverage** (exceeds 80% threshold).
-- **Remote CI Run:** VERIFIED & PASSED ([GitHub Actions Run 39363434807](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39363434807)).
-  - `Backend Lint, Test & Coverage`: PASSED (Python 3.11.17, Django 5.1.15, DRF 3.15.2, NetworkX 3.3, OSMnx 2.0.7, Ruff, manage.py check, pytest: 211 passed in 2.65s, 96.04% coverage)
-  - `Repository Hygiene & Documentation Integrity`: PASSED (15 mandatory documents and phase artifacts verified)
-  - `Frontend Lint, Typecheck & Build`: PASSED (Node 22.x verified, cleanly deferred)
+- **Total:** **257 passed, 0 failed in 2.70s**, **96.76% line coverage** (exceeds 80% threshold).
+- **Remote CI Run:** Ready for push and GitHub Actions verification.
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** OSM acquisition and normalization complete with offline fallback. Ready for Phase 6 route planning baseline.
+- **Notes:** Route planning baseline (Dijkstra, A*, distance and travel time, road closures, and heuristic admissibility) complete and tested. Ready for Phase 7 vehicle agents and kinematics.
 
 ---
 
