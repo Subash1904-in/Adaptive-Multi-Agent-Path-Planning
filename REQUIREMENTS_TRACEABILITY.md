@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 14 (Communication Latency, Packet Loss, Network Degradation, and Recovery)  
+**Current Phase:** Phase 15 (Adaptive Rerouting and Dynamic Route Adjustment)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 14 (Communication Latency, Packet Loss, Network Degradation, and Recovery):* Phase 14 implements multi-tick packet transit queues with configurable simulation-time latency, deterministic packet loss via isolated seeded PRNG, planar distance-dependent attenuation ($P_{\text{loss}} = (d/R)^\gamma$), a two-state Markov Gilbert-Elliott burst-loss channel model, temporary participant outages, directed and bidirectional link outages, network partition boundaries, communication recovery semantics, granular delivery and drop metrics, and full simulation engine atomic rollback integration (709 total tests passing, 96% line coverage). This fulfills the network degradation and failure modeling foundation for FR-01 (V2V Communication), FR-11 (Communication Range Detection), and FR-12 (Communication Failure Handling). Adaptive rerouting (Phase 15), collision avoidance (Phase 16), and emergency vehicle priority (Phase 18) remain strictly deferred.
+> *Note on Phase 15 (Adaptive Rerouting and Dynamic Route Adjustment):* Phase 15 implements vehicle-private dynamic edge costs ($C_v(e) = C_0(e) \cdot M_{\text{congestion}}(e) + P_{\text{hazard}}(e)$), avoidance of roads reported closed ($C_v(e) = \infty$), candidate route planning with Dijkstra/A*, pro-rated remaining route cost evaluation, benefit hysteresis ($\Delta C \ge \max(\Delta C_{\min}, \rho C_{\text{current}})$), rerouting cooldowns, repeat recalculation suppression via belief fingerprinting, safe active route suffix replacement preserving kinematic continuity and vehicle destination (`VehicleAgent.replace_remaining_route`), deterministic decisions, and full simulation engine integration with atomic rollback (760 total tests passing, 95.69% line coverage). This fulfills the dynamic route adjustment requirements of FR-07 (Adaptive Path Planning). Collision avoidance (Phase 16) and emergency vehicle priority (Phase 18) remain strictly deferred.
 
 ---
 
@@ -24,7 +24,7 @@
 | **FR-04** | Traffic and Pedestrian Simulation | `backend/apps/core/signals/`, `sim_engine/safety/`, `sim_engine/pedestrians/` | Phase 09, 17, 25, 29 | `NOT STARTED` | Phase 09 Signals Tested (`test_signals_*.py`) |
 | **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 06, 07, 08, 10, 30, 31 | `NOT STARTED` | Phase 06–10 Tested (`test_routing_*.py`, `test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`) |
 | **FR-06** | Decentralized Vehicle Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/`, `sim_engine/agents/` | Phase 11, 12, 13, 14 | `NOT STARTED` | Phase 11–14 Protocol, Discovery, Neighbors, Knowledge & Outages Tested (`test_communication_*.py`, `test_coordination_*.py`) |
-| **FR-07** | Adaptive Path Planning | `backend/apps/core/routing/`, `sim_engine/planning/` | Phase 06, 15, 28 | `NOT STARTED` | Phase 06 Baseline Tested (`test_routing_*.py`) |
+| **FR-07** | Adaptive Path Planning | `backend/apps/core/routing/`, `sim_engine/planning/` | Phase 06, 15, 28 | `NOT STARTED` | Phase 06 & 15 Baseline & Adaptive Rerouting Tested (`test_routing_*.py`) |
 | **FR-08** | AI-Based Decision-Making | `sim_engine/agents/`, `rl_engine/policies/` | Phase 19, 34 | `NOT STARTED` | Pending Phase 19 |
 | **FR-09** | Collision Detection and Avoidance | `sim_engine/safety/` | Phase 16, 37 | `NOT STARTED` | Pending Phase 16 |
 | **FR-10** | Emergency Vehicle Priority | `sim_engine/agents/`, `sim_engine/safety/` | Phase 18, 25, 29 | `NOT STARTED` | Pending Phase 18 |

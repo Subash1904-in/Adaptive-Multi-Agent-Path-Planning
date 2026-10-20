@@ -10,7 +10,7 @@ from apps.core.communication.models import CommunicationConfig
 from apps.core.coordination.models import CoordinationConfig
 from apps.core.graph.road_graph import RoadGraph
 from apps.core.kinematics.models import KinematicsConfig
-from apps.core.routing.models import CostMode, RoutingAlgorithm
+from apps.core.routing.models import AdaptiveRoutingConfig, CostMode, RoutingAlgorithm
 from apps.core.scenarios.exceptions import ScenarioValidationError
 from apps.core.scenarios.models import (
     RoadNetworkSourceType,
@@ -196,7 +196,16 @@ def validate_scenario(
             field="coordination_config",
         )
 
-    # 8. Graph compatibility validation if graph is provided
+    # 8. Adaptive routing configuration validation
+    if scenario.adaptive_routing_config is not None and not isinstance(
+        scenario.adaptive_routing_config, AdaptiveRoutingConfig
+    ):
+        raise ScenarioValidationError(
+            "adaptive_routing_config must be an instance of AdaptiveRoutingConfig.",
+            field="adaptive_routing_config",
+        )
+
+    # 9. Graph compatibility validation if graph is provided
     target_graph = graph or scenario.road_network.supplied_graph
     if target_graph is not None:
         validate_graph_compatibility(scenario, target_graph)

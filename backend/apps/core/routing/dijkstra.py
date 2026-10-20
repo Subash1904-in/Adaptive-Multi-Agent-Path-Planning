@@ -3,7 +3,7 @@
 import heapq
 import itertools
 import time
-from typing import Optional
+from typing import Callable, Optional
 
 from apps.core.domain.models import RoadEdge, Route
 from apps.core.graph.road_graph import RoadGraph
@@ -22,6 +22,7 @@ def dijkstra_search(
     destination_node_id: str,
     cost_mode: CostMode = CostMode.TRAVEL_TIME,
     closed_edge_ids: Optional[set[str]] = None,
+    edge_cost_fn: Optional[Callable[[RoadEdge, CostMode], float]] = None,
 ) -> RoutingResult:
     """Execute Dijkstra search to find the optimal path in a directed RoadGraph.
 
@@ -105,7 +106,10 @@ def dijkstra_search(
             if v in visited:
                 continue
 
-            edge_cost = calculate_edge_cost(edge, cost_mode)
+            if edge_cost_fn is not None:
+                edge_cost = edge_cost_fn(edge, cost_mode)
+            else:
+                edge_cost = calculate_edge_cost(edge, cost_mode)
             new_cost = current_cost + edge_cost
 
             if new_cost < distances.get(v, float("inf")) - 1e-12:

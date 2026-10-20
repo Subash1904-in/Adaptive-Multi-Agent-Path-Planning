@@ -8,6 +8,15 @@ from typing import Optional
 
 from apps.core.scenarios.builder import ScenarioBuilder, ScenarioRunContext
 from apps.core.scenarios.examples import (
+    create_adaptive_reroute_closure_scenario,
+    create_adaptive_reroute_congestion_scenario,
+    create_adaptive_reroute_cooldown_scenario,
+    create_adaptive_reroute_current_edge_continuation_scenario,
+    create_adaptive_reroute_delayed_network_scenario,
+    create_adaptive_reroute_hazard_scenario,
+    create_adaptive_reroute_insufficient_benefit_scenario,
+    create_adaptive_reroute_no_alternative_scenario,
+    create_adaptive_reroute_stale_report_scenario,
     create_burst_loss_scenario,
     create_congestion_sharing_scenario,
     create_degraded_network_scenario,
@@ -92,6 +101,15 @@ __all__ = [
     "ScenarioRunner",
     "run_scenario",
     # Examples
+    "create_adaptive_reroute_closure_scenario",
+    "create_adaptive_reroute_cooldown_scenario",
+    "create_adaptive_reroute_congestion_scenario",
+    "create_adaptive_reroute_current_edge_continuation_scenario",
+    "create_adaptive_reroute_delayed_network_scenario",
+    "create_adaptive_reroute_hazard_scenario",
+    "create_adaptive_reroute_insufficient_benefit_scenario",
+    "create_adaptive_reroute_no_alternative_scenario",
+    "create_adaptive_reroute_stale_report_scenario",
     "create_burst_loss_scenario",
     "create_congestion_sharing_scenario",
     "create_degraded_network_scenario",

@@ -65,7 +65,8 @@ flowchart TB
 - **Scenario Orchestration & Configuration (`backend/apps/core/scenarios/`):** **IMPLEMENTED & TESTED** in Phase 10 (`ScenarioDefinition`, `ScenarioBuilder`, `ScenarioRunner`, deterministic replay, 485 tests passing).
 - **V2V Protocol & Dynamic Neighbor Tables (`backend/apps/core/communication/`):** **IMPLEMENTED & TESTED** in Phase 11 & 12 (`V2VMessagePacket`, `SpatialPeerDiscovery`, `SimulatedCommunicationNetwork`, `BroadcastScheduler`, `NeighborTable`, `NeighborManager`, 624 tests passing).
 - **Decentralized V2V Coordination (`backend/apps/core/coordination/`):** **IMPLEMENTED & TESTED** in Phase 13 (`CongestionReport`, `RoadClosureReport`, `HazardReport`, `VehicleKnowledgeStore`, `InformationFusion`, `DisseminationManager`, `CoordinationManager`, order-invariant belief fusion, multi-hop dissemination, atomic rollback, 676 tests passing).
-- **Communication Failures and Latency Recovery (`backend/apps/core/communication/`):** **PLANNED** (Phase 14).
+- **Communication Failures and Latency Recovery (`backend/apps/core/communication/`):** **IMPLEMENTED & TESTED** in Phase 14 (Multi-tick transit queues, deterministic latency, distance loss, Gilbert-Elliott burst loss, outages, links, partitions, 709 tests passing).
+- **Adaptive Rerouting & Dynamic Route Adjustment (`backend/apps/core/routing/`):** **IMPLEMENTED & TESTED** in Phase 15 (`DynamicEdgeCostEvaluator`, `DynamicRouteAdapter`, `AdaptiveRoutingConfig`, `AdaptiveRoutingMetrics`, safe route suffix replacement, hysteresis & cooldown, engine integration & rollback, 760 tests passing).
 - **Transport Streaming & Advanced REST (`backend/channels/`, etc.):** **PLANNED** (Phases 21–22).
 - **Reinforcement Learning (`rl_engine/*`):** **PLANNED** (Phases 32–34).
 - **Frontend Dashboard (`frontend/*`):** **PLANNED** (Phases 23–30).
@@ -659,5 +660,64 @@ If any failure occurs during agent stepping or signal progression, `engine.step(
 ### 10.6 Coordination and Neighbor Subsystem Interaction
 - **Neighbor Tables & Heartbeats**: Delayed heartbeats ($t_{\text{now}} - t_{\text{last\_hb}} \ge T_{\text{timeout}}$) transition neighbors to `STALE`. Dropped heartbeats do not refresh tables. Recovered heartbeats successfully transition stale neighbors back to `ACTIVE`.
 - **Decentralized Coordination**: Coordination reports traverse the multi-tick transit queue and respect packet loss, link outages, and partitions. Vehicles never learn reports whose packets were dropped.
-- **Strict Boundary**: Phase 14 models network degradation and recovery only. Route planning and vehicle motion remain strictly untouched (no adaptive rerouting until Phase 15).
+- **Strict Boundary**: Phase 14 models network degradation and recovery only. Route planning and vehicle motion remain strictly untouched.
+
+---
+
+## 11. Adaptive Rerouting and Dynamic Route Adjustment (Phase 15)
+
+### 11.1 Core Architectural Principles & Separation of Policy
+Phase 15 integrates decentralized adaptive rerouting into `apps.core.routing` while strictly preserving the separation between shortest-path algorithms and adaptive policy:
+- **Planner Separation**: Underlying algorithms (`DijkstraRouter`, `AStarRouter`) continue answering graph reachability and path minimization given edge weight functions.
+- **Policy Decoupling**: Rerouting decisions, evaluation conditions, benefit hysteresis, repeat suppression, and cooldowns are encapsulated in `DynamicRouteAdapter`. Vehicle agents do not embed policy rules or duplicate route planning logic.
+- **Private Knowledge Invariant**: Route evaluations are computed strictly against the evaluating vehicle's isolated `VehicleKnowledgeStore`. Vehicles never inspect or query ground-truth `WorldState` or another vehicle's knowledge store.
+
+### 11.2 Deterministic Vehicle-Specific Edge Cost Evaluator
+`DynamicEdgeCostEvaluator` combines baseline road graph topology with an individual vehicle's local belief state:
+- **Cost Formula**:
+  $$C_v(e) = C_0(e) \cdot M_{\text{congestion}}(e) + P_{\text{hazard}}(e)$$
+  where:
+  - $C_0(e)$ is the positive baseline traversal cost (travel time or distance).
+  - $M_{\text{congestion}}(e) \ge 1.0$ is the validated congestion multiplier derived from qualitative congestion levels or direct `travel_time_factor`.
+  - $P_{\text{hazard}}(e) \ge 0.0$ is the additive hazard penalty for localized obstacles, debris, or accidents associated with edge $e$.
+- **Road Closures**: Closed edges return $C_v(e) = \infty$. When all alternative paths are closed, planners explicitly return a no-route outcome (`NO_ALTERNATIVE_ROUTE`).
+- **Disputed Closures**: Under the default `"conservative"` policy, disputed closure beliefs are treated as closed edges for safety.
+- **Belief Freshness & Expiry**: Expired beliefs ($t_{\text{sim}} \ge t_{\text{expiry}}$) or beliefs below `min_confidence_threshold` are ignored, restoring baseline traversal costs without permanent edge restriction.
+
+### 11.3 Current-Route Evaluation & Remaining Route Pro-Rating
+Before replacing a route, the vehicle's remaining route is evaluated under the identical dynamic cost model:
+- **Progress Pro-Rating**: The cost of the vehicle's current edge is scaled by remaining traversal distance:
+  $$C_{\text{current\_edge\_remaining}} = C_v(e_{\text{curr}}) \cdot \left(1 - \frac{d_{\text{traversed}}}{L(e_{\text{curr}})}\right)$$
+- **Downstream Obstruction**: If any downstream edge along the current route is closed, the remaining route cost evaluates to $\infty$, prompting immediate candidate recalculation.
+
+### 11.4 Adaptive Policy, Benefit Thresholds, Cooldowns & Hysteresis
+To prevent computational churn and route flapping, `DynamicRouteAdapter` enforces deterministic acceptance criteria:
+- **Benefit Hysteresis**: A candidate route replaces the active route only if:
+  $$\Delta C = C_{\text{current}} - C_{\text{candidate}} \ge \max(\Delta C_{\min}, \rho C_{\text{current}})$$
+  where $\Delta C_{\min}$ is `min_absolute_benefit` and $\rho$ is `min_relative_benefit`.
+- **Rerouting Cooldown**: Recalculation is suppressed if $t_{\text{now}} - t_{\text{last\_reroute}} < \Delta t_{\text{cooldown}}$ (`COOLDOWN_ACTIVE`).
+- **Repeat Suppression**: If local traffic beliefs and vehicle route progress have not changed since the last evaluation, graph search is suppressed (`INSUFFICIENT_BENEFIT`).
+- **Structured Decisions**: Evaluations yield `RerouteDecision` with structured types (`NO_CHANGE`, `REROUTE_ACCEPTED`, `INSUFFICIENT_BENEFIT`, `COOLDOWN_ACTIVE`, `NO_ALTERNATIVE_ROUTE`, `DESTINATION_REACHED`, `CURRENT_ROUTE_INVALID`).
+
+### 11.5 Safe Active-Route Suffix Replacement
+Route replacement is centralized through `VehicleAgent.replace_remaining_route()`:
+- **`finish_edge` Continuation**: The vehicle completes traversal of its active edge toward the edge endpoint (`resume_node_id`), where the candidate route suffix is seamlessly spliced.
+- **Kinematic Continuity**: The vehicle's physical position $(x, y)$, speed $v$, heading $\theta$, and destination node remain unaltered. No vehicle teleportation or sudden velocity jumps occur.
+- **Origin Replacement**: If the vehicle has not yet begun moving along its first edge, route replacement safely begins directly from the origin start node.
+- **History Preservation**: Completed route segments are preserved in agent history.
+
+### 11.6 Simulation Engine Integration & Atomic Rollback
+Adaptive rerouting is integrated directly into `SimulationEngine.step()`:
+1. **Pre-Tick Snapshot**: Captures agent route instances, segment lists, total route distance, adapter metrics, cooldown timestamps, and belief fingerprints.
+2. **Delivery & Fusion**: V2V inboxes are processed and knowledge stores are updated.
+3. **Adaptive Routing Evaluation**: Adapter steps agents in deterministic sorted `vehicle_id` order.
+4. **Kinematic Stepping**: Vehicles advance along their active routes.
+5. **Atomic Rollback on Error**: If any failure occurs during agent stepping or signal progression, all route replacements, adapter cooldowns, and metrics are cleanly restored to their exact pre-tick state.
+
+### 11.7 Scope Boundaries with Future Phases
+- **Phase 15 Scope**: Vehicle-private dynamic costs, congestion/closure/hazard route evaluation, cooldown/hysteresis prevention of route flapping, safe active route replacement, and atomic rollback.
+- **Strictly Deferred**:
+  - **No Collision Avoidance (Phase 16)**: Maneuvering and braking to avoid vehicle collisions remain deferred.
+  - **No Emergency Priority (Phase 18)**: Emergency vehicle corridor creation and yielding remain deferred.
+
 

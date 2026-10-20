@@ -150,7 +150,7 @@ class SimulationEngine:
         agents = self.world.get_agents()
         dt = self.clock.time_step_s
 
-        # 1. Capture atomic rollback snapshots of agents, signals, and communication
+        # 1. Capture atomic rollback snapshots of agents, signals, communication, and routing
         rollback_states: dict[str, tuple] = {}
         for agent in agents:
             v = agent.vehicle
@@ -163,6 +163,11 @@ class SimulationEngine:
                 v.current_edge_id,
                 agent.current_edge_index,
                 agent.distance_along_segment_m,
+                agent.route,
+                list(agent._segments),
+                agent.total_route_distance_m,
+                v.route_id,
+                v.target_node_id,
             )
 
         signal_rollback_states: dict[str, tuple] = {
@@ -173,11 +178,18 @@ class SimulationEngine:
         comm_rollback = None
         sched_rollback = None
         coord_rollback = None
+        routing_rollback = None
         if self.world.communication_network.config.enabled:
             comm_rollback = self.world.communication_network.capture_state()
             sched_rollback = self.world.broadcast_scheduler.capture_state()
         if self.world.coordination_manager.config.enabled:
             coord_rollback = self.world.coordination_manager.capture_state()
+        if (
+            hasattr(self.world, "adaptive_routing_adapter")
+            and self.world.adaptive_routing_adapter
+            and self.world.adaptive_routing_adapter.config.enabled
+        ):
+            routing_rollback = self.world.adaptive_routing_adapter.capture_state()
 
         # 2. Advance communication network tick (moves transit messages to inboxes)
         if self.world.communication_network.config.enabled:
@@ -250,16 +262,36 @@ class SimulationEngine:
                     current_time_s=self.clock.elapsed_time_s,
                 )
 
-        # 3. Advance each agent by identical dt in deterministic order
+        # 2.5 & 3. Evaluate adaptive rerouting and advance each agent
         step_results: dict[str, MotionStepResult] = {}
+        routing_decisions = []
         try:
+            if (
+                hasattr(self.world, "adaptive_routing_adapter")
+                and self.world.adaptive_routing_adapter
+                and self.world.adaptive_routing_adapter.config.enabled
+            ):
+                for agent in agents:
+                    vid = agent.vehicle.id
+                    k_store = (
+                        self.world.coordination_manager.get_store(vid)
+                        if self.world.coordination_manager.config.enabled
+                        else None
+                    )
+                    dec = self.world.adaptive_routing_adapter.evaluate_agent(
+                        agent=agent,
+                        knowledge_store=k_store,
+                        current_time_s=self.clock.elapsed_time_s,
+                    )
+                    routing_decisions.append(dec)
+
             for agent in agents:
                 vid = agent.vehicle.id
                 accel = target_accels.get(vid) if target_accels else None
                 step_res = agent.step(dt=dt, target_accel=accel)
                 step_results[vid] = step_res
         except Exception as exc:
-            # Atomic rollback: restore all agents, signals, and comms to pre-tick snapshot
+            # Atomic rollback: restore all agents, signals, comms, coord, and routing
             for agent in agents:
                 vid = agent.vehicle.id
                 if vid in rollback_states:
@@ -272,6 +304,11 @@ class SimulationEngine:
                         r_eid,
                         r_eidx,
                         r_dist,
+                        r_route,
+                        r_segs,
+                        r_tot_dist,
+                        r_rid,
+                        r_tid,
                     ) = rollback_states[vid]
                     agent.vehicle.state = r_state
                     agent.vehicle.position = Position2D(x=r_pos.x, y=r_pos.y)
@@ -281,6 +318,11 @@ class SimulationEngine:
                     agent.vehicle.current_edge_id = r_eid
                     agent.current_edge_index = r_eidx
                     agent.distance_along_segment_m = r_dist
+                    agent.route = r_route
+                    agent._segments = list(r_segs)
+                    agent.total_route_distance_m = r_tot_dist
+                    agent.vehicle.route_id = r_rid
+                    agent.vehicle.target_node_id = r_tid
 
             for ctrl in self.world.get_signals():
                 if ctrl.id in signal_rollback_states:
@@ -294,6 +336,8 @@ class SimulationEngine:
                 self.world.broadcast_scheduler.restore_state(sched_rollback)
             if coord_rollback is not None:
                 self.world.coordination_manager.restore_state(coord_rollback)
+            if routing_rollback is not None and hasattr(self.world, "adaptive_routing_adapter"):
+                self.world.adaptive_routing_adapter.restore_state(routing_rollback)
 
             self.status = EngineStatus.FAILED
             raise TickExecutionError(
@@ -320,6 +364,18 @@ class SimulationEngine:
         if self.world.coordination_manager.config.enabled:
             coord_metrics = self.world.coordination_manager.metrics.to_dict()
 
+        routing_metrics = None
+        if (
+            hasattr(self.world, "adaptive_routing_adapter")
+            and self.world.adaptive_routing_adapter
+            and self.world.adaptive_routing_adapter.config.enabled
+        ):
+            routing_metrics = self.world.adaptive_routing_adapter.metrics.to_dict()
+
+        routing_dec_dicts = (
+            [d.to_dict() for d in routing_decisions] if routing_decisions else None
+        )
+
         tick_result = TickResult(
             tick=new_tick,
             elapsed_time_s=self.clock.elapsed_time_s,
@@ -331,7 +387,12 @@ class SimulationEngine:
             signal_states=signal_states,
             communication_metrics=comm_metrics,
             coordination_metrics=coord_metrics,
+            routing_metrics=routing_metrics,
+            routing_decisions=routing_dec_dicts,
         )
+
+        self.last_tick_result = tick_result
+        return tick_result
 
         self.last_tick_result = tick_result
         return tick_result

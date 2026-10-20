@@ -187,6 +187,15 @@ python backend/manage.py check
 - **Degradation, Neighbor & Engine Integration (`test_communication_degradation_integration.py`, 7 passed)**
 - **Coordination Models & Reports (`test_coordination_models.py`, 21 passed)**
 - **Vehicle Knowledge Stores (`test_coordination_knowledge.py`, 11 passed)**
+- **Adaptive Dynamic Costs & Edge Evaluation (`test_routing_dynamic_costs.py`, 17 passed)**
+- **Adaptive Rerouting Policy & Cooldowns (`test_routing_adaptive_policy.py`, 13 passed)**
+- **Safe Active Route Replacement (`test_routing_replacement.py`, 7 passed)**
+- **SimulationEngine Routing Integration & Scenarios (`test_routing_engine_integration.py`, 14 passed)**
+- **Communication Degradation & Recovery Integration (`test_communication_degradation_integration.py`, 7 passed)**
+- **Deterministic Latency & Transit Queues (`test_communication_latency.py`, 9 passed)**
+- **Packet Loss, Burst Channels & Network Outages (`test_communication_impairment.py`, 17 passed)**
+- **Coordination Models & Reports (`test_coordination_models.py`, 21 passed)**
+- **Vehicle Knowledge Stores (`test_coordination_knowledge.py`, 11 passed)**
 - **Deterministic Fusion & Conflicts (`test_coordination_fusion.py`, 8 passed)**
 - **Dissemination & Multi-Hop Forwarding (`test_coordination_dissemination.py`, 5 passed)**
 - **Simulation Engine Integration & Rollback (`test_coordination_engine_integration.py`, 7 passed)**
@@ -231,8 +240,8 @@ python backend/manage.py check
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 14: **96%** coverage across 709 passing tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_14.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 15: **95.69%** coverage across 760 passing tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_15.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend Deferred Cleanly:** Frontend build/lint/typecheck job runs in Node 22.x, deferring execution cleanly until `frontend/package.json` is introduced.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.

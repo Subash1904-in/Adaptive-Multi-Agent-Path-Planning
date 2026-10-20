@@ -108,6 +108,7 @@ class ScenarioBuilder:
                 metadata=dict(self.scenario.simulation_metadata),
                 communication_config=self.scenario.v2v_config,
                 coordination_config=self.scenario.coordination_config,
+                adaptive_routing_config=self.scenario.adaptive_routing_config,
             )
         except Exception as exc:
             msg = (

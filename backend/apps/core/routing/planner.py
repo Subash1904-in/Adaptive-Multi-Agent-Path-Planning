@@ -1,7 +1,8 @@
 """Unified route planner interface for AMAPP."""
 
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
+from apps.core.domain.models import RoadEdge
 from apps.core.graph.road_graph import RoadGraph
 from apps.core.routing.astar import astar_search
 from apps.core.routing.dijkstra import dijkstra_search
@@ -43,6 +44,7 @@ class RoutePlanner:
         algorithm: Union[str, RoutingAlgorithm] = RoutingAlgorithm.ASTAR,
         cost_mode: Union[str, CostMode] = CostMode.TRAVEL_TIME,
         closed_edge_ids: Optional[set[str]] = None,
+        edge_cost_fn: Optional[Callable[[RoadEdge, CostMode], float]] = None,
     ) -> RoutingResult:
         """Find the optimal route between start and destination nodes.
 
@@ -52,6 +54,7 @@ class RoutePlanner:
             algorithm: Routing algorithm to use (ASTAR or DIJKSTRA).
             cost_mode: Optimization objective (DISTANCE or TRAVEL_TIME).
             closed_edge_ids: Optional set of temporarily closed edge IDs.
+            edge_cost_fn: Optional dynamic cost evaluation function.
 
         Returns:
             RoutingResult: Comprehensive pathfinding output.
@@ -67,6 +70,7 @@ class RoutePlanner:
             algorithm=RoutingAlgorithm(algorithm) if isinstance(algorithm, str) else algorithm,
             cost_mode=CostMode(cost_mode) if isinstance(cost_mode, str) else cost_mode,
             closed_edge_ids=closed_edge_ids or set(),
+            edge_cost_fn=edge_cost_fn,
         )
         return self.find_route_from_request(req)
 
@@ -79,6 +83,7 @@ class RoutePlanner:
                 destination_node_id=request.destination_node_id,
                 cost_mode=request.cost_mode,
                 closed_edge_ids=request.closed_edge_ids,
+                edge_cost_fn=request.edge_cost_fn,
             )
         elif request.algorithm == RoutingAlgorithm.ASTAR:
             return astar_search(
@@ -87,6 +92,7 @@ class RoutePlanner:
                 destination_node_id=request.destination_node_id,
                 cost_mode=request.cost_mode,
                 closed_edge_ids=request.closed_edge_ids,
+                edge_cost_fn=request.edge_cost_fn,
             )
         else:
             raise InvalidRoutingRequestError(f"Unsupported routing algorithm: {request.algorithm}")
@@ -99,6 +105,7 @@ def find_route(
     algorithm: Union[str, RoutingAlgorithm] = RoutingAlgorithm.ASTAR,
     cost_mode: Union[str, CostMode] = CostMode.TRAVEL_TIME,
     closed_edge_ids: Optional[set[str]] = None,
+    edge_cost_fn: Optional[Callable[[RoadEdge, CostMode], float]] = None,
 ) -> RoutingResult:
     """Convenience function to plan a route on a RoadGraph without manually managing a planner.
 
@@ -109,6 +116,7 @@ def find_route(
         algorithm: Shortest-path algorithm (ASTAR or DIJKSTRA).
         cost_mode: Optimization objective (DISTANCE or TRAVEL_TIME).
         closed_edge_ids: Optional set of closed edge IDs.
+        edge_cost_fn: Optional dynamic cost evaluation function.
 
     Returns:
         RoutingResult: Resulting optimal path and metrics.
@@ -120,4 +128,5 @@ def find_route(
         algorithm=algorithm,
         cost_mode=cost_mode,
         closed_edge_ids=closed_edge_ids,
+        edge_cost_fn=edge_cost_fn,
     )

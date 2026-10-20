@@ -48,3 +48,29 @@ class InvalidRoutingRequestError(RoutingError, ValueError):
     """Raised when routing parameters or graph configuration violate invariants."""
 
     pass
+
+
+class AdaptiveRoutingError(RoutingError):
+    """Base exception for adaptive dynamic routing and route adjustment operations."""
+
+    pass
+
+
+class RouteReplacementError(AdaptiveRoutingError):
+    """Raised when active route replacement violates continuity or connectivity."""
+
+    def __init__(
+        self,
+        message: str,
+        vehicle_id: Optional[str] = None,
+        reason: Optional[str] = None,
+    ) -> None:
+        super().__init__(message, field="route")
+        self.vehicle_id = vehicle_id
+        self.reason = reason
+
+
+class InvalidReroutePolicyError(AdaptiveRoutingError, ValueError):
+    """Raised when adaptive rerouting policy configuration violates validation invariants."""
+
+    pass

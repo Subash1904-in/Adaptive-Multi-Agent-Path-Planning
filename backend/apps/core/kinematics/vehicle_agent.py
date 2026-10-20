@@ -22,6 +22,7 @@ from apps.core.kinematics.motion import (
     interpolate_position,
     validate_motion_inputs,
 )
+from apps.core.routing.exceptions import RouteReplacementError
 
 
 @dataclass(frozen=True)
@@ -239,6 +240,193 @@ class VehicleAgent:
             self.vehicle.current_edge_id = first_seg.edge_id
             # Preserve existing initial speed if non-zero, otherwise default to 0.0
             self.vehicle.speed_mps = max(0.0, self.vehicle.speed_mps)
+
+    def replace_remaining_route(
+        self,
+        candidate_route: Route,
+        resume_node_id: str,
+        new_route_id: Optional[str] = None,
+    ) -> Route:
+        """Safely replace the untraversed portion of the active route with candidate_route.
+
+        Preserves:
+            - Physical 2D position (no teleportation)
+            - Longitudinal speed and heading
+            - Traversal progress along the currently occupied edge
+            - Authoritative destination node
+            - Complete historical path traversed so far
+
+        Args:
+            candidate_route: Newly planned Route from resume_node_id to target destination.
+            resume_node_id: Graph node ID where the candidate suffix connects.
+            new_route_id: Optional custom identifier for the merged Route.
+
+        Returns:
+            Route: The active combined Route object.
+
+        Raises:
+            RouteReplacementError: If candidate route is invalid or violates continuity.
+        """
+        if not isinstance(candidate_route, Route):
+            raise RouteReplacementError(
+                f"Expected Route instance, got {type(candidate_route).__name__}.",
+                vehicle_id=self.vehicle.id,
+            )
+        if len(candidate_route.node_ids) < 1:
+            raise RouteReplacementError(
+                "candidate_route must contain at least 1 node.",
+                vehicle_id=self.vehicle.id,
+            )
+        if self.is_arrived:
+            raise RouteReplacementError(
+                "Cannot replace route for an arrived vehicle.",
+                vehicle_id=self.vehicle.id,
+            )
+
+        # Destination consistency check
+        if candidate_route.node_ids[-1] != self.vehicle.target_node_id:
+            raise RouteReplacementError(
+                f"Candidate destination '{candidate_route.node_ids[-1]}' "
+                f"does not match vehicle target '{self.vehicle.target_node_id}'.",
+                vehicle_id=self.vehicle.id,
+            )
+
+        # Candidate origin check
+        if candidate_route.node_ids[0] != resume_node_id:
+            raise RouteReplacementError(
+                f"Candidate route origin '{candidate_route.node_ids[0]}' "
+                f"does not match resume_node_id '{resume_node_id}'.",
+                vehicle_id=self.vehicle.id,
+            )
+
+        if self.is_idle or (
+            self.current_edge_index == 0
+            and self.distance_along_segment_m < 1e-6
+            and self._segments
+            and resume_node_id == self._segments[0].start_node_id
+        ):
+            if len(candidate_route.node_ids) < 2:
+                raise RouteReplacementError(
+                    "Candidate route must contain at least 2 nodes.",
+                    vehicle_id=self.vehicle.id,
+                )
+            self.assign_route(candidate_route)
+            return self.route
+
+        # Vehicle is actively EN_ROUTE or BLOCKED
+        if not self._segments:
+            raise RouteReplacementError(
+                "Cannot replace remaining route: vehicle has no active segments.",
+                vehicle_id=self.vehicle.id,
+            )
+
+        cur_idx = self.current_edge_index
+        cur_seg = self._segments[cur_idx]
+
+        # Under the 'finish_edge' policy, the candidate route starts at the end of the current edge
+        if cur_seg.end_node_id != resume_node_id:
+            raise RouteReplacementError(
+                f"resume_node_id '{resume_node_id}' does not match "
+                f"current edge endpoint '{cur_seg.end_node_id}'.",
+                vehicle_id=self.vehicle.id,
+            )
+
+        # Retain segments up to and including current edge
+        kept_segments = list(self._segments[: cur_idx + 1])
+
+        # Resolve candidate segments from resume_node_id to destination
+        candidate_segments: list[RouteSegment] = []
+        num_hops = len(candidate_route.node_ids) - 1
+
+        if num_hops > 0:
+            if candidate_route.edge_ids and len(candidate_route.edge_ids) == num_hops:
+                for i, eid in enumerate(candidate_route.edge_ids):
+                    if not self.road_graph.has_edge(eid):
+                        raise RouteReplacementError(
+                            f"Candidate edge '{eid}' does not exist in graph.",
+                            vehicle_id=self.vehicle.id,
+                        )
+                    edge = self.road_graph.get_edge(eid)
+                    u = candidate_route.node_ids[i]
+                    v = candidate_route.node_ids[i + 1]
+                    if edge.start_node_id != u or edge.end_node_id != v:
+                        raise RouteReplacementError(
+                            f"Candidate edge '{eid}' does not connect '{u}' -> '{v}'.",
+                            vehicle_id=self.vehicle.id,
+                        )
+                    u_node = self.road_graph.get_node(u)
+                    v_node = self.road_graph.get_node(v)
+                    heading = compute_heading(
+                        u_node.position, v_node.position, self.vehicle.heading_rad
+                    )
+                    candidate_segments.append(
+                        RouteSegment(
+                            edge_id=edge.id,
+                            start_node_id=u,
+                            end_node_id=v,
+                            length_m=edge.length_m,
+                            speed_limit_mps=edge.speed_limit_mps,
+                            start_pos=u_node.position,
+                            end_pos=v_node.position,
+                            heading_rad=heading,
+                        )
+                    )
+            else:
+                for i in range(num_hops):
+                    u = candidate_route.node_ids[i]
+                    v = candidate_route.node_ids[i + 1]
+                    edge = self.road_graph.get_edge_between(u, v)
+                    if edge is None:
+                        raise RouteReplacementError(
+                            f"No directed edge connects candidate nodes '{u}' -> '{v}'.",
+                            vehicle_id=self.vehicle.id,
+                        )
+                    u_node = self.road_graph.get_node(u)
+                    v_node = self.road_graph.get_node(v)
+                    heading = compute_heading(
+                        u_node.position, v_node.position, self.vehicle.heading_rad
+                    )
+                    candidate_segments.append(
+                        RouteSegment(
+                            edge_id=edge.id,
+                            start_node_id=u,
+                            end_node_id=v,
+                            length_m=edge.length_m,
+                            speed_limit_mps=edge.speed_limit_mps,
+                            start_pos=u_node.position,
+                            end_pos=v_node.position,
+                            heading_rad=heading,
+                        )
+                    )
+
+        combined_segments = kept_segments + candidate_segments
+        combined_node_ids = (
+            [s.start_node_id for s in kept_segments]
+            + [s.end_node_id for s in kept_segments[-1:]]
+            + candidate_route.node_ids[1:]
+        )
+        combined_edge_ids = [s.edge_id for s in combined_segments]
+        total_dist = sum(s.length_m for s in combined_segments)
+        est_duration = sum(s.length_m / s.speed_limit_mps for s in combined_segments)
+
+        route_id = (
+            new_route_id
+            or f"{self.vehicle.id}_rerouted_{len(combined_segments)}_{resume_node_id}"
+        )
+        combined_route = Route(
+            id=route_id,
+            node_ids=combined_node_ids,
+            edge_ids=combined_edge_ids,
+            total_distance_m=total_dist,
+            estimated_duration_s=est_duration,
+        )
+
+        self._segments = combined_segments
+        self.route = combined_route
+        self.total_route_distance_m = total_dist
+        self.vehicle.route_id = route_id
+
+        return combined_route
 
     def start(self) -> None:
         """Transition vehicle from IDLE to EN_ROUTE.

@@ -467,7 +467,34 @@ The platform includes an individual vehicle kinematics and route-following coord
   print(f"Delivered at t=1.2s: {[m.message_id for m in inbox]}")  # ['msg_001']
   ```
 
-### 6.17 Troubleshooting
+### 6.17 Adaptive Rerouting and Dynamic Route Adjustment (Phase 15)
+- **Subsystem:** Dynamic route cost evaluation, benefit hysteresis, cooldowns, and safe route suffix replacement under `backend/apps/core/routing/`.
+- **Key Classes:** `DynamicEdgeCostEvaluator`, `DynamicRouteAdapter`, `AdaptiveRoutingConfig`, `AdaptiveRoutingMetrics`, `RerouteDecision`, `VehicleAgent.replace_remaining_route`.
+- **Capabilities:** Vehicle-private dynamic edge costs ($C_v(e) = C_0(e) \cdot M_{\text{congestion}}(e) + P_{\text{hazard}}(e)$), avoidance of roads reported closed ($C_v(e) = \infty$), candidate path planning, pro-rated remaining route cost evaluation, benefit hysteresis ($\Delta C \ge \max(\Delta C_{\min}, \rho C_{\text{current}})$), rerouting cooldowns, repeat recalculation suppression via belief fingerprinting, safe active route suffix replacement preserving kinematic continuity and vehicle destination (`finish_edge` continuation policy), deterministic structured decisions, and full simulation engine integration with atomic rollback.
+- **Python API Usage Example:**
+  ```python
+  from apps.core.coordination import (
+      ReportType,
+      RoadClosureReport,
+      RoadClosureStatus,
+      VehicleKnowledgeStore,
+  )
+  from apps.core.routing import (
+      AdaptiveRoutingConfig,
+      DynamicRouteAdapter,
+      RerouteDecisionType,
+  )
+  from apps.core.scenarios.examples import create_adaptive_reroute_closure_scenario
+  from apps.core.scenarios.runner import run_scenario
+
+  # Run deterministic scenario demonstrating vehicle choosing an alternative route around closure
+  scenario = create_adaptive_reroute_closure_scenario(max_ticks=30)
+  result = run_scenario(scenario)
+  assert result.is_success
+  print(f"Vehicle safely rerouted around closure in {result.completed_ticks} ticks.")
+  ```
+
+### 6.18 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -494,6 +521,7 @@ The platform includes an individual vehicle kinematics and route-following coord
 - [docs/progress/PHASE_12.md](docs/progress/PHASE_12.md): Phase 12 dynamic neighbor tables, heartbeats, and loss detection report.
 - [docs/progress/PHASE_13.md](docs/progress/PHASE_13.md): Phase 13 decentralized V2V coordination and shared traffic knowledge report.
 - [docs/progress/PHASE_14.md](docs/progress/PHASE_14.md): Phase 14 communication latency, packet loss, network degradation, and recovery report.
+- [docs/progress/PHASE_15.md](docs/progress/PHASE_15.md): Phase 15 adaptive rerouting and dynamic route adjustment report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

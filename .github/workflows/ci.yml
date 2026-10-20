@@ -47,6 +47,7 @@ jobs:
             "docs/progress/PHASE_12.md"
             "docs/progress/PHASE_13.md"
             "docs/progress/PHASE_14.md"
+            "docs/progress/PHASE_15.md"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"
@@ -114,7 +115,7 @@ jobs:
         run: |
           python backend/manage.py check
 
-      - name: Run Full Automated Test Suite with Coverage (Phases 2-14)
+      - name: Run Full Automated Test Suite with Coverage (Phases 2-15)
         shell: bash
         run: |
           pytest --cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80
@@ -143,6 +144,6 @@ jobs:
             npm run typecheck
             npm run build
           else
-            echo "Phase 14 verified: Communication Latency, Packet Loss, Network Degradation, and Recovery active; frontend/package.json not yet declared. Node 22.x environment verified."
+            echo "Phase 15 verified: Adaptive Rerouting and Dynamic Route Adjustment active; frontend/package.json not yet declared. Node 22.x environment verified."
           fi
 

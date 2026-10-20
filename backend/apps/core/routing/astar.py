@@ -25,6 +25,7 @@ def astar_search(
     closed_edge_ids: Optional[set[str]] = None,
     heuristic_func: Optional[Callable[[str], float]] = None,
     force_zero_heuristic: bool = False,
+    edge_cost_fn: Optional[Callable[[RoadEdge, CostMode], float]] = None,
 ) -> RoutingResult:
     """Execute custom A* search to find the optimal path in a directed RoadGraph.
 
@@ -132,7 +133,10 @@ def astar_search(
             if v in closed_set:
                 continue
 
-            edge_cost = calculate_edge_cost(edge, cost_mode)
+            if edge_cost_fn is not None:
+                edge_cost = edge_cost_fn(edge, cost_mode)
+            else:
+                edge_cost = calculate_edge_cost(edge, cost_mode)
             tentative_g = current_g + edge_cost
 
             if tentative_g < g_score.get(v, float("inf")) - 1e-12:

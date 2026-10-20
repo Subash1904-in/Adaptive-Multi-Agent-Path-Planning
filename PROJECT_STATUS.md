@@ -1,10 +1,10 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 14 (Communication Latency, Packet Loss, Network Degradation, and Recovery)
+- **Current Phase:** Phase 15 (Adaptive Rerouting and Dynamic Route Adjustment)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 15 (Adaptive Rerouting and Dynamic Route Adjustment) — **PENDING** (Awaiting user prompt)
-- **Last Updated:** 2026-10-20
+- **Next Phase:** Phase 16 (Collision Detection and Avoidance) — **PENDING** (Awaiting user prompt)
+- **Last Updated:** 2026-10-21
 
 ---
 
@@ -29,7 +29,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 12** | **Dynamic neighbor tables, heartbeats, and loss detection** | **COMPLETED** | Per-vehicle neighbor tables, simulation-time heartbeats, stale-neighbor transitions ($t_{\text{now}} - t_{\text{last\_hb}} \ge T_{\text{timeout}}$), grace-period removal, atomic rollback, 624 tests passed (96.78% coverage). |
 | **Phase 13** | **Decentralized V2V coordination** | **COMPLETED** | Vehicle-private knowledge stores, typed reports, deterministic belief fusion, multi-hop dissemination, atomic rollback, 676 tests passed (96% coverage). |
 | **Phase 14** | **Communication latency, packet loss, and degradation** | **COMPLETED** | Multi-tick transit queues, deterministic latency, distance loss, two-state Markov burst loss, outages, links, partitions, 709 tests passed (96% coverage). |
-| **Phase 15** | Adaptive rerouting | Pending | Dynamic route-cost updates, reroute on closure/accident/congestion, cooldown & oscillation prevention. |
+| **Phase 15** | **Adaptive rerouting and dynamic route adjustment** | **COMPLETED** | Vehicle-private dynamic edge costs, congestion/closure/hazard evaluation, benefit hysteresis & cooldown, safe route suffix replacement, rollback, 760 tests passed (95.69% coverage). |
 | **Phase 16** | Collision detection and avoidance | Pending | Geometric collision checks, safe separation distance, braking, near-miss logging, safety metrics. |
 | **Phase 17** | Pedestrians and traffic signals | Pending | Pedestrian agents & crossing zones, signal phases, stop lines, intersection right-of-way. |
 | **Phase 18** | Emergency vehicle priority | Pending | Ambulance/emergency types, priority beacons, cooperative yielding and corridor creation. |
@@ -177,6 +177,8 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Communication Latency & Multi-Tick Queues (`test_communication_latency.py`):** 9 passed.
 - **Packet Loss, Burst Loss, Outages & Partitions (`test_communication_impairment.py`):** 17 passed.
 - **Degradation, Neighbor & Engine Integration (`test_communication_degradation_integration.py`):** 7 passed.
+- **Adaptive Rerouting & Dynamic Costs (`test_routing_*.py`):** 97 passed.
+- **Network Degradation & Latency (`test_communication_degradation_*.py`, `test_communication_latency.py`, `test_communication_impairment.py`):** 33 passed.
 - **Coordination Models & Reports (`test_coordination_models.py`):** 21 passed.
 - **Vehicle Knowledge Stores (`test_coordination_knowledge.py`):** 11 passed.
 - **Deterministic Fusion & Conflicts (`test_coordination_fusion.py`):** 8 passed.
@@ -193,20 +195,19 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Scenario Validation & Execution (`test_scenarios_*.py`):** 44 passed.
 - **Signal Controller & World Integration (`test_signals_*.py`):** 64 passed.
 - **Clock, World, & Engine (`test_simulation_*.py`):** 59 passed.
-- **Kinematics & Vehicle Agent (`test_kinematics_*.py`):** 61 passed.
-- **Routing & Pathfinding (`test_routing_*.py`):** 46 passed.
+- **Kinematics & Vehicle Agent (`test_kinematics_*.py`):** 68 passed.
 - **OSM Acquisition & Graph Normalization (`test_osm_*.py`):** 60 passed.
 - **Road Graph & City Generator (`test_road_graph.py`, `test_city_generator.py`):** 41 passed.
 - **Domain Models, Values & Codecs (`test_domain_*.py`):** 105 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **676 passed, 0 failed in 9.32s**, **96% line coverage** (exceeds 80% threshold).
+- **Total:** **760 passed, 0 failed in 5.50s**, **95.69% line coverage** (exceeds 80% threshold).
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Decentralized V2V coordination and shared traffic knowledge (`backend/apps/core/coordination/`) complete, deterministic, and fully integrated with `WorldState` and `SimulationEngine`.
+- **Notes:** Adaptive rerouting and dynamic route adjustment (`backend/apps/core/routing/`) complete, deterministic, vehicle-private, and fully integrated with `WorldState` and `SimulationEngine` with atomic rollback guarantees.
 
 ---
 
@@ -233,7 +234,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 9. Exact Next Steps
-1. Wait for user prompt for **Phase 13: Decentralized V2V Coordination**.
-2. Advance peer-to-peer data sharing (congestion, incidents, hazards) and private agent knowledge stores.
+1. Wait for user prompt for **Phase 16: Collision Detection and Avoidance**.
+2. Implement geometric collision checks, safe separation distances, and deceleration policies.
 
 

@@ -16,7 +16,7 @@ from apps.core.graph.generator import CityGridConfig
 from apps.core.graph.osm_models import OSMImportConfig
 from apps.core.graph.road_graph import RoadGraph
 from apps.core.kinematics.models import KinematicsConfig
-from apps.core.routing.models import CostMode, RoutingAlgorithm
+from apps.core.routing.models import AdaptiveRoutingConfig, CostMode, RoutingAlgorithm
 from apps.core.signals.models import SignalCycleConfig
 from apps.core.simulation.models import TickResult, WorldSnapshot
 
@@ -160,6 +160,7 @@ class ScenarioDefinition:
     simulation_metadata: dict[str, Any] = field(default_factory=dict)
     v2v_config: Optional[CommunicationConfig] = None
     coordination_config: Optional[CoordinationConfig] = None
+    adaptive_routing_config: Optional[AdaptiveRoutingConfig] = None
 
     @property
     def effective_max_ticks(self) -> Optional[int]:
@@ -192,6 +193,11 @@ class ScenarioDefinition:
             "v2v_config": self.v2v_config.to_dict() if self.v2v_config else None,
             "coordination_config": (
                 self.coordination_config.to_dict() if self.coordination_config else None
+            ),
+            "adaptive_routing_config": (
+                self.adaptive_routing_config.to_dict()
+                if self.adaptive_routing_config
+                else None
             ),
             "simulation_metadata": dict(self.simulation_metadata),
         }

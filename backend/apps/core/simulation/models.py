@@ -70,6 +70,7 @@ class WorldSnapshot:
     signals: dict[str, Any] = field(default_factory=dict)
     communication: Optional[dict[str, Any]] = None
     coordination: Optional[dict[str, Any]] = None
+    routing: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize world snapshot to a plain JSON-compatible dictionary."""
@@ -82,6 +83,11 @@ class WorldSnapshot:
             self.coordination.to_dict()
             if hasattr(self.coordination, "to_dict")
             else self.coordination
+        )
+        routing_dict = (
+            self.routing.to_dict()
+            if hasattr(self.routing, "to_dict")
+            else self.routing
         )
         return {
             "tick": self.tick,
@@ -96,6 +102,7 @@ class WorldSnapshot:
             },
             "communication": comm_dict,
             "coordination": coord_dict,
+            "routing": routing_dict,
             "metadata": dict(self.metadata),
         }
 
@@ -114,6 +121,8 @@ class TickResult:
     signal_states: dict[str, Any] = field(default_factory=dict)
     communication_metrics: Optional[dict[str, int]] = None
     coordination_metrics: Optional[dict[str, int]] = None
+    routing_metrics: Optional[dict[str, Any]] = None
+    routing_decisions: Optional[list[dict[str, Any]]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize tick result to a plain JSON-compatible dictionary."""
@@ -132,6 +141,12 @@ class TickResult:
             ),
             "coordination_metrics": (
                 dict(self.coordination_metrics) if self.coordination_metrics else None
+            ),
+            "routing_metrics": (
+                dict(self.routing_metrics) if self.routing_metrics else None
+            ),
+            "routing_decisions": (
+                list(self.routing_decisions) if self.routing_decisions else None
             ),
             "arrived_agent_ids": list(self.arrived_agent_ids),
             "active_agent_ids": list(self.active_agent_ids),

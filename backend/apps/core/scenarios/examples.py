@@ -13,7 +13,7 @@ from apps.core.coordination.models import CoordinationConfig
 from apps.core.domain.enums import VehicleType
 from apps.core.graph.generator import CityGridConfig
 from apps.core.kinematics.models import KinematicsConfig
-from apps.core.routing.models import CostMode, RoutingAlgorithm
+from apps.core.routing.models import AdaptiveRoutingConfig, CostMode, RoutingAlgorithm
 from apps.core.scenarios.models import (
     RoadNetworkDefinition,
     RoadNetworkSourceType,
@@ -589,6 +589,406 @@ def create_degraded_network_scenario(
             distance_loss_exponent=2.0,
         ),
         coordination_config=CoordinationConfig(enabled=True),
+        seed=seed,
+    )
+
+
+def create_adaptive_reroute_closure_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario demonstrating rerouting around a reported road closure."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_reroute",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_adaptive_closure",
+            name="Adaptive Reroute Around Closure",
+            description="Vehicle dynamically adapts route when a road closure belief is accepted.",
+        ),
+        road_network=rn,
+        vehicles=(v1,),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        adaptive_routing_config=AdaptiveRoutingConfig(
+            enabled=True,
+            min_benefit_absolute=0.1,
+            min_benefit_relative=0.01,
+            cooldown_ticks=5,
+        ),
+        seed=seed,
+    )
+
+
+def create_adaptive_reroute_congestion_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario demonstrating rerouting around a heavily congested corridor."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_congested",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_adaptive_congestion",
+            name="Adaptive Reroute for Congestion Avoidance",
+            description=(
+                "Vehicle reroutes to an alternative corridor due to local congestion beliefs."
+            ),
+        ),
+        road_network=rn,
+        vehicles=(v1,),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        adaptive_routing_config=AdaptiveRoutingConfig(
+            enabled=True,
+            min_benefit_absolute=1.0,
+            min_benefit_relative=0.05,
+            cooldown_ticks=5,
+        ),
+        seed=seed,
+    )
+
+
+def create_adaptive_reroute_hazard_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario demonstrating rerouting away from a reported hazard."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_hazard",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_adaptive_hazard",
+            name="Adaptive Reroute for Hazard Avoidance",
+            description=(
+                "Vehicle avoids an edge with an active hazard penalty exceeding threshold."
+            ),
+        ),
+        road_network=rn,
+        vehicles=(v1,),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        adaptive_routing_config=AdaptiveRoutingConfig(
+            enabled=True,
+            min_benefit_absolute=1.0,
+            default_hazard_penalty=50.0,
+            cooldown_ticks=5,
+        ),
+        seed=seed,
+    )
+
+
+def create_adaptive_reroute_insufficient_benefit_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create scenario where cost improvement does not meet benefit threshold."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_stable",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_adaptive_insufficient_benefit",
+            name="Adaptive Reroute Insufficient Benefit Suppression",
+            description="Minor delay does not trigger route flapping due to benefit hysteresis.",
+        ),
+        road_network=rn,
+        vehicles=(v1,),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        adaptive_routing_config=AdaptiveRoutingConfig(
+            enabled=True,
+            min_benefit_absolute=100.0,
+            min_benefit_relative=0.5,
+            cooldown_ticks=5,
+        ),
+        seed=seed,
+    )
+
+
+def create_adaptive_reroute_cooldown_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create scenario demonstrating cooldown suppression following an accepted reroute."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_cooldown",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_adaptive_cooldown",
+            name="Adaptive Reroute Cooldown Suppression",
+            description=(
+                "Vehicle suppresses subsequent route recalculation during active cooldown period."
+            ),
+        ),
+        road_network=rn,
+        vehicles=(v1,),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        adaptive_routing_config=AdaptiveRoutingConfig(
+            enabled=True,
+            cooldown_s=2.0,
+            cooldown_ticks=20,
+        ),
+        seed=seed,
+    )
+
+
+def create_adaptive_reroute_stale_report_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario demonstrating expired/stale beliefs do not penalize routes."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_stale",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_adaptive_stale",
+            name="Adaptive Reroute Stale Belief Ignored",
+            description=(
+                "Expired closure or congestion beliefs are pruned and do not restrict edges."
+            ),
+        ),
+        road_network=rn,
+        vehicles=(v1,),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        adaptive_routing_config=AdaptiveRoutingConfig(
+            enabled=True,
+        ),
+        seed=seed,
+    )
+
+
+def create_adaptive_reroute_no_alternative_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create scenario where an isolated destination yields NO_ALTERNATIVE_ROUTE."""
+    grid_cfg = CityGridConfig(
+        rows=2,
+        cols=2,
+        spacing_m=50.0,
+        speed_limit_mps=10.0,
+        bidirectional=False,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_blocked",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r1_c1",
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_adaptive_no_alternative",
+            name="Adaptive Reroute No Alternative Path",
+            description=(
+                "Destination is unreachable under current closures yielding no-route outcome."
+            ),
+        ),
+        road_network=rn,
+        vehicles=(v1,),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        adaptive_routing_config=AdaptiveRoutingConfig(
+            enabled=True,
+        ),
+        seed=seed,
+    )
+
+
+def create_adaptive_reroute_current_edge_continuation_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create scenario verifying safe continuation of current edge on downstream closure."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_traversing",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_adaptive_continuation",
+            name="Adaptive Reroute Current Edge Continuation",
+            description=(
+                "Vehicle finishes active edge and splices candidate route from edge endpoint."
+            ),
+        ),
+        road_network=rn,
+        vehicles=(v1,),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        adaptive_routing_config=AdaptiveRoutingConfig(
+            enabled=True,
+            current_edge_policy="finish_edge",
+        ),
+        seed=seed,
+    )
+
+
+def create_adaptive_reroute_delayed_network_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario where network latency delays closure information until after it expires."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_source",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+    )
+    v2 = VehicleScenarioDefinition(
+        vehicle_id="veh_target",
+        start_node_id="node_r1_c0",
+        destination_node_id="node_r1_c2",
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_adaptive_delayed_network",
+            name="Adaptive Reroute Delayed Network Propagation",
+            description="Closure message is delayed by channel latency exceeding belief TTL.",
+        ),
+        road_network=rn,
+        vehicles=(v1, v2),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        v2v_config=CommunicationConfig(
+            enabled=True,
+            range_m=150.0,
+            min_latency_s=0.5,
+            max_latency_s=1.0,
+            latency_seed=seed,
+        ),
+        coordination_config=CoordinationConfig(enabled=True),
+        adaptive_routing_config=AdaptiveRoutingConfig(
+            enabled=True,
+        ),
         seed=seed,
     )
 
