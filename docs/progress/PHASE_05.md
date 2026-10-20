@@ -202,7 +202,17 @@ To ensure GitHub Actions serves as an authoritative, dependency-aware acceptance
 
 ### 14.2 GitHub Actions Acceptance Runs
 - **Baseline Implementation Run:** [Run 39362343593](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39362343593) (Commit `2f73161`) — PASSED in 28s.
-- **Workflow Modernization Run:** Scheduled upon commit and push.
+- **Workflow Modernization Run:** [Run 39363434807](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39363434807) (Commit `587ddfb`) — **PASSED (Success)** in 37s.
+  - **Job: `Backend Lint, Test & Coverage` (ID 118434647413 in 37s):**
+    - Environment verified: Python 3.11.17, Django 5.1.15, DRF 3.15.2, NetworkX 3.3, OSMnx 2.0.7, Pytest 8.2.2, Pytest-Cov 5.0.0.
+    - Ruff check: 0 errors across `backend`.
+    - Django system check: 0 issues.
+    - Pytest with coverage gate: 211 passed in 2.65s, **96.04% total coverage** (exceeding 80% threshold).
+  - **Job: `Repository Hygiene & Documentation Integrity` (ID 118434647618 in 5s):**
+    - All 15 mandatory documents and phase artifacts (`PHASE_01.md` through `PHASE_05.md`) verified present.
+    - Secret and prohibited binary scans: clean.
+  - **Job: `Frontend Lint, Typecheck & Build` (ID 118434647624 in 8s):**
+    - Node 22.x verified, frontend deferred cleanly until `frontend/package.json` is introduced.
 
 ---
 

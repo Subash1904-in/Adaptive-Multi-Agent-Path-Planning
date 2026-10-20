@@ -146,7 +146,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ## 5. Commands Executed and Actual Results
 1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
 2. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-3. `.\.venv\Scripts\pytest.exe`: Executed entire test suite; returned `211 passed in 1.49s` (exit code 0).
+3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `211 passed in 2.50s`, `96.04% coverage` (exit code 0).
 
 ---
 
@@ -160,11 +160,11 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Domain Models & Invariants Tests (`test_domain_models.py`):** 55 passed.
 - **Serialization & Codecs Tests (`test_domain_serialization.py`):** 17 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **211 passed, 0 failed in 1.49s**.
-- **Remote CI Run:** VERIFIED & PASSED ([GitHub Actions Run 39362343593](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39362343593)).
-  - `Backend Lint, Test & Coverage`: PASSED (Ruff, manage.py check, pytest: 211 passed in 1.40s)
-  - `Repository Hygiene & Documentation Integrity`: PASSED
-  - `Frontend Lint, Typecheck & Build`: PASSED (deferred cleanly)
+- **Total:** **211 passed, 0 failed in 2.50s**, **96.04% line coverage** (exceeds 80% threshold).
+- **Remote CI Run:** VERIFIED & PASSED ([GitHub Actions Run 39363434807](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39363434807)).
+  - `Backend Lint, Test & Coverage`: PASSED (Python 3.11.17, Django 5.1.15, DRF 3.15.2, NetworkX 3.3, OSMnx 2.0.7, Ruff, manage.py check, pytest: 211 passed in 2.65s, 96.04% coverage)
+  - `Repository Hygiene & Documentation Integrity`: PASSED (15 mandatory documents and phase artifacts verified)
+  - `Frontend Lint, Typecheck & Build`: PASSED (Node 22.x verified, cleanly deferred)
 
 ---
 
