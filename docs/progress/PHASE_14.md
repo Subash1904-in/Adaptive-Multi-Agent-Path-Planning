@@ -178,9 +178,14 @@ The GitHub Actions pipeline `.github/workflows/ci.yml` contains 3 coordinated jo
 3. **`frontend-quality`**: Node.js 22.x environment check with clean deferral until `frontend/package.json` is introduced.
 
 ### GitHub Actions Run Verification
-- **Commit SHA:** `[RECORDED_UPON_PUSH]`
-- **Run URL:** `[RECORDED_UPON_PUSH]`
-- **Run Outcome:** `[RECORDED_UPON_PUSH]`
+- **Commit SHA:** `36f2aa3`
+- **Run URL:** [https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39465636032](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39465636032)
+- **Run Outcome:** **SUCCESS (All 3 jobs passed)**
+  - `Repository Hygiene & Documentation Integrity`: **PASSED** (Run ID: 118776165484, duration: 6s)
+  - `Frontend Lint, Typecheck & Build`: **PASSED** (Run ID: 118776165757, duration: 5s)
+  - `Backend Lint, Test & Coverage`: **PASSED** (Run ID: 118776165828, duration: 34s)
+    - Full test suite: **709 passed** in 9.48s (0 failures, 0 skipped)
+    - Enforced line coverage: **95.96% (96%)** on `backend/apps/core` (exceeding 80% CI requirement)
 
 ---
 
