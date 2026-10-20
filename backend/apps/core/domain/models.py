@@ -378,9 +378,7 @@ class TrafficSignal:
                 "position must be an instance of Position2D or None.", field="position"
             )
         self.cycle_duration_s = _validate_positive(self.cycle_duration_s, "cycle_duration_s")
-        self.remaining_phase_s = _validate_non_negative(
-            self.remaining_phase_s, "remaining_phase_s"
-        )
+        self.remaining_phase_s = _validate_non_negative(self.remaining_phase_s, "remaining_phase_s")
         if self.remaining_phase_s > self.cycle_duration_s + 1e-6:
             raise DomainValidationError(
                 f"remaining_phase_s ({self.remaining_phase_s}) cannot exceed "
@@ -480,9 +478,7 @@ class Incident:
                 f"Invalid incident severity: {self.severity}.", field="severity"
             )
         if not isinstance(self.status, IncidentStatus):
-            raise DomainValidationError(
-                f"Invalid incident status: {self.status}.", field="status"
-            )
+            raise DomainValidationError(f"Invalid incident status: {self.status}.", field="status")
         if self.affected_edge_id is not None:
             self.affected_edge_id = _validate_id(self.affected_edge_id, "affected_edge_id")
         if self.affected_node_id is not None:

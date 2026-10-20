@@ -151,7 +151,35 @@ python backend/manage.py check
   - Graph immutability: verifying input `RoadGraph` node and edge structures are completely unchanged by path searches.
   - Route continuity: verifying every consecutive node pair $(u, v)$ has a matching directed edge in `edge_ids`.
   - NetworkX reference comparison: matching ground-truth shortest path costs computed by `nx.shortest_path_length` for both distance and travel time.
-  - Real-world OSM graph routing: path planning over an offline normalized OSM network fixture.
+- **Kinematics Motion Integration & Models (`test_kinematics_motion.py`, 38 passed):**
+  - Parameter bounds and validation for `KinematicsConfig`.
+  - Constant-speed motion, forward acceleration, mid-step speed saturation at $v_{\text{cap}}$.
+  - Braking deceleration, mid-step stopping without reverse motion.
+  - Road speed limit enforcement (`enforce_road_speed_limits`).
+  - Destination boundary distance clamping.
+  - Invalid, non-finite, and NaN/Inf input rejection for time step $\Delta t$, acceleration, and speed.
+  - Directional heading angle normalization and collocated heading preservation.
+  - Planar position interpolation along line segments.
+  - `MotionStepResult` serialization and field verification.
+- **Vehicle Agent Lifecycle & Route Following (`test_kinematics_vehicle_agent.py`, 19 passed):**
+  - Type validation and constructor verification.
+  - Route validation: node existence, directed edge continuity, endpoint mismatches, and route length constraints.
+  - Stationary behavior when `IDLE`.
+  - Lifecycle state machine: `start()` to `EN_ROUTE`, `pause()`/`block()` to `BLOCKED`, `resume()` to `EN_ROUTE`, `reset()`.
+  - Preservation of route progress and position across pause/resume cycles.
+  - Rejection of invalid lifecycle transitions.
+  - Progression along single-edge and multi-edge routes.
+  - Multi-segment crossing in a single time step without distance loss.
+  - Large time-step overshoot clamping at destination with arrival state transition.
+  - Reset and route reassignment.
+- **Kinematics Grid & OSM Integration (`test_kinematics_integration.py`, 4 passed):**
+  - End-to-end integration: synthetic grid generation -> A* pathfinding -> vehicle navigation to destination.
+  - Bit-identical trajectory determinism across repeated runs.
+  - Real-world route traversal over an offline OSM-normalized road graph.
+- **Routing Costs, Traversability & Heuristics (`test_routing_costs_and_heuristics.py`, 18 passed)**
+- **Dijkstra Shortest Path Search (`test_routing_dijkstra.py`, 11 passed)**
+- **Custom A\* Pathfinding (`test_routing_astar.py`, 9 passed)**
+- **Route Planner & Cross-Algorithm Comparison (`test_routing_planner.py`, 8 passed)**
 - **OSM Models, Bounds & Planar Projector (`test_osm_models_and_projector.py`, 31 passed)**
 - **OSM Graph Normalization Pipeline (`test_osm_normalizer.py`, 12 passed)**
 - **OSM Import Service & Fallback (`test_osm_service_and_fallback.py`, 17 passed)**
@@ -167,8 +195,8 @@ python backend/manage.py check
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 06: **96.76%** coverage).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_06.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 07: **96.51%** coverage across 318 passing tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_07.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend Deferred Cleanly:** Frontend build/lint/typecheck job runs in Node 22.x, deferring execution cleanly until `frontend/package.json` is introduced.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.

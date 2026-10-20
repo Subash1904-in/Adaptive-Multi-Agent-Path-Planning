@@ -57,12 +57,8 @@ class TestDijkstraSearch:
 
         return g
 
-    def test_known_shortest_distance_selects_shorter_path(
-        self, diamond_graph: RoadGraph
-    ) -> None:
-        result = dijkstra_search(
-            diamond_graph, "A", "D", cost_mode=CostMode.DISTANCE
-        )
+    def test_known_shortest_distance_selects_shorter_path(self, diamond_graph: RoadGraph) -> None:
+        result = dijkstra_search(diamond_graph, "A", "D", cost_mode=CostMode.DISTANCE)
         assert result.success is True
         assert result.algorithm == RoutingAlgorithm.DIJKSTRA
         assert result.cost_mode == CostMode.DISTANCE
@@ -76,12 +72,8 @@ class TestDijkstraSearch:
         assert isinstance(result.route, Route)
         assert result.route.node_ids == ["A", "B", "D"]
 
-    def test_known_fastest_time_selects_faster_path(
-        self, diamond_graph: RoadGraph
-    ) -> None:
-        result = dijkstra_search(
-            diamond_graph, "A", "D", cost_mode=CostMode.TRAVEL_TIME
-        )
+    def test_known_fastest_time_selects_faster_path(self, diamond_graph: RoadGraph) -> None:
+        result = dijkstra_search(diamond_graph, "A", "D", cost_mode=CostMode.TRAVEL_TIME)
         assert result.success is True
         assert result.algorithm == RoutingAlgorithm.DIJKSTRA
         assert result.cost_mode == CostMode.TRAVEL_TIME
@@ -96,9 +88,7 @@ class TestDijkstraSearch:
         with pytest.raises(NoPathFoundError, match="No path found from 'D' to 'A'"):
             dijkstra_search(diamond_graph, "D", "A")
 
-    def test_start_equals_destination_returns_zero_cost(
-        self, diamond_graph: RoadGraph
-    ) -> None:
+    def test_start_equals_destination_returns_zero_cost(self, diamond_graph: RoadGraph) -> None:
         result = dijkstra_search(diamond_graph, "A", "A")
         assert result.success is True
         assert result.node_ids == ["A"]
@@ -126,9 +116,7 @@ class TestDijkstraSearch:
         with pytest.raises(NoPathFoundError, match="No path found from 'A' to 'B'"):
             dijkstra_search(g, "A", "B")
 
-    def test_closed_edge_reroutes_to_alternative(
-        self, diamond_graph: RoadGraph
-    ) -> None:
+    def test_closed_edge_reroutes_to_alternative(self, diamond_graph: RoadGraph) -> None:
         # In travel time mode, normal path is A -> C -> D.
         # Closing e_AC forces reroute via A -> B -> D.
         result = dijkstra_search(
@@ -142,9 +130,7 @@ class TestDijkstraSearch:
         assert result.node_ids == ["A", "B", "D"]
         assert result.edge_ids == ["e_AB", "e_BD"]
 
-    def test_all_paths_blocked_by_closures_raises(
-        self, diamond_graph: RoadGraph
-    ) -> None:
+    def test_all_paths_blocked_by_closures_raises(self, diamond_graph: RoadGraph) -> None:
         # Closing e_AB and e_AC leaves no traversable path from A to D
         with pytest.raises(NoPathFoundError, match="2 closed edges active"):
             dijkstra_search(
@@ -170,9 +156,7 @@ class TestDijkstraSearch:
         assert res.success is True
         assert res.edge_ids == ["e_backward"]
 
-    def test_deterministic_results_across_runs(
-        self, diamond_graph: RoadGraph
-    ) -> None:
+    def test_deterministic_results_across_runs(self, diamond_graph: RoadGraph) -> None:
         res1 = dijkstra_search(diamond_graph, "A", "D", CostMode.TRAVEL_TIME)
         res2 = dijkstra_search(diamond_graph, "A", "D", CostMode.TRAVEL_TIME)
         assert res1.node_ids == res2.node_ids

@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 6 (Route planning baseline: Dijkstra, A* and travel-time routing)
+- **Current Phase:** Phase 7 (Vehicle kinematics and agent lifecycle)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 7 (Vehicle agents and lifecycle) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 8 (Simulation clock and world state) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-20
 
 ---
@@ -21,7 +21,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 04** | **Road graph and deterministic city** | **COMPLETED** | Directed road graph (nx.DiGraph), domain integration, deterministic synthetic grid generator, 151 tests passed. |
 | **Phase 05** | **OpenStreetMap import** | **COMPLETED** | BoundingBox validation, LocalPlanarProjector, OSMnx acquisition adapter, RoadGraph normalizer, offline fallback, 211 tests passed. |
 | **Phase 06** | **Route planning baseline** | **COMPLETED** | Dijkstra, custom A*, distance/travel-time cost modes, road closures, heuristic admissibility, 257 tests passed (96.76% coverage). |
-| **Phase 07** | Vehicle agents and lifecycle | Pending | Independent agents, start/dest nodes, speeds, route progress, spawn/arrive/remove lifecycle. |
+| **Phase 07** | **Vehicle agents and lifecycle** | **COMPLETED** | Bounded constant-acceleration kinematics, lifecycle states (IDLE/EN_ROUTE/BLOCKED/ARRIVED), route tracking, 318 tests passed (96.51% coverage). |
 | **Phase 08** | Simulation clock and world state | Pending | Deterministic simulation engine, fixed time steps, pause/resume/step/reset, authoritative state. |
 | **Phase 09** | Vehicle movement and traffic rules | Pending | Progression along edges, speed limits, acceleration/deceleration bounds, intersections, queues. |
 | **Phase 10** | Multi-agent scenario orchestration | Pending | Scenario configuration (agent count, destinations, seed, density), independent run demo. |
@@ -151,6 +151,9 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 6. Test Results
+- **Kinematics Motion Integration & Limits (`test_kinematics_motion.py`):** 38 passed.
+- **Vehicle Agent Lifecycle & Route Following (`test_kinematics_vehicle_agent.py`):** 19 passed.
+- **Kinematics Grid & OSM Integration (`test_kinematics_integration.py`):** 4 passed.
 - **Routing Costs, Traversability & Heuristics (`test_routing_costs_and_heuristics.py`):** 18 passed.
 - **Dijkstra Shortest Path Search (`test_routing_dijkstra.py`):** 11 passed.
 - **Custom A\* Pathfinding (`test_routing_astar.py`):** 9 passed.
@@ -164,15 +167,15 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Domain Models & Invariants Tests (`test_domain_models.py`):** 55 passed.
 - **Serialization & Codecs Tests (`test_domain_serialization.py`):** 17 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **257 passed, 0 failed in 2.70s**, **96.76% line coverage** (exceeds 80% threshold).
-- **Remote CI Run:** [39368220249](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39368220249) — All 3 jobs passed (commit `5a6c32e`).
+- **Total:** **318 passed, 0 failed in 2.92s**, **96.51% line coverage** (exceeds 80% threshold).
+- **Remote CI Run:** Ready for push and GitHub Actions verification.
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Route planning baseline (Dijkstra, A*, distance and travel time, road closures, and heuristic admissibility) complete and tested. Ready for Phase 7 vehicle agents and kinematics.
+- **Notes:** Vehicle kinematics and agent lifecycle (`backend/apps/core/kinematics/`) complete and tested. Ready for Phase 8 simulation clock and world state.
 
 ---
 

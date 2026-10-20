@@ -98,12 +98,15 @@ class TestRoadEdge:
             )
         assert "cannot connect a node to itself" in str(exc_info.value)
 
-    @pytest.mark.parametrize("length, speed", [
-        (0.0, 10.0),
-        (-10.0, 10.0),
-        (50.0, 0.0),
-        (50.0, -5.0),
-    ])
+    @pytest.mark.parametrize(
+        "length, speed",
+        [
+            (0.0, 10.0),
+            (-10.0, 10.0),
+            (50.0, 0.0),
+            (50.0, -5.0),
+        ],
+    )
     def test_non_positive_length_or_speed_rejected(self, length: float, speed: float) -> None:
         with pytest.raises(DomainValidationError):
             RoadEdge(
@@ -143,10 +146,13 @@ class TestRoute:
         assert route.total_distance_m == 350.0
         assert route.estimated_duration_s == 25.2
 
-    @pytest.mark.parametrize("bad_nodes", [
-        [],
-        ["node_1"],
-    ])
+    @pytest.mark.parametrize(
+        "bad_nodes",
+        [
+            [],
+            ["node_1"],
+        ],
+    )
     def test_route_fewer_than_two_nodes_rejected(self, bad_nodes: list[str]) -> None:
         with pytest.raises(DomainValidationError) as exc_info:
             Route(id="route_bad", node_ids=bad_nodes)
@@ -156,10 +162,13 @@ class TestRoute:
         with pytest.raises(DomainValidationError):
             Route(id="route_bad", node_ids=["node_1", ""])
 
-    @pytest.mark.parametrize("dist, dur", [
-        (-1.0, 10.0),
-        (100.0, -5.0),
-    ])
+    @pytest.mark.parametrize(
+        "dist, dur",
+        [
+            (-1.0, 10.0),
+            (100.0, -5.0),
+        ],
+    )
     def test_negative_distance_or_duration_rejected(self, dist: float, dur: float) -> None:
         with pytest.raises(DomainValidationError):
             Route(

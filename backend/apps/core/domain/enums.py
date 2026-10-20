@@ -14,6 +14,7 @@ class VehicleState(str, Enum):
     EN_ROUTE = "en_route"
     WAITING_AT_SIGNAL = "waiting_at_signal"
     STOPPED = "stopped"
+    BLOCKED = "blocked"
     REROUTING = "rerouting"
     ARRIVED = "arrived"
 

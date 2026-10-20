@@ -226,21 +226,27 @@ class TestDomainSerialization:
 
     def test_from_dict_invalid_enum_string_raises(self) -> None:
         with pytest.raises(SerializationError) as exc_info:
-            from_dict(Vehicle, {
-                "id": "veh_bad_enum",
-                "position": {"x": 0.0, "y": 0.0},
-                "state": "teleporting",
-            })
+            from_dict(
+                Vehicle,
+                {
+                    "id": "veh_bad_enum",
+                    "position": {"x": 0.0, "y": 0.0},
+                    "state": "teleporting",
+                },
+            )
         assert "Invalid value 'teleporting' for VehicleState" in str(exc_info.value)
 
     def test_from_dict_invalid_domain_rule_raises_serialization_error(self) -> None:
         # e.g., negative speed
         with pytest.raises(SerializationError) as exc_info:
-            from_dict(Vehicle, {
-                "id": "veh_neg_speed",
-                "position": {"x": 0.0, "y": 0.0},
-                "speed_mps": -5.0,
-            })
+            from_dict(
+                Vehicle,
+                {
+                    "id": "veh_neg_speed",
+                    "position": {"x": 0.0, "y": 0.0},
+                    "speed_mps": -5.0,
+                },
+            )
         assert "Validation failed during deserialization" in str(exc_info.value)
 
     def test_unsupported_class_raises(self) -> None:

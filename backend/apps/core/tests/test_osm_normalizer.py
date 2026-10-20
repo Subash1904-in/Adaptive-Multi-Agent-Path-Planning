@@ -113,9 +113,9 @@ class TestOSMNodeNormalization:
         """Nodes with missing, non-finite, or out-of-bound coords are skipped."""
         G = nx.MultiDiGraph()
         G.add_node(1, y=37.770, x=-122.420)  # valid
-        G.add_node(2, y=None, x=-122.415)    # missing lat
+        G.add_node(2, y=None, x=-122.415)  # missing lat
         G.add_node(3, y=37.775, x=float("inf"))  # non-finite lon
-        G.add_node(4, y=95.0, x=-122.415)    # out of bounds lat
+        G.add_node(4, y=95.0, x=-122.415)  # out of bounds lat
 
         road_graph, skipped = normalize_osm_graph(G, sample_bounds)
         assert len(road_graph.nodes()) == 1

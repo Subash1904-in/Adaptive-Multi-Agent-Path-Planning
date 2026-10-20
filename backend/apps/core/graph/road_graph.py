@@ -243,8 +243,7 @@ class RoadGraph:
         if node_id not in self._nodes:
             raise NodeNotFoundError(node_id)
         return [
-            self._edges_by_endpoints[(node_id, succ)]
-            for succ in self._graph.successors(node_id)
+            self._edges_by_endpoints[(node_id, succ)] for succ in self._graph.successors(node_id)
         ]
 
     def get_incoming_edges(self, node_id: str) -> list[RoadEdge]:
@@ -252,8 +251,7 @@ class RoadGraph:
         if node_id not in self._nodes:
             raise NodeNotFoundError(node_id)
         return [
-            self._edges_by_endpoints[(pred, node_id)]
-            for pred in self._graph.predecessors(node_id)
+            self._edges_by_endpoints[(pred, node_id)] for pred in self._graph.predecessors(node_id)
         ]
 
     # -------------------------------------------------------------------------

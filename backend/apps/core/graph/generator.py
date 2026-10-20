@@ -91,9 +91,7 @@ class CityGridConfig:
                 field="speed_variance_mps",
             )
         if not isinstance(self.seed, int):
-            raise GraphValidationError(
-                f"seed must be an integer, got {self.seed}.", field="seed"
-            )
+            raise GraphValidationError(f"seed must be an integer, got {self.seed}.", field="seed")
 
         if self.signalized_intersections is not None:
             if not isinstance(self.signalized_intersections, list):
@@ -140,9 +138,11 @@ def generate_synthetic_city_grid(config: Optional[CityGridConfig] = None) -> Roa
             node = RoadNode(
                 id=node_id,
                 position=pos,
-                attributes={"row": r, "col": c, "is_boundary": (
-                    r == 0 or r == cfg.rows - 1 or c == 0 or c == cfg.cols - 1
-                )},
+                attributes={
+                    "row": r,
+                    "col": c,
+                    "is_boundary": (r == 0 or r == cfg.rows - 1 or c == 0 or c == cfg.cols - 1),
+                },
             )
             graph.add_node(node)
             node_matrix[(r, c)] = node
@@ -234,11 +234,7 @@ def generate_synthetic_city_grid(config: Optional[CityGridConfig] = None) -> Roa
     signal_coords = cfg.signalized_intersections
     if signal_coords is None:
         # Default: internal intersections (nodes with degree >= 4)
-        signal_coords = [
-            (r, c)
-            for r in range(1, cfg.rows - 1)
-            for c in range(1, cfg.cols - 1)
-        ]
+        signal_coords = [(r, c) for r in range(1, cfg.rows - 1) for c in range(1, cfg.cols - 1)]
 
     for r, c in signal_coords:
         node = node_matrix[(r, c)]

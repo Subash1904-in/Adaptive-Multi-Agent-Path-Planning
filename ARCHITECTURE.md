@@ -129,12 +129,29 @@ A fundamental requirement of AMAPP is the strict separation between global groun
     5. Perform authoritative collision detection and near-miss logging.
     6. Update metrics and construct immutable telemetry frame snapshot.
 
-### 3.2 Vehicle Agents & Kinematics (`sim_engine/agents/` — Planned Phases 7, 9, 10)
-- **Responsibilities:** Independent vehicle lifecycle, kinematic motion model along lane centerlines, acceleration/braking bounds, intersection queues, local decision interface.
-- **Kinematic Model:** Continuous longitudinal progression along directed graph edges $e = (u, v)$ with distance along edge $s \in [0, \text{length}(e)]$, lateral lane offset, velocity $v$, and acceleration $a \in [a_{\min}, a_{\max}]$.
-- **Agent Types:**
-  - `StandardAV`: Regular autonomous vehicle adhering to traffic rules, speed limits, and cooperative V2V protocols.
-  - `EmergencyVehicle`: Priority vehicle (e.g., ambulance) broadcasting sirens and emergency priority tokens.
+### 3.2 Vehicle Kinematics & Agent Lifecycle (`backend/apps/core/kinematics/` — IMPLEMENTED & TESTED in Phase 07)
+- **Responsibilities:** Individual vehicle lifecycle, deterministic point-mass kinematic motion along planned routes, speed and acceleration limits, heading orientation updates, segment transitions, overshoot prevention, and pure mathematical integration.
+- **Module Architecture (`backend/apps/core/kinematics/`):**
+  - `models.py`: Validated configuration (`KinematicsConfig`) and step result contract (`MotionStepResult`).
+  - `motion.py`: Pure mathematical integration (`integrate_motion`), heading calculation (`compute_heading`), and planar interpolation (`interpolate_position`).
+  - `vehicle_agent.py`: Individual vehicle lifecycle and route-following coordinator (`VehicleAgent`).
+  - `exceptions.py`: Typed exceptions (`KinematicsError`, `InvalidKinematicsConfigError`, `InvalidMotionInputError`, `InvalidRouteError`, `InvalidLifecycleTransitionError`).
+- **Kinematic Motion Model:**
+  - *Equations of Motion:*
+    $$v(t) = v_0 + a \Delta t$$
+    $$d(t) = v_0 \Delta t + \frac{1}{2} a \Delta t^2$$
+  - *Acceleration & Braking Limits:* Applied acceleration is clamped to $[-b_{\max}, a_{\max}]$:
+    $$a_{\text{applied}} = \max(-config.\text{max\_deceleration\_mps2}, \min(a_{\text{cmd}}, config.\text{max\_acceleration\_mps2}))$$
+  - *Mid-Step Stopping:* If braking stops the vehicle mid-step ($t_{\text{stop}} = v_0 / |a_{\text{applied}}| < \Delta t$), distance is clamped to $d = \frac{v_0^2}{2 |a_{\text{applied}}|}$ and speed becomes $0.0$; no reverse motion occurs.
+  - *Mid-Step Speed Capping:* If accelerating reaches $v_{\text{cap}}$ mid-step ($t_{\text{sat}} < \Delta t$), motion integrates acceleration up to $t_{\text{sat}}$ and constant-speed cruise for the remainder.
+  - *Destination Arrival & Overshoot Prevention:* Distance is clamped by remaining route distance ($d \le d_{\text{rem}}$). Reaching destination transitions vehicle to `ARRIVED` and brings speed to $0.0$.
+  - *Multi-Segment Progression:* Large time steps traverse intermediate segment endpoints without losing traveled distance.
+- **Lifecycle State Machine:**
+  - `IDLE`: Initial parked state. Stepping produces zero movement. Starting requires an assigned route.
+  - `EN_ROUTE`: Actively advancing along route segments.
+  - `BLOCKED` / `STOPPED`: Paused/waiting state. Speed is $0.0$. Position and progress along segment are preserved. Stepping produces zero movement. Calling `resume()` restores `EN_ROUTE`.
+  - `ARRIVED`: Final destination reached. Speed is $0.0$. Repeated stepping produces zero movement. Resuming requires explicit `reset()`.
+- **Explicit Boundaries:** Operates on an individual vehicle without a global clock, collision avoidance, traffic signal obedience, or multi-agent negotiation (deferred to Phases 8, 9, 11, 16).
 
 ### 3.3 Road Graph & Synthetic City Generator (`backend/apps/core/graph/` — IMPLEMENTED & TESTED in Phase 04)
 - **Responsibilities:** Directed road network graph representation $G = (V, E)$ wrapping NetworkX (`nx.DiGraph`); authoritative storage of typed `RoadNode` and `RoadEdge` domain entities; deterministic synthetic city grid generation; topological queries and reachability analysis.
@@ -212,7 +229,7 @@ A fundamental requirement of AMAPP is the strict separation between global groun
 | `backend/apps/core/domain/` | Typed domain dataclasses, value objects, enums, units, validation, serialization | Phase 03 (IMPLEMENTED & TESTED) | Python Standard Library (`dataclasses`, `enum`, `typing`, `json`, `math`) | 10 Domain Models (`Vehicle`, `RoadNode`, `RoadEdge`, `Route`, `Pedestrian`, `TrafficSignal`, `Obstacle`, `Incident`, `V2VMessage`, `SimulationConfig`), 3 Value Types (`Position2D`, `GeoCoordinate`, `Dimensions2D`), `to_dict`, `from_dict`, `to_json`, `from_json` | `backend/apps/core/tests/test_domain_*.py` | Must NOT depend on Django ORM, Channels, or external geometry packages |
 | `backend/apps/core/graph/` | Directed road graph abstraction, synthetic city grid generator, OSM road-network acquisition and normalization, offline fallback | Phase 04 & 05 (IMPLEMENTED & TESTED) | NetworkX, `backend/apps/core/domain/`, optional OSMnx | `RoadGraph`, `CityGridConfig`, `generate_synthetic_city_grid`, `BoundingBox`, `OSMImportConfig`, `OSMImportResult`, `LocalPlanarProjector`, `normalize_osm_graph`, `import_osm_road_network` | `backend/apps/core/tests/test_road_graph.py`, `backend/apps/core/tests/test_city_generator.py`, `backend/apps/core/tests/test_osm_*.py` | Must NOT depend on vehicle kinematics, routing, or web layer |
 | `backend/apps/core/routing/` | Baseline shortest-path planning (Dijkstra, A*), distance/travel-time cost modes, road closures, heuristic admissibility | Phase 06 (IMPLEMENTED & TESTED) | NetworkX, `backend/apps/core/domain/`, `backend/apps/core/graph/` | `RoutePlanner`, `find_route`, `dijkstra_search`, `astar_search`, `CostMode`, `RoutingAlgorithm`, `RoutingRequest`, `RoutingResult` | `backend/apps/core/tests/test_routing_*.py` | Must NOT depend on vehicle kinematics, global clock, or web endpoints |
-| `sim_engine/agents/` | Vehicle kinematics, agent lifecycle, belief state | Phase 07 | `sim_engine/domain/`, NumPy | `VehicleAgent`, `LocalKnowledgeBase`, `KinematicModel` | `tests/unit/test_agents.py` | Must NOT access global simulation state directly |
+| `backend/apps/core/kinematics/` | Deterministic vehicle kinematics, bounded point-mass motion model, agent lifecycle management, route following | Phase 07 (IMPLEMENTED & TESTED) | `backend/apps/core/domain/`, `backend/apps/core/graph/`, `backend/apps/core/routing/` | `VehicleAgent`, `KinematicsConfig`, `MotionStepResult`, `integrate_motion`, `compute_heading`, `interpolate_position` | `backend/apps/core/tests/test_kinematics_*.py` | Must NOT depend on global clock, collision avoidance, or web layer |
 | `sim_engine/core/` | Authoritative simulation clock, stepping loop, world state | Phase 08 | All `sim_engine/` subsystems | `SimulationEngine`, `SimulationClock`, `WorldState` | `tests/unit/test_sim_engine.py` | Must NOT depend on Django views or WebSocket consumers |
 | `sim_engine/v2v/` | Message validation, proximity detection, channel noise | Phase 11 | `sim_engine/domain/`, SciPy/NumPy | `V2VChannel`, `ProximityDetector`, `MessageDispatcher` | `tests/unit/test_v2v.py` | Must NOT modify agent routes directly |
 | `sim_engine/safety/` | Collision detection, IDM, signals, pedestrian yielding | Phase 16 | `sim_engine/domain/`, NumPy | `CollisionDetector`, `IDMController`, `TrafficSignalController` | `tests/unit/test_safety.py` | Must NOT depend on frontend rendering |

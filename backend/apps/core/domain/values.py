@@ -25,9 +25,7 @@ class Position2D:
 
     def __post_init__(self) -> None:
         if not isinstance(self.x, (int, float)) or not isinstance(self.y, (int, float)):
-            raise DomainValidationError(
-                "Position2D coordinates must be numeric.", field="position"
-            )
+            raise DomainValidationError("Position2D coordinates must be numeric.", field="position")
         if not math.isfinite(self.x) or not math.isfinite(self.y):
             raise DomainValidationError(
                 "Position2D coordinates must be finite numbers.", field="position"
@@ -49,13 +47,9 @@ class Position2D:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Position2D":
         if not isinstance(data, dict):
-            raise DomainValidationError(
-                "Position2D data must be a dictionary.", field="position"
-            )
+            raise DomainValidationError("Position2D data must be a dictionary.", field="position")
         if "x" not in data or "y" not in data:
-            raise DomainValidationError(
-                "Position2D requires 'x' and 'y' fields.", field="position"
-            )
+            raise DomainValidationError("Position2D requires 'x' and 'y' fields.", field="position")
         return cls(x=data["x"], y=data["y"])
 
 
@@ -128,9 +122,7 @@ class Dimensions2D:
         if not isinstance(self.length_m, (int, float)) or not isinstance(
             self.width_m, (int, float)
         ):
-            raise DomainValidationError(
-                "Dimensions2D values must be numeric.", field="dimensions"
-            )
+            raise DomainValidationError("Dimensions2D values must be numeric.", field="dimensions")
         if not math.isfinite(self.length_m) or not math.isfinite(self.width_m):
             raise DomainValidationError(
                 "Dimensions2D values must be finite numbers.", field="dimensions"

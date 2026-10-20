@@ -18,20 +18,20 @@ from apps.core.graph.road_graph import RoadGraph
 
 # Highway classification speed limit defaults (in meters per second)
 HIGHWAY_DEFAULT_SPEEDS_MPS: dict[str, float] = {
-    "motorway": 30.0,        # ~108 km/h
+    "motorway": 30.0,  # ~108 km/h
     "motorway_link": 22.22,  # ~80 km/h
-    "trunk": 25.0,           # ~90 km/h
-    "trunk_link": 19.44,     # ~70 km/h
-    "primary": 16.67,        # ~60 km/h
-    "primary_link": 13.89,   # ~50 km/h
-    "secondary": 13.89,      # ~50 km/h
-    "secondary_link": 11.11, # ~40 km/h
-    "tertiary": 11.11,       # ~40 km/h
-    "tertiary_link": 8.33,   # ~30 km/h
-    "residential": 8.33,     # ~30 km/h
-    "living_street": 5.56,   # ~20 km/h
-    "service": 5.56,         # ~20 km/h
-    "unclassified": 8.33,    # ~30 km/h
+    "trunk": 25.0,  # ~90 km/h
+    "trunk_link": 19.44,  # ~70 km/h
+    "primary": 16.67,  # ~60 km/h
+    "primary_link": 13.89,  # ~50 km/h
+    "secondary": 13.89,  # ~50 km/h
+    "secondary_link": 11.11,  # ~40 km/h
+    "tertiary": 11.11,  # ~40 km/h
+    "tertiary_link": 8.33,  # ~30 km/h
+    "residential": 8.33,  # ~30 km/h
+    "living_street": 5.56,  # ~20 km/h
+    "service": 5.56,  # ~20 km/h
+    "unclassified": 8.33,  # ~30 km/h
 }
 
 HIGHWAY_DEFAULT_LANES: dict[str, int] = {
@@ -208,10 +208,7 @@ def normalize_osm_graph(
     edge_iter = (
         source_graph.edges(keys=True, data=True)
         if source_graph.is_multigraph()
-        else (
-            (u, v, None, data)
-            for u, v, data in source_graph.edges(data=True)
-        )
+        else ((u, v, None, data) for u, v, data in source_graph.edges(data=True))
     )
 
     for u, v, key, data in edge_iter:
@@ -290,9 +287,8 @@ def normalize_osm_graph(
         # Synthesize reverse edge (v -> u) if two-way and not already present
         if not oneway:
             reverse_edge_id = f"osm_edge_{v}_{u}{key_suffix}"
-            if (
-                not road_graph.has_edge_between(v_id, u_id)
-                and not road_graph.has_edge(reverse_edge_id)
+            if not road_graph.has_edge_between(v_id, u_id) and not road_graph.has_edge(
+                reverse_edge_id
             ):
                 rev_attrs = {**edge_attrs, "synthesized_reverse": True}
                 reverse_edge = RoadEdge(

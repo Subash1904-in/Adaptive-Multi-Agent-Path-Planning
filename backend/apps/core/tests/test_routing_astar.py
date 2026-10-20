@@ -121,17 +121,13 @@ class TestAStarSearch:
             astar_search(diamond_graph, "A", "UNKNOWN")
 
     def test_astar_closed_edges_rerouting(self, diamond_graph: RoadGraph) -> None:
-        res = astar_search(
-            diamond_graph, "A", "D", CostMode.TRAVEL_TIME, closed_edge_ids={"e_AC"}
-        )
+        res = astar_search(diamond_graph, "A", "D", CostMode.TRAVEL_TIME, closed_edge_ids={"e_AC"})
         assert res.success is True
         assert res.node_ids == ["A", "B", "D"]
 
     def test_astar_all_paths_blocked_raises(self, diamond_graph: RoadGraph) -> None:
         with pytest.raises(NoPathFoundError):
-            astar_search(
-                diamond_graph, "A", "D", closed_edge_ids={"e_AB", "e_AC"}
-            )
+            astar_search(diamond_graph, "A", "D", closed_edge_ids={"e_AB", "e_AC"})
 
     def test_astar_safe_zero_heuristic_fallback(self) -> None:
         # Create an inadmissible graph where edge length < Euclidean distance

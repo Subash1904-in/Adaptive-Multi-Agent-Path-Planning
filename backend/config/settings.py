@@ -2,6 +2,7 @@
 
 Generated for Phase 02: Project scaffold and development environment.
 """
+
 import os
 import sys
 from pathlib import Path

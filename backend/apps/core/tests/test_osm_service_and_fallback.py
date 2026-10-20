@@ -75,9 +75,7 @@ class TestOSMFallbackBehavior:
         assert result.node_count == 16  # default 4x4 grid
         assert len(result.graph.nodes()) == 16
 
-    def test_missing_osmnx_with_fallback_disabled_raises(
-        self, valid_bounds: BoundingBox
-    ) -> None:
+    def test_missing_osmnx_with_fallback_disabled_raises(self, valid_bounds: BoundingBox) -> None:
         """Missing OSMnx with allow_fallback=False raises OSMNotInstalledError."""
         config = OSMImportConfig(bounds=valid_bounds, allow_fallback=False)
 
@@ -148,9 +146,7 @@ class TestOSMFallbackBehavior:
         assert result.fallback_used is True
         assert "OSMEmptyGraphError" in (result.fallback_reason or "")
 
-    def test_empty_graph_with_fallback_disabled_raises(
-        self, valid_bounds: BoundingBox
-    ) -> None:
+    def test_empty_graph_with_fallback_disabled_raises(self, valid_bounds: BoundingBox) -> None:
         """Empty graph with allow_fallback=False raises OSMEmptyGraphError."""
         config = OSMImportConfig(bounds=valid_bounds, allow_fallback=False)
 
@@ -205,36 +201,28 @@ class TestOSMAcquisitionModule:
         res = is_osmnx_available()
         assert isinstance(res, bool)
 
-    def test_acquire_osm_graph_when_not_installed_raises(
-        self, valid_bounds: BoundingBox
-    ) -> None:
+    def test_acquire_osm_graph_when_not_installed_raises(self, valid_bounds: BoundingBox) -> None:
         """acquire_osm_graph raises OSMNotInstalledError if is_osmnx_available is False."""
         cfg = OSMImportConfig(bounds=valid_bounds)
         with patch("apps.core.graph.osm_acquisition.is_osmnx_available", return_value=False):
             with pytest.raises(OSMNotInstalledError, match="not installed"):
                 acquire_osm_graph(cfg)
 
-    def test_acquire_osm_graph_timeout_error_classified(
-        self, valid_bounds: BoundingBox
-    ) -> None:
+    def test_acquire_osm_graph_timeout_error_classified(self, valid_bounds: BoundingBox) -> None:
         """TimeoutError from osmnx is classified as OSMTimeoutError."""
         cfg = OSMImportConfig(bounds=valid_bounds)
         with patch("osmnx.graph_from_bbox", side_effect=TimeoutError("Connection timed out")):
             with pytest.raises(OSMTimeoutError, match="timed out"):
                 acquire_osm_graph(cfg)
 
-    def test_acquire_osm_graph_network_error_classified(
-        self, valid_bounds: BoundingBox
-    ) -> None:
+    def test_acquire_osm_graph_network_error_classified(self, valid_bounds: BoundingBox) -> None:
         """General network exception is classified as OSMServiceUnavailableError."""
         cfg = OSMImportConfig(bounds=valid_bounds)
         with patch("osmnx.graph_from_bbox", side_effect=ConnectionError("Host unreachable")):
             with pytest.raises(OSMServiceUnavailableError, match="Failed to acquire"):
                 acquire_osm_graph(cfg)
 
-    def test_acquire_osm_graph_empty_response_raises(
-        self, valid_bounds: BoundingBox
-    ) -> None:
+    def test_acquire_osm_graph_empty_response_raises(self, valid_bounds: BoundingBox) -> None:
         """Empty graph returned by OSMnx raises OSMEmptyGraphError."""
         cfg = OSMImportConfig(bounds=valid_bounds)
         empty_g = nx.MultiDiGraph()

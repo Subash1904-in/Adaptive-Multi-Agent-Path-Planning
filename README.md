@@ -185,7 +185,26 @@ The platform includes a dedicated, high-performance shortest-path route planner 
   print(f"Path nodes: {result.node_ids}, Duration: {result.estimated_duration_s:.1f}s")
   ```
 
-### 6.9 Troubleshooting
+### 6.9 Vehicle Kinematics and Agent Lifecycle
+The platform includes an individual vehicle kinematics and route-following coordinator under `backend/apps/core/kinematics/`:
+- **Models:** Point-mass bounded constant-acceleration kinematics (`integrate_motion`), heading calculation (`compute_heading`), and planar interpolation (`interpolate_position`).
+- **VehicleAgent Coordinator:** Tracks segment traversal, orientation heading, distance along segments, destination arrival, and lifecycle transitions (`IDLE`, `EN_ROUTE`, `BLOCKED`, `ARRIVED`).
+- **Python API Usage Example:**
+  ```python
+  from apps.core.domain.models import Vehicle
+  from apps.core.kinematics import KinematicsConfig, VehicleAgent
+
+  # Create vehicle and agent
+  vehicle = Vehicle(id="veh_01", position=start_pos, speed_mps=0.0)
+  agent = VehicleAgent(vehicle=vehicle, road_graph=road_graph, route=route)
+
+  # Start journey and step discrete time
+  agent.start()
+  step_result = agent.step(dt=0.5)  # Advance 0.5s
+  print(f"Position: ({step_result.new_position.x:.1f}, {step_result.new_position.y:.1f}), Speed: {step_result.new_speed_mps:.1f} m/s")
+  ```
+
+### 6.10 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -204,6 +223,7 @@ The platform includes a dedicated, high-performance shortest-path route planner 
 - [docs/progress/PHASE_04.md](docs/progress/PHASE_04.md): Phase 4 road graph and deterministic city report.
 - [docs/progress/PHASE_05.md](docs/progress/PHASE_05.md): Phase 5 OpenStreetMap import and road network normalization report.
 - [docs/progress/PHASE_06.md](docs/progress/PHASE_06.md): Phase 6 route planning baseline (Dijkstra, A* and travel time) report.
+- [docs/progress/PHASE_07.md](docs/progress/PHASE_07.md): Phase 7 vehicle kinematics and agent lifecycle report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

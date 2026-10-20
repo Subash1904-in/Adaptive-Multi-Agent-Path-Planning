@@ -22,6 +22,7 @@ def is_osmnx_available() -> bool:
     """Check whether the optional OSMnx library is installed in the current environment."""
     try:
         import osmnx  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -65,9 +66,7 @@ def acquire_osm_graph(config: OSMImportConfig) -> "nx.MultiDiGraph":
             custom_filter=config.custom_filter,
         )
     except TimeoutError as err:
-        raise OSMTimeoutError(
-            f"OSM acquisition timed out after {config.timeout}s: {err}"
-        ) from err
+        raise OSMTimeoutError(f"OSM acquisition timed out after {config.timeout}s: {err}") from err
     except Exception as err:
         err_msg = str(err)
         err_type = type(err).__name__

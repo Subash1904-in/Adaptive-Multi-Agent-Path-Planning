@@ -76,6 +76,7 @@ def get_heuristic_function(
     dest_pos = dest_node.position
 
     if cost_mode == CostMode.DISTANCE:
+
         def distance_heuristic(node_id: str) -> float:
             node = road_graph.get_node(node_id)
             return node.position.distance_to(dest_pos)
@@ -83,6 +84,7 @@ def get_heuristic_function(
         return distance_heuristic, True
 
     elif cost_mode == CostMode.TRAVEL_TIME:
+
         def travel_time_heuristic(node_id: str) -> float:
             node = road_graph.get_node(node_id)
             return node.position.distance_to(dest_pos) / max_speed_mps

@@ -151,9 +151,7 @@ class TestRoadGraphEdges:
             triangle_graph.add_edge(e2)
         assert "Directed edge with ID 'n1 -> n2' already exists" in str(exc_info.value)
 
-    def test_distinct_reverse_directed_edge_is_permitted(
-        self, triangle_graph: RoadGraph
-    ) -> None:
+    def test_distinct_reverse_directed_edge_is_permitted(self, triangle_graph: RoadGraph) -> None:
         forward = RoadEdge(
             id="e_fwd",
             start_node_id="n1",

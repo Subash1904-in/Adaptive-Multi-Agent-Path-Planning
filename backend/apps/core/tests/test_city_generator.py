@@ -23,12 +23,15 @@ class TestCityGridConfig:
         assert cfg.speed_variance_mps == 0.0
         assert cfg.seed == 42
 
-    @pytest.mark.parametrize("rows, cols", [
-        (1, 3),
-        (3, 1),
-        (-2, 3),
-        (3, 0),
-    ])
+    @pytest.mark.parametrize(
+        "rows, cols",
+        [
+            (1, 3),
+            (3, 1),
+            (-2, 3),
+            (3, 0),
+        ],
+    )
     def test_dimensions_less_than_two_rejected(self, rows: int, cols: int) -> None:
         with pytest.raises(GraphValidationError):
             CityGridConfig(rows=rows, cols=cols)
