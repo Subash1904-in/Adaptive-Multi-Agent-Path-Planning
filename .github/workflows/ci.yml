@@ -22,7 +22,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Verify Mandatory Documents Exist
+      - name: Verify Mandatory Documents & Phase Artifacts Exist
         shell: bash
         run: |
           REQUIRED_FILES=(
@@ -31,10 +31,20 @@ jobs:
             "ARCHITECTURE.md"
             "REQUIREMENTS_TRACEABILITY.md"
             ".gitignore"
+            "docs/API.md"
+            "docs/TESTING.md"
+            "docs/progress/PHASE_01.md"
+            "docs/progress/PHASE_02.md"
+            "docs/progress/PHASE_03.md"
+            "docs/progress/PHASE_04.md"
+            "docs/progress/PHASE_05.md"
+            "pytest.ini"
+            "requirements.txt"
+            "requirements-dev.txt"
           )
           for file in "${REQUIRED_FILES[@]}"; do
             if [ ! -f "$file" ]; then
-              echo "::error file=$file::Missing mandatory project documentation file: $file"
+              echo "::error file=$file::Missing mandatory project documentation file or artifact: $file"
               exit 1
             fi
             echo "Verified present: $file"
@@ -74,11 +84,16 @@ jobs:
             requirements.txt
             requirements-dev.txt
 
-      - name: Install Dependencies
+      - name: Install Runtime & Development Dependencies
         shell: bash
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
+
+      - name: Verify Environment & Installed Dependencies
+        shell: bash
+        run: |
+          python -c "import django, rest_framework, networkx, osmnx, pytest, pytest_cov, ruff; print(f'Environment verification:\n- Python: {__import__(\"sys\").version}\n- Django: {django.__version__}\n- DRF: {rest_framework.__version__}\n- NetworkX: {networkx.__version__}\n- OSMnx: {osmnx.__version__}\n- Pytest: {pytest.__version__}\n- Pytest-Cov: {pytest_cov.__version__}')"
 
       - name: Run Ruff Linting
         shell: bash
@@ -90,10 +105,10 @@ jobs:
         run: |
           python backend/manage.py check
 
-      - name: Run Automated Test Suite
+      - name: Run Full Automated Test Suite with Coverage (Phases 2-5)
         shell: bash
         run: |
-          pytest
+          pytest --cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
   frontend-quality:
     name: Frontend Lint, Typecheck & Build
@@ -119,5 +134,5 @@ jobs:
             npm run typecheck
             npm run build
           else
-            echo "Phase 0 scaffold verified: No frontend/package.json declared yet. Node 22.x environment verified."
+            echo "Phase 5 verified: Backend simulation engine active; frontend/package.json not yet declared. Node 22.x environment verified."
           fi

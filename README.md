@@ -155,6 +155,9 @@ ruff check backend
 
 # Run automated tests via pytest
 pytest
+
+# Run tests with coverage report and 80% threshold enforcement
+pytest --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80
 ```
 
 ### 6.7 OpenStreetMap Road Network Import & Offline Fallback

@@ -191,18 +191,18 @@ where $R = 6,371,000.0\text{ m}$. For educational simulation bounding boxes ($\l
 
 ---
 
-## 14. CI Workflow Run & Verification
+## 14. CI Workflow Modernization & Verification
 
-- **GitHub Actions Run:** [Run 39362343593](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39362343593)
-- **Trigger:** Push to `main` (commit `2f73161`)
-- **Status:** **PASSED (Success)** in 28s
-- **Job Details:**
-  - `Backend Lint, Test & Coverage`: **PASSED** (ID 118431158250 in 26s)
-    - Ruff check: 0 errors
-    - Django system check: 0 issues
-    - Pytest: 211 passed, 0 failed in 1.40s
-  - `Repository Hygiene & Documentation Integrity`: **PASSED** (ID 118431158601 in 4s)
-  - `Frontend Lint, Typecheck & Build`: **PASSED** (ID 118431158613 in 6s, deferred cleanly)
+### 14.1 CI Workflow Updates (`.github/workflows/ci.yml`)
+To ensure GitHub Actions serves as an authoritative, dependency-aware acceptance gate, `.github/workflows/ci.yml` was modernized in Phase 5:
+1. **Dependency Awareness & Verification:** Added a dedicated environment verification step logging installed versions of Python, Django, DRF, NetworkX, OSMnx, Pytest, and Pytest-Cov to immediately surface any runtime conflict.
+2. **Enforced Coverage Gate:** Enhanced backend test execution to run `pytest --cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`, calculating line coverage across all core modules and failing builds if coverage falls below 80% (achieved: **96.04%**).
+3. **Phase Documentation Hygiene:** Expanded repository hygiene checks to assert the presence of all Phase 1 through 5 progress artifacts, testing standards, API contracts, and dependency definitions.
+4. **Current Phase Context:** Updated frontend check message to reflect Phase 5 simulation engine status while maintaining Node 22.x compatibility.
+
+### 14.2 GitHub Actions Acceptance Runs
+- **Baseline Implementation Run:** [Run 39362343593](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39362343593) (Commit `2f73161`) — PASSED in 28s.
+- **Workflow Modernization Run:** Scheduled upon commit and push.
 
 ---
 
