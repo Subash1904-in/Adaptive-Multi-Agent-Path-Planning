@@ -157,6 +157,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Domain Models, Values & Codecs (`test_domain_*.py`):** 105 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
 - **Total:** **586 passed, 0 failed in 4.05s**, **96.70% line coverage** (exceeds 80% threshold).
+- **Remote CI Run:** [39399731808](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39399731808) — All 3 jobs passed (commit `57f10ab`).
 
 ---
 

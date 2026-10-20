@@ -166,15 +166,15 @@ Line Coverage across backend/apps/core:                            96.70% (Gate:
 
 ## 6. Remote GitHub Actions CI Verification
 
-- **Commit SHA:** `[Pending Commit]`
-- **Workflow Run ID:** `[Pending Run]`
-- **Workflow URL:** `[Pending Run URL]`
+- **Commit SHA:** `57f10ab`
+- **Workflow Run ID:** `39399731808`
+- **Workflow URL:** [https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39399731808](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39399731808)
 - **Job Statuses:**
-  - `Repository Hygiene & Documentation Integrity`: **SUCCESS**
-  - `Frontend Lint, Typecheck & Build`: **SUCCESS**
-  - `Backend Lint, Test & Coverage`: **SUCCESS**
+  - `Repository Hygiene & Documentation Integrity`: **SUCCESS** (4s, ID 118551152526)
+  - `Frontend Lint, Typecheck & Build`: **SUCCESS** (5s, ID 118551152642)
+  - `Backend Lint, Test & Coverage`: **SUCCESS** (26s, ID 118551152196)
 - **CI Test Execution Result:**
-  - Total automated tests: `586 passed`
+  - Total automated tests: `586 passed in 5.39s`
   - Statement coverage: `96.70%` across `backend/apps/core` (exceeding enforced 80% threshold)
   - Django system check: `0 issues`
   - Ruff linting: `All checks passed!`
