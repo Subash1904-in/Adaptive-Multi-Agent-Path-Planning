@@ -1,0 +1,228 @@
+"""Scenario configuration validation logic for AMAPP.
+
+Validates structural, semantic, and graph-compatibility constraints
+on ScenarioDefinition before construction and execution.
+"""
+
+from typing import Optional
+
+from apps.core.graph.road_graph import RoadGraph
+from apps.core.kinematics.models import KinematicsConfig
+from apps.core.routing.models import CostMode, RoutingAlgorithm
+from apps.core.scenarios.exceptions import ScenarioValidationError
+from apps.core.scenarios.models import (
+    RoadNetworkSourceType,
+    ScenarioDefinition,
+    VehicleScenarioDefinition,
+)
+
+
+def validate_scenario(
+    scenario: ScenarioDefinition,
+    graph: Optional[RoadGraph] = None,
+) -> None:
+    """Validate a scenario definition for structural and semantic correctness.
+
+    Args:
+        scenario: The ScenarioDefinition to validate.
+        graph: Optional RoadGraph to validate node and edge references against.
+
+    Raises:
+        ScenarioValidationError: If any configuration or semantic constraint is violated.
+    """
+    if not isinstance(scenario, ScenarioDefinition):
+        raise ScenarioValidationError(
+            f"Expected ScenarioDefinition, got {type(scenario).__name__}.",
+            field="scenario",
+        )
+
+    # 1. Metadata validation
+    if not scenario.metadata.id or not scenario.metadata.id.strip():
+        raise ScenarioValidationError("Scenario ID must not be empty.", field="metadata.id")
+    if not scenario.metadata.name or not scenario.metadata.name.strip():
+        raise ScenarioValidationError("Scenario name must not be empty.", field="metadata.name")
+
+    # 2. Simulation time configuration
+    if scenario.time_step_s <= 0.0 or scenario.time_step_s > 10.0:
+        raise ScenarioValidationError(
+            f"Simulation time_step_s must be in range (0.0, 10.0], got {scenario.time_step_s}.",
+            field="time_step_s",
+        )
+    if scenario.max_ticks is not None and scenario.max_ticks <= 0:
+        raise ScenarioValidationError(
+            f"max_ticks must be strictly positive, got {scenario.max_ticks}.",
+            field="max_ticks",
+        )
+    if scenario.max_duration_s is not None and scenario.max_duration_s <= 0.0:
+        raise ScenarioValidationError(
+            f"max_duration_s must be strictly positive, got {scenario.max_duration_s}.",
+            field="max_duration_s",
+        )
+
+    # 3. Road network specification
+    rn = scenario.road_network
+    if not isinstance(rn.source_type, RoadNetworkSourceType):
+        try:
+            RoadNetworkSourceType(rn.source_type)
+        except ValueError:
+            raise ScenarioValidationError(
+                f"Unknown road network source_type '{rn.source_type}'.",
+                field="road_network.source_type",
+            )
+
+    if rn.source_type == RoadNetworkSourceType.SUPPLIED_GRAPH:
+        if rn.supplied_graph is None and graph is None:
+            raise ScenarioValidationError(
+                "Road network source_type is SUPPLIED_GRAPH but supplied_graph is None.",
+                field="road_network.supplied_graph",
+            )
+    elif rn.source_type == RoadNetworkSourceType.OSM_IMPORT:
+        if rn.osm_config is None:
+            raise ScenarioValidationError(
+                "Road network source_type is OSM_IMPORT but osm_config is None.",
+                field="road_network.osm_config",
+            )
+
+    # 4. Vehicle definitions
+    seen_vehicle_ids: set[str] = set()
+    for idx, v in enumerate(scenario.vehicles):
+        if not isinstance(v, VehicleScenarioDefinition):
+            raise ScenarioValidationError(
+                f"Vehicle definition at index {idx} must be a VehicleScenarioDefinition instance.",
+                field=f"vehicles[{idx}]",
+            )
+        if not v.vehicle_id or not v.vehicle_id.strip():
+            raise ScenarioValidationError(
+                f"Vehicle at index {idx} has empty vehicle_id.",
+                field=f"vehicles[{idx}].vehicle_id",
+            )
+        if v.vehicle_id in seen_vehicle_ids:
+            raise ScenarioValidationError(
+                f"Duplicate vehicle ID '{v.vehicle_id}' found in scenario.",
+                field="vehicles",
+                details={"vehicle_id": v.vehicle_id},
+            )
+        seen_vehicle_ids.add(v.vehicle_id)
+
+        if not v.start_node_id or not v.start_node_id.strip():
+            raise ScenarioValidationError(
+                f"Vehicle '{v.vehicle_id}' has empty start_node_id.",
+                field=f"vehicles[{idx}].start_node_id",
+            )
+        if not v.destination_node_id or not v.destination_node_id.strip():
+            raise ScenarioValidationError(
+                f"Vehicle '{v.vehicle_id}' has empty destination_node_id.",
+                field=f"vehicles[{idx}].destination_node_id",
+            )
+
+        # Algorithm validation
+        if isinstance(v.algorithm, str):
+            try:
+                RoutingAlgorithm(v.algorithm)
+            except ValueError:
+                raise ScenarioValidationError(
+                    f"Vehicle '{v.vehicle_id}' specifies invalid algorithm '{v.algorithm}'.",
+                    field=f"vehicles[{idx}].algorithm",
+                )
+
+        # Cost mode validation
+        if isinstance(v.cost_mode, str):
+            try:
+                CostMode(v.cost_mode)
+            except ValueError:
+                raise ScenarioValidationError(
+                    f"Vehicle '{v.vehicle_id}' specifies invalid cost_mode '{v.cost_mode}'.",
+                    field=f"vehicles[{idx}].cost_mode",
+                )
+
+        if v.initial_speed_mps < 0.0:
+            msg = (
+                f"Vehicle '{v.vehicle_id}' initial_speed_mps must be non-negative, "
+                f"got {v.initial_speed_mps}."
+            )
+            raise ScenarioValidationError(msg, field=f"vehicles[{idx}].initial_speed_mps")
+
+        if v.kinematics is not None and not isinstance(v.kinematics, KinematicsConfig):
+            raise ScenarioValidationError(
+                f"Vehicle '{v.vehicle_id}' kinematics must be KinematicsConfig or None.",
+                field=f"vehicles[{idx}].kinematics",
+            )
+
+    # 5. Traffic signal definitions
+    seen_signal_ids: set[str] = set()
+    seen_signal_nodes: set[str] = set()
+    for idx, s in enumerate(scenario.signals):
+        if not s.signal_id or not s.signal_id.strip():
+            raise ScenarioValidationError(
+                f"Signal at index {idx} has empty signal_id.",
+                field=f"signals[{idx}].signal_id",
+            )
+        if s.signal_id in seen_signal_ids:
+            raise ScenarioValidationError(
+                f"Duplicate signal ID '{s.signal_id}' found in scenario.",
+                field="signals",
+                details={"signal_id": s.signal_id},
+            )
+        seen_signal_ids.add(s.signal_id)
+
+        if not s.node_id or not s.node_id.strip():
+            raise ScenarioValidationError(
+                f"Signal '{s.signal_id}' has empty node_id.",
+                field=f"signals[{idx}].node_id",
+            )
+        if s.node_id in seen_signal_nodes:
+            raise ScenarioValidationError(
+                f"Multiple signals registered for intersection node '{s.node_id}'.",
+                field="signals",
+                details={"node_id": s.node_id},
+            )
+        seen_signal_nodes.add(s.node_id)
+
+    # 6. Graph compatibility validation if graph is provided
+    target_graph = graph or scenario.road_network.supplied_graph
+    if target_graph is not None:
+        validate_graph_compatibility(scenario, target_graph)
+
+
+def validate_graph_compatibility(scenario: ScenarioDefinition, graph: RoadGraph) -> None:
+    """Validate that scenario references (nodes, edges) exist within the provided road graph.
+
+    Args:
+        scenario: ScenarioDefinition referencing graph elements.
+        graph: RoadGraph to check against.
+
+    Raises:
+        ScenarioValidationError: If any node or required element is not in the graph.
+    """
+    for v in scenario.vehicles:
+        if not graph.has_node(v.start_node_id):
+            raise ScenarioValidationError(
+                f"Vehicle '{v.vehicle_id}' start node '{v.start_node_id}' does not exist in graph.",
+                field="start_node_id",
+                details={"vehicle_id": v.vehicle_id, "start_node_id": v.start_node_id},
+            )
+        if not graph.has_node(v.destination_node_id):
+            msg = (
+                f"Vehicle '{v.vehicle_id}' destination node '{v.destination_node_id}' "
+                "does not exist in graph."
+            )
+            raise ScenarioValidationError(
+                msg,
+                field="destination_node_id",
+                details={"vehicle_id": v.vehicle_id, "destination_node_id": v.destination_node_id},
+            )
+
+    for s in scenario.signals:
+        if not graph.has_node(s.node_id):
+            raise ScenarioValidationError(
+                f"Traffic signal '{s.signal_id}' node '{s.node_id}' does not exist in graph.",
+                field="signals.node_id",
+                details={"signal_id": s.signal_id, "node_id": s.node_id},
+            )
+        for edge_id in s.incoming_edge_ids:
+            if not graph.has_edge(edge_id):
+                raise ScenarioValidationError(
+                    f"Traffic signal '{s.signal_id}' references unknown incoming edge '{edge_id}'.",
+                    field="signals.incoming_edge_ids",
+                    details={"signal_id": s.signal_id, "edge_id": edge_id},
+                )

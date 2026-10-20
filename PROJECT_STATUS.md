@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 9 (Traffic signals and intersection management)
+- **Current Phase:** Phase 10 (Scenario orchestration and simulation configuration)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 10 (Multi-agent scenario orchestration) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 11 (V2V message protocol) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-20
 
 ---
@@ -23,8 +23,8 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 06** | **Route planning baseline** | **COMPLETED** | Dijkstra, custom A*, distance/travel-time cost modes, road closures, heuristic admissibility, 257 tests passed (96.76% coverage). |
 | **Phase 07** | **Vehicle agents and lifecycle** | **COMPLETED** | Bounded constant-acceleration kinematics, lifecycle states (IDLE/EN_ROUTE/BLOCKED/ARRIVED), route tracking, 318 tests passed (96.51% coverage). |
 | **Phase 08** | **Simulation clock and world state** | **COMPLETED** | Authoritative discrete clock, WorldState container, SimulationEngine, pause/resume/single-step, atomic rollback, 377 tests passed (97.08% coverage). |
-| **Phase 09** | **Traffic signals and intersection management** | **COMPLETED** | Deterministic cyclic state machine (RED->GREEN->YELLOW->RED), clock sync, approach edge lookup, query API, 441 tests passed (97.19% coverage). |
-| **Phase 10** | Multi-agent scenario orchestration | Pending | Scenario configuration (agent count, destinations, seed, density), independent run demo. |
+| **Phase 09** | **Traffic signals and intersection management** | **COMPLETED** | Cyclic state machine (RED->GREEN->YELLOW->RED), clock sync, approach edge lookup, query API, 441 tests passed (97.19% coverage). |
+| **Phase 10** | **Scenario orchestration and simulation configuration** | **COMPLETED** | Typed scenario configuration, builder assembly, execution runner, deterministic replay, 485 tests passed (97.14% coverage). |
 | **Phase 11** | V2V message protocol | Pending | Typed V2V messages (ID, scope, type, timestamp, position, payload, expiry), deduplication. |
 | **Phase 12** | Communication range and peer discovery | Pending | Configurable communication radius, spatial peer discovery, dynamic neighbor tables. |
 | **Phase 13** | Decentralized V2V coordination | Pending | P2P sharing of congestion, incidents, hazards; private agent knowledge stores. |
@@ -78,36 +78,48 @@ This roadmap is strictly aligned with our agreed master development plan, divide
   - Integrated signal stepping and atomic rollback into `SimulationEngine` (`TickResult.signal_states`).
   - Added 64 automated tests bringing total suite to 441 passing tests (97.19% coverage).
   - Documented full evidence in `docs/progress/PHASE_09.md`.
+- **Phase 10: Scenario Orchestration & Simulation Configuration:**
+  - Implemented `apps.core.scenarios` package for scenario definition, validation, object assembly, and execution.
+  - Implemented immutable and validated data models (`ScenarioMetadata`, `VehicleScenarioDefinition`, `TrafficSignalScenarioDefinition`, `RoadNetworkDefinition`, `ScenarioDefinition`, `ScenarioExecutionResult`, `TerminationReason`).
+  - Implemented comprehensive structural, semantic, and graph compatibility validation rules (`validate_scenario`, `validate_graph_compatibility`).
+  - Implemented `ScenarioBuilder` assembling road graphs (synthetic, supplied, OSM), traffic signals, authoritative simulation clock, world state, route planning, deterministic vehicle agent instantiation, and baseline snapshot capture.
+  - Handled unreachable destinations cleanly via strict rejection (`UnreachableDestinationError`) or explicit exclusion.
+  - Implemented `ScenarioRunner` managing discrete stepping, run limits, all-arrived termination, pause semantics, and clean reset/replay.
+  - Implemented programmatic scenario templates/examples (`create_single_vehicle_scenario`, `create_multi_vehicle_scenario`, `create_signalized_scenario`, `create_unreachable_vehicle_scenario`, `create_tick_limited_scenario`).
+  - Added 44 automated scenario tests bringing total test suite to 485 passing tests (97.14% coverage).
+  - Documented full evidence in `docs/progress/PHASE_10.md`.
 
 ---
 
-## 4. Files Created or Modified (Phase 9)
+## 4. Files Created or Modified (Phase 10)
 - **Created:**
-  - `backend/apps/core/signals/__init__.py`
-  - `backend/apps/core/signals/exceptions.py`
-  - `backend/apps/core/signals/models.py`
-  - `backend/apps/core/signals/controller.py`
-  - `backend/apps/core/tests/test_signals_controller.py`
-  - `backend/apps/core/tests/test_signals_world_integration.py`
-  - `backend/apps/core/tests/test_signals_engine_integration.py`
-  - `docs/progress/PHASE_09.md`
+  - `backend/apps/core/scenarios/__init__.py`
+  - `backend/apps/core/scenarios/models.py`
+  - `backend/apps/core/scenarios/exceptions.py`
+  - `backend/apps/core/scenarios/validation.py`
+  - `backend/apps/core/scenarios/builder.py`
+  - `backend/apps/core/scenarios/runner.py`
+  - `backend/apps/core/scenarios/examples.py`
+  - `backend/apps/core/tests/test_scenarios_validation.py`
+  - `backend/apps/core/tests/test_scenarios_builder.py`
+  - `backend/apps/core/tests/test_scenarios_runner.py`
+  - `backend/apps/core/tests/test_scenarios_determinism.py`
+  - `docs/progress/PHASE_10.md`
 - **Modified:**
-  - `backend/apps/core/simulation/models.py`
-  - `backend/apps/core/simulation/world.py`
-  - `backend/apps/core/simulation/engine.py`
   - `.github/workflows/ci.yml`
   - `PROJECT_STATUS.md`
   - `ARCHITECTURE.md`
   - `REQUIREMENTS_TRACEABILITY.md`
   - `README.md`
   - `docs/TESTING.md`
+  - `docs/API.md`
 
 ---
 
 ## 5. Commands Executed and Actual Results
 1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
 2. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `441 passed in 3.35s`, `97.19% coverage` (exit code 0).
+3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `485 passed in 3.72s`, `97.14% coverage` (exit code 0).
 
 ---
 

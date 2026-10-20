@@ -244,7 +244,36 @@ The platform includes an individual vehicle kinematics and route-following coord
   print(f"State: {query.state}, Time to Green: {query.time_to_green_s}s, Time to Red: {query.time_to_red_s}s")
   ```
 
-### 6.12 Troubleshooting
+### 6.12 Scenario Orchestration and Simulation Configuration (Phase 10)
+- **Subsystem:** Reusable scenario configuration, builder, and execution runner under `backend/apps/core/scenarios/`.
+- **Key Classes:** `ScenarioDefinition`, `ScenarioMetadata`, `VehicleScenarioDefinition`, `RoadNetworkDefinition`, `ScenarioBuilder`, `ScenarioRunner`, `ScenarioExecutionResult`, `TerminationReason`.
+- **Capabilities:** Typed immutable scenario configurations, structural and graph compatibility validation, unified runtime object assembly, initial route planning, traffic signal registration, discrete execution orchestration, arrival/tick termination semantics, and bit-identical reset/replay.
+- **Python API Usage Example:**
+  ```python
+  from apps.core.scenarios import (
+      ScenarioBuilder,
+      ScenarioRunner,
+      create_single_vehicle_scenario,
+  )
+
+  # Load or construct a validated scenario definition
+  scenario = create_single_vehicle_scenario(time_step_s=0.1, max_ticks=200)
+
+  # Build authoritative runtime objects
+  context = ScenarioBuilder(scenario=scenario).build()
+
+  # Execute scenario to completion
+  runner = ScenarioRunner(context=context)
+  result = runner.run_to_completion()
+  print(f"Terminated: {result.termination_reason}, Arrived: {result.arrived_count}/{result.total_vehicles}, Ticks: {result.completed_ticks}")
+
+  # Deterministic replay: reset restores exact baseline state
+  runner.reset()
+  replay_result = runner.run_to_completion()
+  assert result.to_dict() == replay_result.to_dict()
+  ```
+
+### 6.13 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -266,6 +295,7 @@ The platform includes an individual vehicle kinematics and route-following coord
 - [docs/progress/PHASE_07.md](docs/progress/PHASE_07.md): Phase 7 vehicle kinematics and agent lifecycle report.
 - [docs/progress/PHASE_08.md](docs/progress/PHASE_08.md): Phase 8 simulation clock and world state report.
 - [docs/progress/PHASE_09.md](docs/progress/PHASE_09.md): Phase 9 traffic signals and intersection management report.
+- [docs/progress/PHASE_10.md](docs/progress/PHASE_10.md): Phase 10 scenario orchestration and simulation configuration report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

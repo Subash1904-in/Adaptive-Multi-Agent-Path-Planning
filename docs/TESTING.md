@@ -151,33 +151,38 @@ python backend/manage.py check
   - Graph immutability: verifying input `RoadGraph` node and edge structures are completely unchanged by path searches.
   - Route continuity: verifying every consecutive node pair $(u, v)$ has a matching directed edge in `edge_ids`.
   - NetworkX reference comparison: matching ground-truth shortest path costs computed by `nx.shortest_path_length` for both distance and travel time.
-- **Signal Controller & Cycle Timing (`test_signals_controller.py`, 40 passed):**
-  - Parameter bounds validation for green, yellow, and red durations (strictly positive, finite, numeric).
-  - Validation of initial phase enum and phase offsets ($0 \le t_{\text{offset}} < T$).
-  - Strict deterministic cyclic state transitions: $\text{RED} \to \text{GREEN} \to \text{YELLOW} \to \text{RED}$.
-  - Multi-cycle consistency across 100 periods without floating-point accumulation drift.
-  - Phase offset shifts and exact interval boundary evaluations.
-  - Query API calculation: `time_to_green_s` and `time_to_red_s` from RED, GREEN, and YELLOW phases.
-  - Immutable `SignalSnapshot` creation and dictionary serialization.
-  - Controller reset restoring $t=0.0$ state.
-- **WorldState Signal Integration (`test_signals_world_integration.py`, 17 passed):**
-  - Registration via `TrafficSignal` entity and pre-configured `TrafficSignalController`.
-  - Duplicate signal ID rejection (`DuplicateSignalError`).
-  - Duplicate intersection node rejection (`DuplicateSignalError`).
-  - Non-existent node and non-existent incoming approach edge rejection (`InvalidIntersectionAssociationError`).
-  - Approach edge terminating at a different node rejection (`InvalidIntersectionAssociationError`).
-  - Foreign road graph instance rejection (`InvalidIntersectionAssociationError`).
-  - Signal lookup by signal ID, intersection node ID, and incoming approach edge ID.
-  - Signal removal with complete cleanup of internal lookup mappings.
-  - Auto-registration of pre-existing signals from `RoadGraph` (e.g. synthetic city grid).
-  - `WorldSnapshot` inclusion and world reset behavior.
-- **SimulationEngine Signal Orchestration (`test_signals_engine_integration.py`, 7 passed):**
-  - Single-step and multi-tick clock-synchronized signal progression.
-  - `TickResult.signal_states` reporting at every completed tick.
-  - Pause, resume, and single-step advancing signals by exactly one $\Delta t$.
-  - Engine signal query delegation (`query_signal` and `query_signal_for_edge`).
-  - Atomic rollback: simulated agent failure restores both vehicle kinematic states and signal phase/remaining time states to pre-tick baseline without clock advancement.
-  - Multi-agent synthetic city execution over 100 ticks with 4 internal signals.
+- **Scenario Validation (`test_scenarios_validation.py`, 22 passed):**
+  - Structural metadata constraints (non-empty ID and name).
+  - Simulation parameter bounds ($0.0 < \Delta t \le 10.0\,\text{s}$, strictly positive tick limits and duration).
+  - Effective max ticks derivation combining `max_ticks` and `max_duration_s`.
+  - Road network source specification consistency (supplied graph presence, OSM config presence).
+  - Vehicle definition invariants (unique IDs, non-empty start/destination, algorithm/cost mode validation, non-negative speed, kinematics config typecheck).
+  - Traffic signal constraints (unique signal IDs, single signal per intersection node).
+  - Graph compatibility validation (start/destination nodes exist in road graph, signal nodes and incoming approach edges exist).
+  - Serialization to plain JSON dictionaries.
+- **Scenario Builder (`test_scenarios_builder.py`, 9 passed):**
+  - Synthetic grid scenario construction with multiple vehicles and varied path algorithms.
+  - Supplied `RoadGraph` reuse without regeneration.
+  - Explicit traffic signal registration without duplicate collisions.
+  - Unreachable destination handling: strict rejection (`UnreachableDestinationError`) vs explicit exclusion.
+  - Mocked offline OSM acquisition and graph normalization.
+  - Atomic assembly failure handling without exposing partially initialized states.
+  - Initial baseline snapshot capture for reset.
+- **Scenario Runner (`test_scenarios_runner.py`, 10 passed):**
+  - Single-step advancement via authoritative `SimulationEngine`.
+  - Fixed-tick execution runs (`runner.run(ticks=N)`).
+  - Termination condition evaluation: `ALL_ARRIVED`, `MAX_TICKS_REACHED`, `TARGET_TICKS_COMPLETED`, `PAUSED`, `STOPPED`, `FAILED`.
+  - Paused engine semantics and single-stepping while paused.
+  - Unrecoverable engine failure isolation with structured error reporting.
+  - Engine reset restoring initial baseline states.
+  - Complete execution of programmatic example scenario fixtures.
+- **Scenario Determinism & Replay (`test_scenarios_determinism.py`, 3 passed):**
+  - Bit-identical outcomes across separately constructed scenarios with identical configurations and seeds.
+  - Bit-identical replay after `runner.reset()` (matching snapshots and results).
+  - Tick-by-tick intermediate step result determinism (distances, speeds, headings, positions).
+- **Signal Controller & Cycle Timing (`test_signals_controller.py`, 40 passed)**
+- **WorldState Signal Integration (`test_signals_world_integration.py`, 17 passed)**
+- **SimulationEngine Signal Orchestration (`test_signals_engine_integration.py`, 7 passed)**
 - **Simulation Clock & Precision (`test_simulation_clock.py`, 30 passed)**
 - **WorldState Container & Baselines (`test_simulation_world.py`, 14 passed)**
 - **SimulationEngine Coordinator & Atomic Rollback (`test_simulation_engine.py`, 12 passed)**
@@ -204,8 +209,8 @@ python backend/manage.py check
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 09: **97.19%** coverage across 441 passing tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_09.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 10: **97.14%** coverage across 485 passing tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_10.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend Deferred Cleanly:** Frontend build/lint/typecheck job runs in Node 22.x, deferring execution cleanly until `frontend/package.json` is introduced.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.

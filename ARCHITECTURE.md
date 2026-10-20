@@ -57,7 +57,13 @@ flowchart TB
 - **Backend Scaffold & Health API (`backend/`, `apps.core`):** **IMPLEMENTED & TESTED** in Phase 02 (Django 5.1.x, DRF 3.15.x, ASGI/WSGI entrypoints, `GET /api/v1/health/`, automated pytest suite passing).
 - **Simulation Domain Layer (`backend/apps/core/domain/`):** **IMPLEMENTED & TESTED** in Phase 03 (Typed dataclasses for 10 domain models, 3 immutable value types, 9 enumerations, validation boundaries, and JSON serialization contracts).
 - **Road Graph & Synthetic City (`backend/apps/core/graph/`):** **IMPLEMENTED & TESTED** in Phase 04 (`RoadGraph` wrapping NetworkX `DiGraph`, `CityGridConfig`, `generate_synthetic_city_grid`, weak/strong connectivity analysis, traffic signal integration, 151 tests passing).
-- **Simulation Core & Subsystems (`sim_engine/*`):** **PLANNED ARCHITECTURAL BLUEPRINTS** (Phases 5–20).
+- **OSM Acquisition & Normalization (`backend/apps/core/graph/`):** **IMPLEMENTED & TESTED** in Phase 05 (`BoundingBox`, `LocalPlanarProjector`, `normalize_osm_graph`, `import_osm_road_network`, 211 tests passing).
+- **Route Planning Baseline (`backend/apps/core/routing/`):** **IMPLEMENTED & TESTED** in Phase 06 (`RoutePlanner`, Dijkstra, custom A*, distance/travel-time cost modes, closed edges, 257 tests passing).
+- **Vehicle Kinematics & Agent Lifecycle (`backend/apps/core/kinematics/`):** **IMPLEMENTED & TESTED** in Phase 07 (`VehicleAgent`, constant-acceleration motion, lifecycle states, route following, 318 tests passing).
+- **Simulation Clock & World State (`backend/apps/core/simulation/`):** **IMPLEMENTED & TESTED** in Phase 08 (`SimulationClock`, `WorldState`, `SimulationEngine`, atomic rollback, pause/resume/single-step, 377 tests passing).
+- **Traffic Signals & Intersection Management (`backend/apps/core/signals/`):** **IMPLEMENTED & TESTED** in Phase 09 (`TrafficSignalController`, cyclic phase progression, spatial edge lookup, 441 tests passing).
+- **Scenario Orchestration & Configuration (`backend/apps/core/scenarios/`):** **IMPLEMENTED & TESTED** in Phase 10 (`ScenarioDefinition`, `ScenarioBuilder`, `ScenarioRunner`, deterministic replay, 485 tests passing).
+- **V2V Protocol & Coordination (`backend/apps/core/v2v/`):** **PLANNED** (Phases 11–14).
 - **Transport Streaming & Advanced REST (`backend/channels/`, etc.):** **PLANNED** (Phases 21–22).
 - **Reinforcement Learning (`rl_engine/*`):** **PLANNED** (Phases 32–34).
 - **Frontend Dashboard (`frontend/*`):** **PLANNED** (Phases 23–30).
@@ -354,3 +360,81 @@ graph TD
 | **TR-04** | Route oscillation during multi-agent dynamic rerouting | High | Implement re-planning cooldown timers, hysteresis margins ($\Delta C > 15\%$), and staggered update intervals. |
 | **TR-05** | State desynchronization between backend physics and frontend 3D rendering | Critical | Backend is authoritative for all coordinates, states, and collisions. Frontend strictly interpolates backend snapshots and never creates collision events. |
 | **TR-06** | Flaky or non-deterministic tests in CI | High | Mandate fixed pseudorandom seeds across all unit, integration, and scenario tests; avoid wall-clock sleeps. |
+
+---
+
+## 7. Scenario Orchestration and Simulation Configuration (Phase 10)
+
+Phase 10 introduces the dedicated scenario orchestration subsystem (`apps.core.scenarios`), establishing a strict separation between immutable declarative scenario configurations and mutable runtime simulation engines.
+
+```mermaid
+flowchart TD
+    subgraph Declaration["1. Declarative Scenario Definition"]
+        Meta["ScenarioMetadata (ID, Name, Version)"]
+        RN["RoadNetworkDefinition (Synthetic / Supplied / OSM)"]
+        VehDefs["VehicleScenarioDefinition[] (ID, Start, Dest, Algo, Kinematics)"]
+        SigDefs["TrafficSignalScenarioDefinition[] (ID, Node, CycleConfig)"]
+        SimCfg["Simulation Config (dt, max_ticks, seed, policy)"]
+    end
+
+    subgraph Validation["2. Validation Boundary"]
+        ValFn["validate_scenario() & validate_graph_compatibility()"]
+    end
+
+    subgraph Assembly["3. ScenarioBuilder Assembly"]
+        GraphRes["Graph Resolution (CityGridConfig / Supplied / OSM)"]
+        WorldInit["WorldState & SimulationClock Construction"]
+        SigReg["Signal Registration & Phase Offset Synchronization"]
+        PlannerInit["RoutePlanner Planning (Dijkstra / A*)"]
+        AgentInit["VehicleAgent Instantiation (agent.start() -> EN_ROUTE)"]
+        BaselineCap["Baseline Capture (world.save_baseline())"]
+        EngineInit["SimulationEngine Construction"]
+    end
+
+    subgraph Execution["4. ScenarioRunner Orchestration"]
+        StepEngine["SimulationEngine.step() (Deterministic Ordering & Atomic Rollback)"]
+        TermEval["Termination Evaluation (ALL_ARRIVED, MAX_TICKS, TARGET_TICKS, PAUSED, FAILED)"]
+        ResultGen["ScenarioExecutionResult Generation"]
+        ResetFn["runner.reset() -> Bit-Identical Replay"]
+    end
+
+    Declaration --> Validation
+    Validation --> Assembly
+    Assembly --> Execution
+```
+
+### 7.1 Configuration vs Runtime Decoupling
+Scenario configurations (`ScenarioDefinition`) are pure, frozen dataclasses containing zero mutable execution state:
+- **`RoadNetworkDefinition`**: Declaratively references a synthetic city configuration, an existing supplied `RoadGraph`, or an OpenStreetMap bounding box with fallback policies.
+- **`VehicleScenarioDefinition`**: Defines agent deployment parameters without instantiating `VehicleAgent` runtime instances prematurely.
+- **`TrafficSignalScenarioDefinition`**: Defines explicit signal cycle timing and incoming approach edge geometry without coupling to a running controller.
+
+### 7.2 Strict Builder Lifecycle
+The `ScenarioBuilder` executes a deterministic 10-step assembly process:
+1. Structural and semantic validation via `validate_scenario()`.
+2. `RoadGraph` resolution without network downloads in test suites.
+3. Graph compatibility verification (`validate_graph_compatibility()`).
+4. Initializing the single unified `RoutePlanner` instance over the resolved graph.
+5. Constructing the authoritative `SimulationClock` and `WorldState`.
+6. Registering signals, preventing duplicate registrations.
+7. Planning initial vehicle routes in sorted vehicle ID order using Phase 6 routing contracts. Unreachable destinations follow an explicit policy: strict rejection (`UnreachableDestinationError`) or explicit exclusion.
+8. Instantiating `Vehicle` and `VehicleAgent` instances, calling `agent.start()` so agents enter `EN_ROUTE`.
+9. Capturing initial baseline state (`world.save_baseline()`) for clean deterministic reset.
+10. Constructing `SimulationEngine` and returning the immutable `ScenarioRunContext`.
+
+### 7.3 Runner Execution and Termination Semantics
+`ScenarioRunner` orchestrates execution via the authoritative `SimulationEngine.step()`:
+- **`ALL_ARRIVED`**: Triggers when all registered vehicles reach their destination nodes.
+- **`MAX_TICKS_REACHED`**: Triggers when the simulation clock reaches the scenario's effective max ticks.
+- **`TARGET_TICKS_COMPLETED`**: Triggers when a partial run request (`runner.run(ticks=N)`) finishes.
+- **`PAUSED` / `STOPPED`**: Detected and returned without advancing elapsed simulated time.
+- **`FAILED`**: Catches unrecoverable runtime faults and preserves atomic rollback diagnostic context.
+- **`reset()`**: Restores all agents, clock, and signals to initial registration baseline for 100% bit-identical replay.
+
+### 7.4 Architectural Boundaries with Future Phases
+- **Phase 10 Boundary:** Orchestrates static deployment, initial routing, kinematics advancement, and signal state.
+- **Phase 11 (V2V Protocol):** Will introduce typed peer-to-peer message models. Phase 10 does not simulate V2V messages.
+- **Phase 12–14 (Spatial Discovery & Decentralized Coordination):** Phase 10 does not perform spatial neighbor queries or packet delivery.
+- **Phase 15 (Adaptive Rerouting):** Vehicles follow their initial pre-planned static routes; dynamic mid-simulation cost rerouting is strictly deferred to Phase 15.
+- **Phase 16 (Collision Avoidance):** Phase 10 tracks kinematic motion and arrival; vehicles do not execute evasive maneuvers or spatial collision avoidance.
+
