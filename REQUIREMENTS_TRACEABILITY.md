@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 7 (Vehicle kinematics and agent lifecycle)  
+**Current Phase:** Phase 8 (Simulation clock and world state)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 7 (Vehicle Kinematics & Agent Lifecycle Infrastructure):* Phase 7 implements deterministic 2D kinematic point-mass motion models, speed and acceleration limit enforcement, agent lifecycle management (`IDLE`, `EN_ROUTE`, `BLOCKED`, `ARRIVED`), and route-following progression over directed road graphs (`VehicleAgent`, `integrate_motion`, `compute_heading`, `interpolate_position`) under `backend/apps/core/kinematics/` (318 total tests passing, 96.51% coverage). This provides the single-agent motion foundation for FR-02, FR-05, and FR-07. However, because multi-agent scenario orchestration (Phase 10), collision avoidance (Phase 16), traffic signals (Phase 9), V2V messaging (Phase 11), and dynamic adaptive rerouting (Phase 15) have not yet been implemented, all 14 functional requirements remain honestly classified as `NOT STARTED` functionally until multi-agent simulation integration is completed.
+> *Note on Phase 8 (Authoritative Simulation Clock & World State Infrastructure):* Phase 8 implements an authoritative discrete simulation clock (`SimulationClock`), a centralized world container (`WorldState`), and a stepping engine (`SimulationEngine`) executing deterministic fixed-step tick sequencing, identical $\Delta t$ distribution, pause/resume/single-step semantics, and atomic rollback guarantees under `backend/apps/core/simulation/` (377 total tests passing, 97.08% coverage). This establishes the execution foundation for multi-agent stepping (FR-02) and motion benchmarking (FR-05). However, because multi-agent scenario orchestration (Phase 10), collision avoidance (Phase 16), traffic signals (Phase 9), V2V messaging (Phase 11), and dynamic adaptive rerouting (Phase 15) have not yet been implemented, all 14 functional requirements remain honestly classified as `NOT STARTED` functionally until multi-agent simulation integration is completed.
 
 ---
 
@@ -19,10 +19,10 @@
 | Req # | Requirement Name | Implementation Modules | Target Phases | Current Status | Test Coverage |
 |---|---|---|---|---|---|
 | **FR-01** | Vehicle-to-Vehicle (V2V) Communication | `sim_engine/v2v/` | Phase 11, 13, 27 | `NOT STARTED` | Pending Phase 11 |
-| **FR-02** | Multi-Agent Autonomous Vehicle Environment | `backend/apps/core/kinematics/`, `sim_engine/core/` | Phase 07, 10, 25 | `NOT STARTED` | Phase 07 Agent Kinematics Tested (`test_kinematics_*.py`) |
+| **FR-02** | Multi-Agent Autonomous Vehicle Environment | `backend/apps/core/kinematics/`, `backend/apps/core/simulation/` | Phase 07, 08, 10, 25 | `NOT STARTED` | Phase 07 & 08 Engine Tested (`test_kinematics_*.py`, `test_simulation_*.py`) |
 | **FR-03** | Real-World Map Integration | `backend/apps/core/graph/` | Phase 04, 05, 24 | `NOT STARTED` | Phase 04 & 05 Foundation Tested (`test_osm_*.py`, `test_road_graph.py`) |
 | **FR-04** | Traffic and Pedestrian Simulation | `sim_engine/safety/`, `sim_engine/pedestrians/` | Phase 09, 17, 25, 29 | `NOT STARTED` | Pending Phase 09 |
-| **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/kinematics/` | Phase 06, 07, 30, 31 | `NOT STARTED` | Phase 06 & 07 Baseline Tested (`test_routing_*.py`, `test_kinematics_*.py`) |
+| **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/kinematics/`, `backend/apps/core/simulation/` | Phase 06, 07, 08, 30, 31 | `NOT STARTED` | Phase 06–08 Tested (`test_routing_*.py`, `test_kinematics_*.py`, `test_simulation_*.py`) |
 | **FR-06** | Decentralized Vehicle Communication | `sim_engine/v2v/`, `sim_engine/agents/` | Phase 11, 12, 13 | `NOT STARTED` | Pending Phase 11 |
 | **FR-07** | Adaptive Path Planning | `backend/apps/core/routing/`, `sim_engine/planning/` | Phase 06, 15, 28 | `NOT STARTED` | Phase 06 Baseline Tested (`test_routing_*.py`) |
 | **FR-08** | AI-Based Decision-Making | `sim_engine/agents/`, `rl_engine/policies/` | Phase 19, 34 | `NOT STARTED` | Pending Phase 19 |

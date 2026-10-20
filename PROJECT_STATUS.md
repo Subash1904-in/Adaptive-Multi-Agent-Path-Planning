@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 7 (Vehicle kinematics and agent lifecycle)
+- **Current Phase:** Phase 8 (Simulation clock and world state)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 8 (Simulation clock and world state) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 9 (Traffic signals and intersection management) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-20
 
 ---
@@ -22,8 +22,8 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 05** | **OpenStreetMap import** | **COMPLETED** | BoundingBox validation, LocalPlanarProjector, OSMnx acquisition adapter, RoadGraph normalizer, offline fallback, 211 tests passed. |
 | **Phase 06** | **Route planning baseline** | **COMPLETED** | Dijkstra, custom A*, distance/travel-time cost modes, road closures, heuristic admissibility, 257 tests passed (96.76% coverage). |
 | **Phase 07** | **Vehicle agents and lifecycle** | **COMPLETED** | Bounded constant-acceleration kinematics, lifecycle states (IDLE/EN_ROUTE/BLOCKED/ARRIVED), route tracking, 318 tests passed (96.51% coverage). |
-| **Phase 08** | Simulation clock and world state | Pending | Deterministic simulation engine, fixed time steps, pause/resume/step/reset, authoritative state. |
-| **Phase 09** | Vehicle movement and traffic rules | Pending | Progression along edges, speed limits, acceleration/deceleration bounds, intersections, queues. |
+| **Phase 08** | **Simulation clock and world state** | **COMPLETED** | Authoritative discrete clock, WorldState container, SimulationEngine, pause/resume/single-step, atomic rollback, 377 tests passed (97.08% coverage). |
+| **Phase 09** | Traffic signals and intersection management | Pending | Intersection signal phases, cycle management, stop lines, signal query API for vehicle agents. |
 | **Phase 10** | Multi-agent scenario orchestration | Pending | Scenario configuration (agent count, destinations, seed, density), independent run demo. |
 | **Phase 11** | V2V message protocol | Pending | Typed V2V messages (ID, scope, type, timestamp, position, payload, expiry), deduplication. |
 | **Phase 12** | Communication range and peer discovery | Pending | Configurable communication radius, spatial peer discovery, dynamic neighbor tables. |
@@ -146,11 +146,15 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ## 5. Commands Executed and Actual Results
 1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
 2. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `257 passed in 2.70s`, `96.76% coverage` (exit code 0).
+3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `377 passed in 3.54s`, `97.08% coverage` (exit code 0).
 
 ---
 
 ## 6. Test Results
+- **Simulation Clock & Precision (`test_simulation_clock.py`):** 30 passed.
+- **WorldState Container & Baselines (`test_simulation_world.py`):** 14 passed.
+- **SimulationEngine & Atomic Rollback (`test_simulation_engine.py`):** 12 passed.
+- **Multi-Agent Simulation Determinism (`test_simulation_determinism.py`):** 3 passed.
 - **Kinematics Motion Integration & Limits (`test_kinematics_motion.py`):** 38 passed.
 - **Vehicle Agent Lifecycle & Route Following (`test_kinematics_vehicle_agent.py`):** 19 passed.
 - **Kinematics Grid & OSM Integration (`test_kinematics_integration.py`):** 4 passed.
@@ -167,15 +171,15 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Domain Models & Invariants Tests (`test_domain_models.py`):** 55 passed.
 - **Serialization & Codecs Tests (`test_domain_serialization.py`):** 17 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **318 passed, 0 failed in 2.92s**, **96.51% line coverage** (exceeds 80% threshold).
-- **Remote CI Run:** [39374486188](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39374486188) — All 3 jobs passed (commit `e969c4f`).
+- **Total:** **377 passed, 0 failed in 3.54s**, **97.08% line coverage** (exceeds 80% threshold).
+- **Remote CI Run:** Verification pending push for Phase 8.
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Vehicle kinematics and agent lifecycle (`backend/apps/core/kinematics/`) complete and tested. Ready for Phase 8 simulation clock and world state.
+- **Notes:** Simulation clock and world state (`backend/apps/core/simulation/`) complete and tested. Ready for Phase 9 traffic signals and intersection management.
 
 ---
 
@@ -202,6 +206,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 9. Exact Next Steps
-1. Push Phase 5 changes to remote repository and verify GitHub Actions CI run.
-2. Wait for user prompt for **Phase 06: Route planning baseline**.
-3. Implement NetworkX Dijkstra and custom A* shortest-path algorithms on `RoadGraph`, dynamic travel cost formulation, and road closure support.
+1. Push Phase 8 changes to remote repository and verify GitHub Actions CI run.
+2. Wait for user prompt for **Phase 09: Traffic signals and intersection management**.
+3. Implement traffic signal phase transitions (RED, YELLOW, GREEN), cycle management, and stop lines on `RoadGraph`.
+

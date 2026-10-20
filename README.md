@@ -204,7 +204,27 @@ The platform includes an individual vehicle kinematics and route-following coord
   print(f"Position: ({step_result.new_position.x:.1f}, {step_result.new_position.y:.1f}), Speed: {step_result.new_speed_mps:.1f} m/s")
   ```
 
-### 6.10 Troubleshooting
+### 6.10 Authoritative Simulation Clock and World State (Phase 08)
+- **Subsystem:** Discrete fixed-step simulation engine under `backend/apps/core/simulation/`.
+- **Key Classes:** `SimulationClock`, `WorldState`, `SimulationEngine`, `EngineStatus`, `WorldSnapshot`, `TickResult`.
+- **Capabilities:** Authoritative integer tick tracking, floating-point drift elimination, graph compatibility validation, stable agent identifier ordering, atomic rollback on stepping failures, pause/resume/single-step, and baseline reset.
+- **Python API Usage Example:**
+  ```python
+  from apps.core.domain.models import SimulationConfig
+  from apps.core.simulation import SimulationEngine, WorldState
+
+  # Create world and engine
+  world = WorldState(road_graph=road_graph, config=SimulationConfig(time_step_s=0.1))
+  world.add_agent(agent1)
+  world.add_agent(agent2)
+  engine = SimulationEngine(world=world)
+
+  # Execute 10 discrete simulation ticks
+  tick_results = engine.run(ticks=10)
+  print(f"Current tick: {engine.current_tick}, Elapsed time: {engine.elapsed_time_s}s")
+  ```
+
+### 6.11 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -224,6 +244,7 @@ The platform includes an individual vehicle kinematics and route-following coord
 - [docs/progress/PHASE_05.md](docs/progress/PHASE_05.md): Phase 5 OpenStreetMap import and road network normalization report.
 - [docs/progress/PHASE_06.md](docs/progress/PHASE_06.md): Phase 6 route planning baseline (Dijkstra, A* and travel time) report.
 - [docs/progress/PHASE_07.md](docs/progress/PHASE_07.md): Phase 7 vehicle kinematics and agent lifecycle report.
+- [docs/progress/PHASE_08.md](docs/progress/PHASE_08.md): Phase 8 simulation clock and world state report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.
