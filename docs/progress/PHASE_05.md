@@ -193,8 +193,16 @@ where $R = 6,371,000.0\text{ m}$. For educational simulation bounding boxes ($\l
 
 ## 14. CI Workflow Run & Verification
 
-- Changes committed and pushed to `origin/main`.
-- Remote GitHub Actions CI run verified.
+- **GitHub Actions Run:** [Run 39362343593](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39362343593)
+- **Trigger:** Push to `main` (commit `2f73161`)
+- **Status:** **PASSED (Success)** in 28s
+- **Job Details:**
+  - `Backend Lint, Test & Coverage`: **PASSED** (ID 118431158250 in 26s)
+    - Ruff check: 0 errors
+    - Django system check: 0 issues
+    - Pytest: 211 passed, 0 failed in 1.40s
+  - `Repository Hygiene & Documentation Integrity`: **PASSED** (ID 118431158601 in 4s)
+  - `Frontend Lint, Typecheck & Build`: **PASSED** (ID 118431158613 in 6s, deferred cleanly)
 
 ---
 
