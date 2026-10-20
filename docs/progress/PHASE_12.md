@@ -154,12 +154,12 @@ In `SimulationEngine.step()`:
 
 - **Workflow File:** `.github/workflows/ci.yml`
 - **Trigger:** Git push to `main`
-- **Commit SHA:** `[PENDING_CI_COMMIT]`
-- **Run URL:** `[PENDING_CI_RUN_URL]`
+- **Commit SHA:** `b437ecd`
+- **Run URL:** https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39404421887
 - **Individual Job Statuses:**
-  - `Repository Hygiene & Documentation Integrity`: SUCCESS
-  - `Backend Lint, Test & Coverage`: SUCCESS (624 tests passed, 96.78% coverage)
-  - `Frontend Lint, Typecheck & Build`: SUCCESS (Node 22.x verified, frontend cleanly deferred)
+  - `Repository Hygiene & Documentation Integrity`: SUCCESS (6s)
+  - `Backend Lint, Test & Coverage`: SUCCESS (23s, 624 tests passed, 96.78% coverage)
+  - `Frontend Lint, Typecheck & Build`: SUCCESS (5s, Node 22.x verified, frontend cleanly deferred)
 
 ---
 
@@ -191,6 +191,6 @@ In `SimulationEngine.step()`:
 ## 8. Exact Phase 13 Handoff Instructions
 
 1. **Phase 12 Completion Status:** Fully verified, all 624 automated tests passing locally and in GitHub Actions CI with 96.78% line coverage.
-2. **Current Baseline Commit:** To be recorded after push.
+2. **Current Baseline Commit:** `b437ecd` (and documentation sync commit).
 3. **Phase 13 Objective:** Implement **Decentralized V2V Coordination** (P2P sharing of congestion levels, road closures, and hazard alerts; vehicle-private knowledge stores and belief states).
 4. **Strict Scope Discipline:** Do not implement adaptive rerouting (Phase 15), collision avoidance (Phase 16), or emergency priority (Phase 18) prematurely.
