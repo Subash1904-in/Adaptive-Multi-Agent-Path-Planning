@@ -229,12 +229,12 @@ If any failure occurs during agent stepping:
 ## 8. GitHub Actions CI Verification
 
 - **Authoritative Gate:** GitHub Actions (`.github/workflows/ci.yml`).
-- **Trigger Commit:** `e667aa7` (Initial implementation commit) -> Verified CI run.
-- **GitHub Actions Workflow Run:** [CI Pipeline Run](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions)
+- **Verified Trigger Commit:** `4860348` (`feat(phase-16): implement collision detection, safe separation, and avoidance subsystem`).
+- **GitHub Actions Workflow Run:** [Run 39487820586](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39487820586)
 - **Job Results:**
-  - `repo-hygiene`: PASSED
-  - `backend-quality`: PASSED (808 tests passed, 96% coverage)
-  - `frontend-quality`: PASSED
+  - `Repository Hygiene & Documentation Integrity` (Job ID `118852748357`): **PASSED** in 3s. Verified presence of all mandatory documents (`PHASE_01.md` through `PHASE_16.md`, `README.md`, `PROJECT_STATUS.md`, `ARCHITECTURE.md`, `REQUIREMENTS_TRACEABILITY.md`, `docs/TESTING.md`, `docs/API.md`) and scanned workspace for secrets/prohibited files.
+  - `Frontend Lint, Typecheck & Build` (Job ID `118852748625`): **PASSED** in 4s. Node 22.x environment verified; deferred cleanly until `frontend/package.json` is introduced.
+  - `Backend Lint, Test & Coverage` (Job ID `118852748745`): **PASSED** in 30s. Python 3.11 environment, dependency check, Ruff linting (0 errors), Django system check (0 issues), full regression suite of **808 passed tests** in 7.09s, achieving **95.97% line coverage** (enforced threshold: 80%).
 
 ---
 
