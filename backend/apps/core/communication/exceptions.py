@@ -162,3 +162,85 @@ class InvalidUpdateIntervalError(CommunicationValidationError):
             msg, field="neighbor_update_interval_s", details={"interval_s": interval_s}
         )
         self.interval_s = interval_s
+
+
+class InvalidLatencyError(CommunicationValidationError):
+    """Raised when latency configuration parameters are invalid (negative, non-finite, inverted)."""
+
+    def __init__(self, min_latency: Any, max_latency: Any, message: Optional[str] = None) -> None:
+        msg = (
+            message
+            or f"Invalid latency parameters: min={min_latency}, max={max_latency}."
+        )
+        super().__init__(
+            msg,
+            field="latency",
+            details={"min_latency_s": min_latency, "max_latency_s": max_latency},
+        )
+        self.min_latency = min_latency
+        self.max_latency = max_latency
+
+
+class InvalidLossProbabilityError(CommunicationValidationError):
+    """Raised when a packet loss or burst probability falls outside [0.0, 1.0]."""
+
+    def __init__(
+        self,
+        probability: Any,
+        field_name: str = "packet_loss_rate",
+        message: Optional[str] = None,
+    ) -> None:
+        msg = (
+            message
+            or f"Probability for '{field_name}' must be between 0.0 and 1.0, got {probability}."
+        )
+        super().__init__(msg, field=field_name, details={"probability": probability})
+        self.probability = probability
+
+
+class InvalidOutageError(CommunicationValidationError):
+    """Raised when an outage time window is invalid or non-finite."""
+
+    def __init__(self, start_s: Any, end_s: Any, message: Optional[str] = None) -> None:
+        msg = message or f"Invalid outage time interval: [{start_s}, {end_s}]."
+        super().__init__(
+            msg, field="outage_interval", details={"start_time_s": start_s, "end_time_s": end_s}
+        )
+        self.start_s = start_s
+        self.end_s = end_s
+
+
+class InvalidPartitionError(CommunicationValidationError):
+    """Raised when network partition configurations are malformed or invalid."""
+
+    pass
+
+
+class LinkOutageError(CommunicationError):
+    """Raised when transmission is rejected because the designated link is offline."""
+
+    def __init__(self, sender_id: str, receiver_id: str, message: Optional[str] = None) -> None:
+        msg = (
+            message or f"Link between '{sender_id}' and '{receiver_id}' is experiencing an outage."
+        )
+        super().__init__(
+            msg, field="link", details={"sender_id": sender_id, "receiver_id": receiver_id}
+        )
+        self.sender_id = sender_id
+        self.receiver_id = receiver_id
+
+
+class PartitionBlockedError(CommunicationError):
+    """Raised when communication is blocked across a partitioned network."""
+
+    def __init__(self, sender_id: str, receiver_id: str, message: Optional[str] = None) -> None:
+        msg = (
+            message
+            or f"Communication between '{sender_id}' and '{receiver_id}' is blocked by partition."
+        )
+        super().__init__(
+            msg, field="partition", details={"sender_id": sender_id, "receiver_id": receiver_id}
+        )
+        self.sender_id = sender_id
+        self.receiver_id = receiver_id
+

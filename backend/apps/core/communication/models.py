@@ -18,13 +18,31 @@ class DeliveryPolicy(str, Enum):
     SAME_TICK = "same_tick"
 
 
+class DeliveryStatus(str, Enum):
+    """Categorized transmission and delivery status for a message attempt."""
+
+    DELIVERED = "delivered"
+    QUEUED_PENDING_LATENCY = "queued_pending_latency"
+    DROPPED = "dropped"
+
+
+class ChannelState(str, Enum):
+    """Operational channel state for two-state Markov burst-loss modeling."""
+
+    GOOD = "good"
+    BAD = "bad"
+
+
 class DropReason(str, Enum):
     """Categorized diagnostic reason for a dropped or rejected message delivery."""
 
     OUT_OF_RANGE = "out_of_range"
     PACKET_LOSS = "packet_loss"
+    BURST_LOSS = "burst_loss"
     RECEIVER_UNAVAILABLE = "receiver_unavailable"
     SENDER_UNAVAILABLE = "sender_unavailable"
+    LINK_UNAVAILABLE = "link_unavailable"
+    PARTITION_BLOCKED = "partition_blocked"
     EXPIRED = "expired"
     DUPLICATE = "duplicate"
     INVALID_MESSAGE = "invalid_message"
@@ -314,10 +332,236 @@ class V2VMessagePacket:
             ) from exc
         return cls.from_dict(data)
 
+@dataclass(frozen=True)
+class InTransitPacket:
+    """Represents a packet traversing the communication channel undergoing latency delay."""
+
+    packet: V2VMessagePacket
+    receiver_id: str
+    send_timestamp_s: float
+    scheduled_delivery_time_s: float
+    delivery_status: DeliveryStatus = DeliveryStatus.QUEUED_PENDING_LATENCY
+    drop_reason: Optional[DropReason] = None
+    inbound_hop_count: int = 0
+    max_hops: int = 3
+    relay_path: tuple[str, ...] = field(default_factory=tuple)
+
+    @property
+    def sort_key(self) -> tuple[float, int, str, str, str]:
+        """Deterministic sort key for in-transit queue ordering."""
+        return (
+            round(self.scheduled_delivery_time_s, 6),
+            self.packet.sequence_number,
+            self.packet.sender_id,
+            self.receiver_id,
+            self.packet.message_id,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert in-transit packet to a JSON-compatible dictionary."""
+        return {
+            "packet": self.packet.to_dict(),
+            "receiver_id": self.receiver_id,
+            "send_timestamp_s": round(self.send_timestamp_s, 6),
+            "scheduled_delivery_time_s": round(self.scheduled_delivery_time_s, 6),
+            "delivery_status": self.delivery_status.value,
+            "drop_reason": self.drop_reason.value if self.drop_reason else None,
+            "inbound_hop_count": self.inbound_hop_count,
+            "max_hops": self.max_hops,
+            "relay_path": list(self.relay_path),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "InTransitPacket":
+        """Construct in-transit packet from dictionary representation."""
+        if not isinstance(data, dict):
+            raise CommunicationValidationError(
+                "InTransitPacket data must be a dictionary.", field="in_transit_packet"
+            )
+        pkt = V2VMessagePacket.from_dict(data["packet"])
+        status = DeliveryStatus(
+            data.get("delivery_status", DeliveryStatus.QUEUED_PENDING_LATENCY.value)
+        )
+        reason = DropReason(data["drop_reason"]) if data.get("drop_reason") else None
+        return cls(
+            packet=pkt,
+            receiver_id=str(data["receiver_id"]),
+            send_timestamp_s=float(data["send_timestamp_s"]),
+            scheduled_delivery_time_s=float(data["scheduled_delivery_time_s"]),
+            delivery_status=status,
+            drop_reason=reason,
+            inbound_hop_count=int(data.get("inbound_hop_count", 0)),
+            max_hops=int(data.get("max_hops", 3)),
+            relay_path=tuple(data.get("relay_path", ())),
+        )
+
+
+@dataclass(frozen=True)
+class TransmissionResult:
+    """Structured outcome of an individual message transmission attempt."""
+
+    message_id: str
+    sender_id: str
+    receiver_id: str
+    status: DeliveryStatus
+    drop_reason: Optional[DropReason] = None
+    scheduled_delivery_time_s: Optional[float] = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert transmission result to a JSON-compatible dictionary."""
+        return {
+            "message_id": self.message_id,
+            "sender_id": self.sender_id,
+            "receiver_id": self.receiver_id,
+            "status": self.status.value,
+            "drop_reason": self.drop_reason.value if self.drop_reason else None,
+            "scheduled_delivery_time_s": (
+                round(self.scheduled_delivery_time_s, 6)
+                if self.scheduled_delivery_time_s is not None
+                else None
+            ),
+        }
+
+
+@dataclass(frozen=True)
+class TemporaryOutage:
+    """Scheduled communication blackout period for an individual vehicle agent."""
+
+    target_id: str
+    start_time_s: float
+    end_time_s: float
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.start_time_s, (int, float))
+            or not math.isfinite(self.start_time_s)
+            or self.start_time_s < 0.0
+        ):
+            raise CommunicationValidationError(
+                f"start_time_s must be a finite non-negative number, got {self.start_time_s}.",
+                field="start_time_s",
+            )
+        if (
+            not isinstance(self.end_time_s, (int, float))
+            or not math.isfinite(self.end_time_s)
+            or self.end_time_s < self.start_time_s
+        ):
+            raise CommunicationValidationError(
+                f"end_time_s must be a finite number >= start_time_s ({self.start_time_s}), "
+                f"got {self.end_time_s}.",
+                field="end_time_s",
+            )
+        object.__setattr__(self, "start_time_s", float(self.start_time_s))
+        object.__setattr__(self, "end_time_s", float(self.end_time_s))
+
+    def is_active(self, current_time_s: float) -> bool:
+        """Evaluate if outage is currently active at simulation timestamp."""
+        return self.start_time_s <= current_time_s <= self.end_time_s
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert temporary outage to a JSON-compatible dictionary."""
+        return {
+            "target_id": self.target_id,
+            "start_time_s": round(self.start_time_s, 4),
+            "end_time_s": round(self.end_time_s, 4),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TemporaryOutage":
+        """Construct temporary outage from dictionary."""
+        if not isinstance(data, dict):
+            raise CommunicationValidationError(
+                "TemporaryOutage data must be a dictionary.", field="temporary_outage"
+            )
+        return cls(
+            target_id=str(data["target_id"]),
+            start_time_s=float(data["start_time_s"]),
+            end_time_s=float(data["end_time_s"]),
+        )
+
+
+@dataclass(frozen=True)
+class TemporaryLinkOutage:
+    """Scheduled communication blackout period between two specific vehicle agents."""
+
+    sender_id: str
+    receiver_id: str
+    start_time_s: float
+    end_time_s: float
+    bidirectional: bool = True
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.start_time_s, (int, float))
+            or not math.isfinite(self.start_time_s)
+            or self.start_time_s < 0.0
+        ):
+            raise CommunicationValidationError(
+                f"start_time_s must be a finite non-negative number, got {self.start_time_s}.",
+                field="start_time_s",
+            )
+        if (
+            not isinstance(self.end_time_s, (int, float))
+            or not math.isfinite(self.end_time_s)
+            or self.end_time_s < self.start_time_s
+        ):
+            raise CommunicationValidationError(
+                f"end_time_s must be a finite number >= start_time_s ({self.start_time_s}), "
+                f"got {self.end_time_s}.",
+                field="end_time_s",
+            )
+        if not isinstance(self.sender_id, str) or not self.sender_id.strip():
+            raise CommunicationValidationError(
+                "sender_id must be a non-empty string.", field="sender_id"
+            )
+        if not isinstance(self.receiver_id, str) or not self.receiver_id.strip():
+            raise CommunicationValidationError(
+                "receiver_id must be a non-empty string.", field="receiver_id"
+            )
+        object.__setattr__(self, "start_time_s", float(self.start_time_s))
+        object.__setattr__(self, "end_time_s", float(self.end_time_s))
+
+    def is_active(self, current_time_s: float) -> bool:
+        """Evaluate if link outage is currently active at simulation timestamp."""
+        return self.start_time_s <= current_time_s <= self.end_time_s
+
+    def matches(self, u: str, v: str) -> bool:
+        """Check if this link outage applies to transmission from u to v."""
+        if self.bidirectional:
+            return (self.sender_id == u and self.receiver_id == v) or (
+                self.sender_id == v and self.receiver_id == u
+            )
+        return self.sender_id == u and self.receiver_id == v
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert temporary link outage to a JSON-compatible dictionary."""
+        return {
+            "sender_id": self.sender_id,
+            "receiver_id": self.receiver_id,
+            "start_time_s": round(self.start_time_s, 4),
+            "end_time_s": round(self.end_time_s, 4),
+            "bidirectional": self.bidirectional,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TemporaryLinkOutage":
+        """Construct temporary link outage from dictionary."""
+        if not isinstance(data, dict):
+            raise CommunicationValidationError(
+                "TemporaryLinkOutage data must be a dictionary.", field="temporary_link_outage"
+            )
+        return cls(
+            sender_id=str(data["sender_id"]),
+            receiver_id=str(data["receiver_id"]),
+            start_time_s=float(data["start_time_s"]),
+            end_time_s=float(data["end_time_s"]),
+            bidirectional=bool(data.get("bidirectional", True)),
+        )
+
 
 @dataclass(frozen=True)
 class CommunicationConfig:
-    """Immutable configuration defining V2V communication and failure parameters.
+    """Immutable configuration defining V2V communication, latency, and degradation parameters.
 
     Attributes:
         enabled: Master switch for V2V communication in simulation.
@@ -334,6 +578,17 @@ class CommunicationConfig:
         heartbeat_timeout_s: Seconds before a neighbor becomes stale (> 0.0, default: 0.5).
         stale_grace_period_s: Optional grace period before stale neighbor removal (default: 1.0).
         stale_policy: Policy for handling timed-out neighbors (STALE_THEN_REMOVE default).
+        min_latency_s: Minimum latency in simulation seconds (default: 0.0).
+        max_latency_s: Maximum latency in simulation seconds (default: 0.0).
+        latency_seed: Optional seed for stochastic uniform latency sampling.
+        distance_loss_enabled: Toggle distance-dependent packet drop probability (default: False).
+        distance_loss_exponent: Attenuation exponent for distance-dependent loss (default: 2.0).
+        burst_loss_enabled: Toggle two-state Markov Gilbert-Elliott burst channel (default: False).
+        burst_loss_p_gb: Transition probability from Good to Bad channel state (default: 0.05).
+        burst_loss_p_bg: Transition probability from Bad to Good channel state (default: 0.50).
+        burst_loss_rate_good: Loss rate when channel is in Good state (default: 0.0).
+        burst_loss_rate_bad: Loss rate when channel is in Bad state (default: 1.0).
+        burst_loss_seed: Optional seed for Gilbert-Elliott channel transitions and loss.
     """
 
     enabled: bool = True
@@ -350,6 +605,23 @@ class CommunicationConfig:
     heartbeat_timeout_s: float = 0.5
     stale_grace_period_s: Optional[float] = 1.0
     stale_policy: StaleNeighborPolicy = StaleNeighborPolicy.STALE_THEN_REMOVE
+
+    # Phase 14: Latency configuration
+    min_latency_s: float = 0.0
+    max_latency_s: float = 0.0
+    latency_seed: Optional[int] = None
+
+    # Phase 14: Distance-dependent delivery model
+    distance_loss_enabled: bool = False
+    distance_loss_exponent: float = 2.0
+
+    # Phase 14: Burst loss (Markov Gilbert-Elliott model)
+    burst_loss_enabled: bool = False
+    burst_loss_p_gb: float = 0.05
+    burst_loss_p_bg: float = 0.50
+    burst_loss_rate_good: float = 0.0
+    burst_loss_rate_bad: float = 1.0
+    burst_loss_seed: Optional[int] = None
 
     def __post_init__(self) -> None:
         if (
@@ -443,6 +715,56 @@ class CommunicationConfig:
                 field="stale_policy",
             )
 
+        # Validate Latency
+        if (
+            not isinstance(self.min_latency_s, (int, float))
+            or not math.isfinite(self.min_latency_s)
+            or self.min_latency_s < 0.0
+        ):
+            raise CommunicationValidationError(
+                f"min_latency_s must be a finite non-negative number, got {self.min_latency_s}.",
+                field="min_latency_s",
+            )
+        if (
+            not isinstance(self.max_latency_s, (int, float))
+            or not math.isfinite(self.max_latency_s)
+            or self.max_latency_s < self.min_latency_s
+        ):
+            raise CommunicationValidationError(
+                f"max_latency_s must be a finite number >= min_latency_s ({self.min_latency_s}), "
+                f"got {self.max_latency_s}.",
+                field="max_latency_s",
+            )
+
+        # Validate Distance Loss
+        if (
+            not isinstance(self.distance_loss_exponent, (int, float))
+            or not math.isfinite(self.distance_loss_exponent)
+            or self.distance_loss_exponent < 0.0
+        ):
+            raise CommunicationValidationError(
+                f"distance_loss_exponent must be a finite non-negative number, got "
+                f"{self.distance_loss_exponent}.",
+                field="distance_loss_exponent",
+            )
+
+        # Validate Burst Loss
+        for param_name, param_val in [
+            ("burst_loss_p_gb", self.burst_loss_p_gb),
+            ("burst_loss_p_bg", self.burst_loss_p_bg),
+            ("burst_loss_rate_good", self.burst_loss_rate_good),
+            ("burst_loss_rate_bad", self.burst_loss_rate_bad),
+        ]:
+            if (
+                not isinstance(param_val, (int, float))
+                or not math.isfinite(param_val)
+                or not (0.0 <= param_val <= 1.0)
+            ):
+                raise CommunicationValidationError(
+                    f"{param_name} must be between 0.0 and 1.0, got {param_val}.",
+                    field=param_name,
+                )
+
         object.__setattr__(self, "range_m", float(self.range_m))
         object.__setattr__(self, "broadcast_interval_s", float(self.broadcast_interval_s))
         object.__setattr__(self, "packet_loss_rate", float(self.packet_loss_rate))
@@ -454,6 +776,13 @@ class CommunicationConfig:
         object.__setattr__(self, "heartbeat_timeout_s", float(self.heartbeat_timeout_s))
         if self.stale_grace_period_s is not None:
             object.__setattr__(self, "stale_grace_period_s", float(self.stale_grace_period_s))
+        object.__setattr__(self, "min_latency_s", float(self.min_latency_s))
+        object.__setattr__(self, "max_latency_s", float(self.max_latency_s))
+        object.__setattr__(self, "distance_loss_exponent", float(self.distance_loss_exponent))
+        object.__setattr__(self, "burst_loss_p_gb", float(self.burst_loss_p_gb))
+        object.__setattr__(self, "burst_loss_p_bg", float(self.burst_loss_p_bg))
+        object.__setattr__(self, "burst_loss_rate_good", float(self.burst_loss_rate_good))
+        object.__setattr__(self, "burst_loss_rate_bad", float(self.burst_loss_rate_bad))
 
     def to_dict(self) -> dict[str, Any]:
         """Convert configuration to JSON-serializable dictionary."""
@@ -472,6 +801,17 @@ class CommunicationConfig:
             "heartbeat_timeout_s": self.heartbeat_timeout_s,
             "stale_grace_period_s": self.stale_grace_period_s,
             "stale_policy": self.stale_policy.value,
+            "min_latency_s": self.min_latency_s,
+            "max_latency_s": self.max_latency_s,
+            "latency_seed": self.latency_seed,
+            "distance_loss_enabled": self.distance_loss_enabled,
+            "distance_loss_exponent": self.distance_loss_exponent,
+            "burst_loss_enabled": self.burst_loss_enabled,
+            "burst_loss_p_gb": self.burst_loss_p_gb,
+            "burst_loss_p_bg": self.burst_loss_p_bg,
+            "burst_loss_rate_good": self.burst_loss_rate_good,
+            "burst_loss_rate_bad": self.burst_loss_rate_bad,
+            "burst_loss_seed": self.burst_loss_seed,
         }
 
     @classmethod
@@ -512,6 +852,17 @@ class CommunicationConfig:
             heartbeat_timeout_s=data.get("heartbeat_timeout_s", 0.5),
             stale_grace_period_s=data.get("stale_grace_period_s", 1.0),
             stale_policy=stale_policy,
+            min_latency_s=data.get("min_latency_s", 0.0),
+            max_latency_s=data.get("max_latency_s", 0.0),
+            latency_seed=data.get("latency_seed"),
+            distance_loss_enabled=bool(data.get("distance_loss_enabled", False)),
+            distance_loss_exponent=data.get("distance_loss_exponent", 2.0),
+            burst_loss_enabled=bool(data.get("burst_loss_enabled", False)),
+            burst_loss_p_gb=data.get("burst_loss_p_gb", 0.05),
+            burst_loss_p_bg=data.get("burst_loss_p_bg", 0.50),
+            burst_loss_rate_good=data.get("burst_loss_rate_good", 0.0),
+            burst_loss_rate_bad=data.get("burst_loss_rate_bad", 1.0),
+            burst_loss_seed=data.get("burst_loss_seed"),
         )
 
 
@@ -529,6 +880,9 @@ class CommunicationSnapshot:
     sequence_counters: dict[str, int]
     neighbor_tables: Optional[dict[str, Any]] = None
     neighbor_metrics: Optional[dict[str, Any]] = None
+    in_transit_count: int = 0
+    channel_state: Optional[str] = None
+    active_partitions: Optional[list[list[str]]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert snapshot to JSON-compatible dictionary."""
@@ -541,9 +895,14 @@ class CommunicationSnapshot:
             "total_dropped": self.total_dropped,
             "pending_inbox_counts": dict(self.pending_inbox_counts),
             "sequence_counters": dict(self.sequence_counters),
+            "in_transit_count": self.in_transit_count,
         }
         if self.neighbor_tables is not None:
             d["neighbor_tables"] = dict(self.neighbor_tables)
         if self.neighbor_metrics is not None:
             d["neighbor_metrics"] = dict(self.neighbor_metrics)
+        if self.channel_state is not None:
+            d["channel_state"] = self.channel_state
+        if self.active_partitions is not None:
+            d["active_partitions"] = [list(part) for part in self.active_partitions]
         return d

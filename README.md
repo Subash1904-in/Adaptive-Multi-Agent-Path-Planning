@@ -412,7 +412,62 @@ The platform includes an individual vehicle kinematics and route-following coord
   # Note: Vehicle 2's route is strictly NOT modified solely by receiving this report.
   ```
 
-### 6.16 Troubleshooting
+### 6.16 Communication Latency, Packet Loss, and Network Degradation (Phase 14)
+- **Subsystem:** Deterministic network impairment and degradation simulation under `backend/apps/core/communication/`.
+- **Key Classes:** `InTransitPacket`, `DeliveryStatus`, `ChannelState`, `TemporaryOutage`, `TemporaryLinkOutage`, `CommunicationConfig`, `SimulatedCommunicationNetwork`.
+- **Capabilities:** Multi-tick in-transit packet transit queues, configurable fixed and uniform latency, exact simulation tick boundary delivery policy, deterministic packet loss with isolated seeded PRNG, distance-dependent planar attenuation ($P_{\text{loss}} = (d/R)^\gamma$), two-state Markov Gilbert-Elliott burst-loss model, temporary participant and link outages, network partition boundaries, communication recovery without local knowledge wiping, granular drop metrics, and full simulation engine atomic rollback.
+- **Python API Usage Example:**
+  ```python
+  from apps.core.communication import (
+      CommunicationConfig,
+      DeliveryStatus,
+      SimulatedCommunicationNetwork,
+      V2VMessagePacket,
+      V2VMessageType,
+  )
+  from apps.core.domain.values import Position2D
+
+  # 1. Configure network with 0.2s fixed latency and 10% packet loss
+  config = CommunicationConfig(
+      enabled=True,
+      range_m=50.0,
+      min_latency_s=0.2,
+      max_latency_s=0.2,
+      packet_loss_rate=0.0,  # Or set > 0.0 for deterministic loss
+      latency_seed=42,
+  )
+  network = SimulatedCommunicationNetwork(config=config)
+  network.register_participant("veh_A")
+  network.register_participant("veh_B")
+
+  # 2. Transmit message at t=1.0s
+  packet = V2VMessagePacket(
+      message_id="msg_001",
+      sender_id="veh_A",
+      sequence_number=1,
+      timestamp_s=1.0,
+      sender_position=Position2D(x=0.0, y=0.0),
+      sender_heading_rad=0.0,
+      sender_speed_mps=10.0,
+      message_type=V2VMessageType.HEARTBEAT,
+  )
+  candidates = {"veh_A": Position2D(x=0.0, y=0.0), "veh_B": Position2D(x=20.0, y=0.0)}
+  network.broadcast(packet, candidates, current_time_s=1.0)
+
+  # 3. Inspect in-transit status (scheduled for delivery at t=1.2s)
+  print(f"In-transit count at t=1.0s: {network.get_in_transit_count()}")  # 1
+  assert network.get_inbox("veh_B") == []  # Not delivered yet!
+
+  # 4. Advance clock: at t=1.1s it remains in transit; at t=1.2s it is delivered
+  network.advance_tick(current_time_s=1.1)
+  assert network.get_inbox("veh_B") == []  # Still in flight
+
+  network.advance_tick(current_time_s=1.2)
+  inbox = network.get_inbox("veh_B")
+  print(f"Delivered at t=1.2s: {[m.message_id for m in inbox]}")  # ['msg_001']
+  ```
+
+### 6.17 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -438,6 +493,7 @@ The platform includes an individual vehicle kinematics and route-following coord
 - [docs/progress/PHASE_11.md](docs/progress/PHASE_11.md): Phase 11 V2V communication protocol and spatial peer discovery report.
 - [docs/progress/PHASE_12.md](docs/progress/PHASE_12.md): Phase 12 dynamic neighbor tables, heartbeats, and loss detection report.
 - [docs/progress/PHASE_13.md](docs/progress/PHASE_13.md): Phase 13 decentralized V2V coordination and shared traffic knowledge report.
+- [docs/progress/PHASE_14.md](docs/progress/PHASE_14.md): Phase 14 communication latency, packet loss, network degradation, and recovery report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

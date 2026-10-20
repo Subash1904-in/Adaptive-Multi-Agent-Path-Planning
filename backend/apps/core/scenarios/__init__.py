@@ -8,9 +8,13 @@ from typing import Optional
 
 from apps.core.scenarios.builder import ScenarioBuilder, ScenarioRunContext
 from apps.core.scenarios.examples import (
+    create_burst_loss_scenario,
     create_congestion_sharing_scenario,
+    create_degraded_network_scenario,
     create_hazard_dissemination_scenario,
+    create_latency_scenario,
     create_multi_vehicle_scenario,
+    create_packet_loss_scenario,
     create_road_closure_sharing_scenario,
     create_signalized_scenario,
     create_single_vehicle_scenario,
@@ -88,12 +92,16 @@ __all__ = [
     "ScenarioRunner",
     "run_scenario",
     # Examples
-    "create_single_vehicle_scenario",
-    "create_multi_vehicle_scenario",
-    "create_signalized_scenario",
-    "create_unreachable_vehicle_scenario",
-    "create_tick_limited_scenario",
+    "create_burst_loss_scenario",
     "create_congestion_sharing_scenario",
-    "create_road_closure_sharing_scenario",
+    "create_degraded_network_scenario",
     "create_hazard_dissemination_scenario",
+    "create_latency_scenario",
+    "create_multi_vehicle_scenario",
+    "create_packet_loss_scenario",
+    "create_road_closure_sharing_scenario",
+    "create_signalized_scenario",
+    "create_single_vehicle_scenario",
+    "create_tick_limited_scenario",
+    "create_unreachable_vehicle_scenario",
 ]

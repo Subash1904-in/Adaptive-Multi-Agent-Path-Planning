@@ -397,3 +397,198 @@ def create_hazard_dissemination_scenario(
         coordination_config=CoordinationConfig(enabled=True, max_forwarding_hops=3),
         seed=seed,
     )
+
+
+def create_latency_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    latency_s: float = 0.2,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario demonstrating deterministic communication latency and delayed delivery."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_sender",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+    )
+    v2 = VehicleScenarioDefinition(
+        vehicle_id="veh_receiver",
+        start_node_id="node_r0_c1",
+        destination_node_id="node_r2_c1",
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_latency",
+            name="V2V Latency and Delayed Delivery",
+            description="Scenario demonstrating multi-tick packet transit queues under latency.",
+        ),
+        road_network=rn,
+        vehicles=(v1, v2),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        v2v_config=CommunicationConfig(
+            enabled=True,
+            range_m=150.0,
+            min_latency_s=latency_s,
+            max_latency_s=latency_s,
+            latency_seed=seed,
+        ),
+        coordination_config=CoordinationConfig(enabled=True),
+        seed=seed,
+    )
+
+
+def create_packet_loss_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    loss_rate: float = 0.3,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario demonstrating deterministic packet loss and drop metrics."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_A", start_node_id="node_r0_c0", destination_node_id="node_r0_c2"
+    )
+    v2 = VehicleScenarioDefinition(
+        vehicle_id="veh_B", start_node_id="node_r0_c1", destination_node_id="node_r2_c1"
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_packet_loss",
+            name="V2V Deterministic Packet Loss",
+            description="Scenario demonstrating deterministic packet loss with seeded PRNG.",
+        ),
+        road_network=rn,
+        vehicles=(v1, v2),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        v2v_config=CommunicationConfig(
+            enabled=True,
+            range_m=150.0,
+            packet_loss_rate=loss_rate,
+            packet_loss_seed=seed,
+        ),
+        coordination_config=CoordinationConfig(enabled=True),
+        seed=seed,
+    )
+
+
+def create_burst_loss_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario demonstrating two-state Markov Gilbert-Elliott burst loss."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_1", start_node_id="node_r0_c0", destination_node_id="node_r0_c2"
+    )
+    v2 = VehicleScenarioDefinition(
+        vehicle_id="veh_2", start_node_id="node_r0_c1", destination_node_id="node_r2_c1"
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_burst_loss",
+            name="V2V Burst Loss Channel Model",
+            description="Scenario demonstrating Markov good/bad channel transitions.",
+        ),
+        road_network=rn,
+        vehicles=(v1, v2),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        v2v_config=CommunicationConfig(
+            enabled=True,
+            range_m=150.0,
+            burst_loss_enabled=True,
+            burst_loss_p_gb=0.1,
+            burst_loss_p_bg=0.5,
+            burst_loss_seed=seed,
+        ),
+        coordination_config=CoordinationConfig(enabled=True),
+        seed=seed,
+    )
+
+
+def create_degraded_network_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario combining latency, probabilistic loss, and distance loss."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_alpha", start_node_id="node_r0_c0", destination_node_id="node_r0_c2"
+    )
+    v2 = VehicleScenarioDefinition(
+        vehicle_id="veh_beta", start_node_id="node_r0_c1", destination_node_id="node_r2_c1"
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_degraded_network",
+            name="V2V Degraded Network Simulation",
+            description="Combined latency, packet loss, and distance-dependent attenuation.",
+        ),
+        road_network=rn,
+        vehicles=(v1, v2),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        v2v_config=CommunicationConfig(
+            enabled=True,
+            range_m=150.0,
+            min_latency_s=0.1,
+            max_latency_s=0.3,
+            latency_seed=seed,
+            packet_loss_rate=0.15,
+            packet_loss_seed=seed,
+            distance_loss_enabled=True,
+            distance_loss_exponent=2.0,
+        ),
+        coordination_config=CoordinationConfig(enabled=True),
+        seed=seed,
+    )
+

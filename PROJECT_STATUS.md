@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 13 (Decentralized V2V Coordination and Shared Traffic Knowledge)
+- **Current Phase:** Phase 14 (Communication Latency, Packet Loss, Network Degradation, and Recovery)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 14 (Communication Failures, Latency, and Network Degradation) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 15 (Adaptive Rerouting and Dynamic Route Adjustment) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-20
 
 ---
@@ -28,8 +28,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 11** | **V2V communication protocol and spatial peer discovery** | **COMPLETED** | Typed V2V message protocol, spatial peer discovery ($d \le R$, 50m default), in-memory network, periodic broadcast scheduler, metrics, atomic rollback, 586 tests passed (96.70% coverage). |
 | **Phase 12** | **Dynamic neighbor tables, heartbeats, and loss detection** | **COMPLETED** | Per-vehicle neighbor tables, simulation-time heartbeats, stale-neighbor transitions ($t_{\text{now}} - t_{\text{last\_hb}} \ge T_{\text{timeout}}$), grace-period removal, atomic rollback, 624 tests passed (96.78% coverage). |
 | **Phase 13** | **Decentralized V2V coordination** | **COMPLETED** | Vehicle-private knowledge stores, typed reports, deterministic belief fusion, multi-hop dissemination, atomic rollback, 676 tests passed (96% coverage). |
-
-| **Phase 14** | Communication failures and recovery | Pending | Configurable latency, packet loss, disconnection, timeout, fallback to local sensors. |
+| **Phase 14** | **Communication latency, packet loss, and degradation** | **COMPLETED** | Multi-tick transit queues, deterministic latency, distance loss, two-state Markov burst loss, outages, links, partitions, 709 tests passed (96% coverage). |
 | **Phase 15** | Adaptive rerouting | Pending | Dynamic route-cost updates, reroute on closure/accident/congestion, cooldown & oscillation prevention. |
 | **Phase 16** | Collision detection and avoidance | Pending | Geometric collision checks, safe separation distance, braking, near-miss logging, safety metrics. |
 | **Phase 17** | Pedestrians and traffic signals | Pending | Pedestrian agents & crossing zones, signal phases, stop lines, intersection right-of-way. |
@@ -126,31 +125,36 @@ This roadmap is strictly aligned with our agreed master development plan, divide
   - Added 52 automated tests bringing total test suite to 676 passing tests (96% coverage).
   - Documented full evidence in `docs/progress/PHASE_13.md`.
 
+- **Phase 14: Communication Latency, Packet Loss, Network Degradation, and Recovery:**
+  - Implemented configurable message latency (`min_latency_s`, `max_latency_s`, seeded `latency_rng`).
+  - Implemented multi-tick packet transit queues (`InTransitPacket`, deterministic `sort_key`) in `SimulatedCommunicationNetwork`.
+  - Implemented exact delivery boundary policy ($t_{\text{delivery}} = t_{\text{send}} + L$, delivered at first simulation tick boundary where $t_{\text{sim}} \ge t_{\text{delivery}}$).
+  - Implemented deterministic packet loss model (uniform loss rate $[0.0, 1.0]$, seeded isolated `_packet_loss_rng`).
+  - Implemented distance-dependent delivery loss model ($P_{\text{loss}} = (d/R)^\gamma$).
+  - Implemented two-state Markov Gilbert-Elliott burst-loss model (`ChannelState.GOOD` / `BAD`, transition probabilities $p_{GB}, p_{BG}$, isolated `_burst_loss_rng`).
+  - Implemented temporary participant outages (`TemporaryOutage` with start/end windows in simulation time).
+  - Implemented link outages (`TemporaryLinkOutage`, static link availability, directed and bidirectional).
+  - Implemented network partitions (`set_partitions`, intra-partition communication permitted, cross-partition delivery blocked).
+  - Implemented delivery recovery and knowledge preservation (re-established connectivity allows new packets to flow without resurrecting expired packets or clearing existing local knowledge).
+  - Extended metrics (`dropped_burst_loss`, `dropped_link_outage`, `dropped_partition`, `packets_queued_latency`, `packets_delivered_latency`).
+  - Integrated network impairment into `SimulationEngine.step()` with atomic rollback guarantees (restores in-transit queues, PRNG states, channel state, outages, and partitions on step failure).
+  - Added 33 new automated tests across 3 new test suites (`test_communication_latency.py`, `test_communication_impairment.py`, `test_communication_degradation_integration.py`) bringing total test suite to 709 passing tests (96% coverage).
+  - Documented full evidence in `docs/progress/PHASE_14.md`.
+
 ---
 
-## 4. Files Created or Modified (Phase 13)
+## 4. Files Created or Modified (Phase 14)
 - **Created:**
-  - `backend/apps/core/coordination/__init__.py`
-  - `backend/apps/core/coordination/models.py`
-  - `backend/apps/core/coordination/exceptions.py`
-  - `backend/apps/core/coordination/fusion.py`
-  - `backend/apps/core/coordination/knowledge.py`
-  - `backend/apps/core/coordination/dissemination.py`
-  - `backend/apps/core/coordination/manager.py`
-  - `backend/apps/core/tests/test_coordination_models.py`
-  - `backend/apps/core/tests/test_coordination_knowledge.py`
-  - `backend/apps/core/tests/test_coordination_fusion.py`
-  - `backend/apps/core/tests/test_coordination_dissemination.py`
-  - `backend/apps/core/tests/test_coordination_engine_integration.py`
-  - `docs/progress/PHASE_13.md`
+  - `backend/apps/core/tests/test_communication_latency.py`
+  - `backend/apps/core/tests/test_communication_impairment.py`
+  - `backend/apps/core/tests/test_communication_degradation_integration.py`
+  - `docs/progress/PHASE_14.md`
 - **Modified:**
   - `backend/apps/core/communication/models.py`
-  - `backend/apps/core/simulation/models.py`
-  - `backend/apps/core/simulation/world.py`
-  - `backend/apps/core/simulation/engine.py`
-  - `backend/apps/core/scenarios/models.py`
-  - `backend/apps/core/scenarios/validation.py`
-  - `backend/apps/core/scenarios/builder.py`
+  - `backend/apps/core/communication/metrics.py`
+  - `backend/apps/core/communication/exceptions.py`
+  - `backend/apps/core/communication/network.py`
+  - `backend/apps/core/communication/__init__.py`
   - `backend/apps/core/scenarios/examples.py`
   - `backend/apps/core/scenarios/__init__.py`
   - `.github/workflows/ci.yml`
@@ -165,11 +169,14 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ## 5. Commands Executed and Actual Results
 1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
 2. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `676 passed in 9.32s`, `96% coverage` (exit code 0).
+3. `.\.venv\Scripts\pytest.exe backend/apps/core/tests/ --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `709 passed in 5.17s`, `96% coverage` (exit code 0).
 
 ---
 
 ## 6. Test Results
+- **Communication Latency & Multi-Tick Queues (`test_communication_latency.py`):** 9 passed.
+- **Packet Loss, Burst Loss, Outages & Partitions (`test_communication_impairment.py`):** 17 passed.
+- **Degradation, Neighbor & Engine Integration (`test_communication_degradation_integration.py`):** 7 passed.
 - **Coordination Models & Reports (`test_coordination_models.py`):** 21 passed.
 - **Vehicle Knowledge Stores (`test_coordination_knowledge.py`):** 11 passed.
 - **Deterministic Fusion & Conflicts (`test_coordination_fusion.py`):** 8 passed.

@@ -607,3 +607,57 @@ Coordination hooks into the authoritative `SimulationEngine.step()` sequence:
 4. **Maintenance:** Expired reports and beliefs are cleaned up deterministically.
 5. **Atomic Rollback:** If any error occurs during kinematics or tick execution, the coordination manager is fully restored to its pre-tick snapshot with zero metric distortion or dangling knowledge state.
 
+---
+
+## 10. Communication Latency, Packet Loss, Network Degradation, and Recovery (Phase 14)
+
+### 10.1 Multi-Tick Packet Transit Queues & Delivery Scheduling
+Phase 14 extends `SimulatedCommunicationNetwork` with multi-tick in-transit packet queuing to model propagation and transmission latency:
+- **`InTransitPacket`**: Envelopes `V2VMessagePacket` with `receiver_id`, `send_timestamp_s`, `scheduled_delivery_time_s`, `delivery_status`, and `drop_reason`.
+- **Deterministic Delivery Boundary Policy**:
+  - A packet scheduled for delivery at $t_{\text{delivery}} = t_{\text{send}} + L$ is delivered at the first discrete simulation tick boundary where $t_{\text{sim}} \ge t_{\text{delivery}}$.
+  - A packet is **never delivered early** ($t_{\text{sim}} < t_{\text{delivery}}$).
+  - Sub-tick positive latency ($0 < L < \Delta t$) delivers at the immediate subsequent tick boundary ($\lceil (t_{\text{send}} + L) / \Delta t \rceil \Delta t$).
+  - Zero latency ($L = 0.0$) with `DeliveryPolicy.SAME_TICK` delivers directly to recipient inboxes within the current tick; with `NEXT_TICK`, it delivers at the next immediate tick, preserving 100% backward compatibility with Phases 11–13.
+- **Canonical Queue Ordering**: In-transit packets are sorted deterministically before delivery by `sort_key = (round(scheduled_delivery_time_s, 6), sequence_number, sender_id, receiver_id, message_id)`.
+
+### 10.2 Deterministic Packet Loss Models
+- **Uniform Packet Loss**: Configurable loss probability $P_{\text{loss}} \in [0.0, 1.0]$ driven by an isolated seeded generator `_packet_loss_rng`.
+  - Rate $0.0$: exactly zero probabilistic drops.
+  - Rate $1.0$: drops 100% of packets subject to loss checks.
+  - Isolated from Python's global `random` state. Identical seeds and sequence histories produce bit-identical drop traces.
+- **Distance-Dependent Loss**: Optional physically motivated planar attenuation model:
+  $$P_{\text{loss}}(d) = \left(\frac{d}{R}\right)^{\gamma} \quad \text{for } d \le R$$
+  where $R = \text{range\_m}$, $d$ is Euclidean distance, and $\gamma = \text{distance\_loss\_exponent}$ (default: 2.0). Packets beyond $R$ are dropped by spatial peer discovery (`OUT_OF_RANGE`).
+- **Gilbert-Elliott Burst Loss**: Two-state Markov channel model:
+  - States: `ChannelState.GOOD` (normal) and `ChannelState.BAD` (degraded).
+  - Transition Probabilities: $p_{GB} = \text{burst\_loss\_p\_gb}$ (Good $\to$ Bad), $p_{BG} = \text{burst\_loss\_p\_bg}$ (Bad $\to$ Good).
+  - Configurable loss rates per state: `burst_loss_rate_good` (default 0.0), `burst_loss_rate_bad` (default 1.0).
+  - Driven by isolated PRNG `_burst_loss_rng`. Transitions occur at discrete tick boundaries during `advance_tick()`.
+
+### 10.3 Temporary Outages, Link Outages & Network Partitions
+- **Temporary Participant Outages (`TemporaryOutage`)**: Time-bounded blackouts $[t_{\text{start}}, t_{\text{end}}]$ during which the target vehicle cannot transmit (`SENDER_UNAVAILABLE`) or receive (`RECEIVER_UNAVAILABLE`).
+- **Link Outages (`TemporaryLinkOutage`)**: Directed or bidirectional transmission blackouts between specific pairs of vehicles, leaving remaining peer links unaffected (`LINK_UNAVAILABLE`).
+- **Network Partitions (`set_partitions`)**: Groups of vehicle IDs that can communicate with one another. Cross-partition transmissions are blocked with `PARTITION_BLOCKED`.
+- **Delivery Boundary Re-Evaluation**: Packets in transit are re-checked at their delivery boundary: if the receiver entered an outage, the link failed, or a partition was established while the packet was in flight, the packet is cleanly dropped with the appropriate `DropReason`.
+- **Recovery Semantics**: When connectivity returns, future valid packets flow normally. Expired packets remain dropped. Existing vehicle knowledge stores are strictly preserved and never wiped on disconnection.
+
+### 10.4 Metrics & Status Tracking
+- **Statuses**: `DeliveryStatus.DELIVERED`, `QUEUED_PENDING_LATENCY`, `DROPPED`.
+- **Detailed Drop Reasons**: `DropReason.BURST_LOSS`, `LINK_UNAVAILABLE`, `PARTITION_BLOCKED` alongside existing `OUT_OF_RANGE`, `PACKET_LOSS`, `SENDER_UNAVAILABLE`, `RECEIVER_UNAVAILABLE`, `EXPIRED`, `DUPLICATE`, `INVALID_MESSAGE`.
+- **Deterministic Metrics**: `packets_queued_latency`, `packets_delivered_latency`, `dropped_burst_loss`, `dropped_link_outage`, `dropped_partition`.
+
+### 10.5 Simulation Engine Integration & Atomic Rollback
+All mutable network impairment state participates in `capture_state()` and `restore_state()`:
+- `in_transit_packets` (multi-tick pending queues and scheduled delivery timestamps)
+- `_packet_loss_rng`, `_latency_rng`, `_burst_loss_rng` PRNG states
+- `_burst_channel_state` (Gilbert-Elliott Markov state)
+- `_temporary_outages`, `_temporary_link_outages`, `_disabled_links`, `_partitions`
+- All communication metrics and deduplication sets
+If any failure occurs during agent stepping or signal progression, `engine.step()` catches `Exception` and restores the communication network to its exact pre-tick snapshot. Stepping retry does not advance PRNGs or duplicate-deliver packets.
+
+### 10.6 Coordination and Neighbor Subsystem Interaction
+- **Neighbor Tables & Heartbeats**: Delayed heartbeats ($t_{\text{now}} - t_{\text{last\_hb}} \ge T_{\text{timeout}}$) transition neighbors to `STALE`. Dropped heartbeats do not refresh tables. Recovered heartbeats successfully transition stale neighbors back to `ACTIVE`.
+- **Decentralized Coordination**: Coordination reports traverse the multi-tick transit queue and respect packet loss, link outages, and partitions. Vehicles never learn reports whose packets were dropped.
+- **Strict Boundary**: Phase 14 models network degradation and recovery only. Route planning and vehicle motion remain strictly untouched (no adaptive rerouting until Phase 15).
+

@@ -23,6 +23,11 @@ class CommunicationMetrics:
         dropped_expired: Messages dropped because their simulation expiry timestamp elapsed.
         dropped_duplicate: Messages dropped because receiver already processed this message ID.
         dropped_invalid: Messages dropped due to validation failure or malformed structure.
+        dropped_burst_loss: Deliveries dropped due to Markov burst channel degradation.
+        dropped_link_outage: Deliveries dropped because the directed/undirected link is offline.
+        dropped_partition: Deliveries blocked due to distinct partition boundaries.
+        packets_queued_latency: Packets placed into in-transit delay queues pending delivery tick.
+        packets_delivered_latency: Packets delivered to inbox after simulated latency delay.
         peers_discovered_total: Cumulative sum of discovered peers across all discovery queries.
     """
 
@@ -38,6 +43,11 @@ class CommunicationMetrics:
     dropped_expired: int = 0
     dropped_duplicate: int = 0
     dropped_invalid: int = 0
+    dropped_burst_loss: int = 0
+    dropped_link_outage: int = 0
+    dropped_partition: int = 0
+    packets_queued_latency: int = 0
+    packets_delivered_latency: int = 0
     peers_discovered_total: int = 0
 
     def record_drop(self, reason: DropReason) -> None:
@@ -54,6 +64,12 @@ class CommunicationMetrics:
             self.dropped_duplicate += 1
         elif reason == DropReason.INVALID_MESSAGE:
             self.dropped_invalid += 1
+        elif reason == DropReason.BURST_LOSS:
+            self.dropped_burst_loss += 1
+        elif reason == DropReason.LINK_UNAVAILABLE:
+            self.dropped_link_outage += 1
+        elif reason == DropReason.PARTITION_BLOCKED:
+            self.dropped_partition += 1
 
     def reset(self) -> None:
         """Reset all metric counters back to zero."""
@@ -69,6 +85,11 @@ class CommunicationMetrics:
         self.dropped_expired = 0
         self.dropped_duplicate = 0
         self.dropped_invalid = 0
+        self.dropped_burst_loss = 0
+        self.dropped_link_outage = 0
+        self.dropped_partition = 0
+        self.packets_queued_latency = 0
+        self.packets_delivered_latency = 0
         self.peers_discovered_total = 0
 
     def clone(self) -> "CommunicationMetrics":
@@ -86,6 +107,11 @@ class CommunicationMetrics:
             dropped_expired=self.dropped_expired,
             dropped_duplicate=self.dropped_duplicate,
             dropped_invalid=self.dropped_invalid,
+            dropped_burst_loss=self.dropped_burst_loss,
+            dropped_link_outage=self.dropped_link_outage,
+            dropped_partition=self.dropped_partition,
+            packets_queued_latency=self.packets_queued_latency,
+            packets_delivered_latency=self.packets_delivered_latency,
             peers_discovered_total=self.peers_discovered_total,
         )
 
@@ -104,6 +130,11 @@ class CommunicationMetrics:
             "dropped_expired": self.dropped_expired,
             "dropped_duplicate": self.dropped_duplicate,
             "dropped_invalid": self.dropped_invalid,
+            "dropped_burst_loss": self.dropped_burst_loss,
+            "dropped_link_outage": self.dropped_link_outage,
+            "dropped_partition": self.dropped_partition,
+            "packets_queued_latency": self.packets_queued_latency,
+            "packets_delivered_latency": self.packets_delivered_latency,
             "peers_discovered_total": self.peers_discovered_total,
         }
 
@@ -123,5 +154,10 @@ class CommunicationMetrics:
             dropped_expired=int(data.get("dropped_expired", 0)),
             dropped_duplicate=int(data.get("dropped_duplicate", 0)),
             dropped_invalid=int(data.get("dropped_invalid", 0)),
+            dropped_burst_loss=int(data.get("dropped_burst_loss", 0)),
+            dropped_link_outage=int(data.get("dropped_link_outage", 0)),
+            dropped_partition=int(data.get("dropped_partition", 0)),
+            packets_queued_latency=int(data.get("packets_queued_latency", 0)),
+            packets_delivered_latency=int(data.get("packets_delivered_latency", 0)),
             peers_discovered_total=int(data.get("peers_discovered_total", 0)),
         )
