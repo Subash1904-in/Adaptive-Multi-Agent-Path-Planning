@@ -146,15 +146,24 @@ A fundamental requirement of AMAPP is the strict separation between global groun
   - *Weak Connectivity:* Underlying undirected graph is connected.
   - *Strong Connectivity:* Every intersection is mutually reachable via directed paths (guaranteed in bidirectional grid mode).
   - *Alternative Paths:* Grid topology provides multiple distinct paths between non-adjacent intersections for dynamic rerouting.
-- **OpenStreetMap Ingestion (`sim_engine/map/` — Planned Phase 5):** Optional module using OSMnx to download and parse bounding-box XML road networks, normalizing nodes and edges into the internal graph schema with synthetic grid fallback.
 
-### 3.4 Route Planning & Adaptive Rerouting (`sim_engine/planning/` — Planned Phases 6, 15)
+### 3.4 OpenStreetMap Import & Normalization (`backend/apps/core/graph/` — IMPLEMENTED & TESTED in Phase 05)
+- **Responsibilities:** Geographic bounding-box acquisition via OSMnx, WGS84-to-planar Cartesian coordinate projection, normalization into `RoadNode` and `RoadEdge` domain entities, directed road topology preservation, and deterministic offline fallback to synthetic city grids.
+- **Implementation Components:**
+  - `BoundingBox`: Strictly validated geographic bounding box with coordinate range checks ($[-90, 90]$, $[-180, 180]$), orientation verification (`north > south`, `east > west`), and area span limits ($\le 0.25^\circ$).
+  - `LocalPlanarProjector`: Conformal equirectangular planar projection converting WGS84 $(\text{lat}, \text{lon})$ to local Cartesian meters $(\text{Position2D})$ relative to the southwest origin $(x \ge 0, y \ge 0)$ with bidirectional round-trip support.
+  - `normalize_osm_graph`: Normalizes external NetworkX `MultiDiGraph` into internal `RoadGraph`. Generates deterministic IDs (`osm_node_{id}`, `osm_edge_{u}_{v}`), computes Euclidean lengths, parses speed limits and lane counts, separates one-way from bidirectional ways, and skips self-loops and duplicate parallel edges.
+  - `acquire_osm_graph`: Defensive acquisition adapter querying Overpass via OSMnx with timeout and error classification (`OSMTimeoutError`, `OSMServiceUnavailableError`, `OSMEmptyGraphError`, `OSMNotInstalledError`).
+  - `import_osm_road_network`: High-level orchestration service. If acquisition fails or OSMnx is absent and `allow_fallback=True`, seamlessly falls back to a deterministic synthetic city grid, preserving error diagnostics in structured metadata.
+- **Fallback Policy:** Invalid geographic bounds immediately raise `InvalidBoundingBoxError` and are never disguised by synthetic fallback. Synthetic fallback is engaged only when acquisition/dependency errors occur and fallback is explicitly enabled.
+
+### 3.5 Route Planning & Adaptive Rerouting (`sim_engine/planning/` — Planned Phases 6, 15)
 - **Responsibilities:** Shortest-path routing via NetworkX and A*; dynamic edge travel cost evaluation; adaptive rerouting on hazard detection.
 - **Edge Cost Formulation:**
   $$\text{Cost}(e) = \frac{\text{Length}(e)}{v_{\text{limit}}(e)} \times \left(1 + \alpha \cdot \text{CongestionFactor}(e) + \beta \cdot \text{HazardWeight}(e)\right)$$
 - **Oscillation Prevention:** Rerouting is evaluated with an improvement threshold $\Delta C_{\text{threshold}}$ and a re-planning cooldown period $\tau_{\text{cooldown}}$ to avoid route thrashing.
 
-### 3.5 V2V Communication Subsystem (`sim_engine/v2v/` — Planned Phases 11–14)
+### 3.6 V2V Communication Subsystem (`sim_engine/v2v/` — Planned Phases 11–14)
 - **Responsibilities:** Peer-to-peer message protocol, spatial proximity detection ($d \le R_{\text{comm}}$), transmission latency, packet loss ($P_{\text{loss}}$), message expiration, and deduplication.
 - **Message Types:**
   - `BEACON`: Periodic broadcast (ID, position, speed, heading).
@@ -162,20 +171,20 @@ A fundamental requirement of AMAPP is the strict separation between global groun
   - `EMERGENCY_PRIORITY`: Priority corridor clearance beacon.
 - **Failure Handling (Phase 14):** When packets are dropped or peers disconnect, agents fall back to local sensor observations and conservative headway following.
 
-### 3.6 Safety, Collisions & Traffic Rules (`sim_engine/safety/` — Planned Phases 16–18)
+### 3.7 Safety, Collisions & Traffic Rules (`sim_engine/safety/` — Planned Phases 16–18)
 - **Responsibilities:** Bounding-box and circle intersection checks, Time-To-Collision (TTC) calculations, Intelligent Driver Model (IDM) car-following, pedestrian crosswalk yielding, signal phase obedience, emergency corridor formation.
 
-### 3.7 AI & Reinforcement Learning (`sim_engine/policies/` & `rl_engine/` — Planned Phases 19, 32–34)
+### 3.8 AI & Reinforcement Learning (`sim_engine/policies/` & `rl_engine/` — Planned Phases 19, 32–34)
 - **Interpretable Decision Policy (Phase 19):** Transparent, weighted scoring baseline evaluating travel time, congestion, risk, and communication confidence:
   $$\text{Score}(\text{route}) = w_1 \cdot \text{Time} + w_2 \cdot \text{Congestion} + w_3 \cdot \text{Risk} - w_4 \cdot \text{Confidence}$$
 - **Gymnasium Environment (Phase 32):** Standard RL interface providing bounded vector observations and discrete/continuous action spaces for route selection.
 - **Stable-Baselines3 Model (Phases 33–34):** PPO agent trained on route selection with bounded training budget, fully decoupled from the baseline policy.
 
-### 3.8 Web Backend & Transport (`backend/` — Planned Phases 2, 21–22, 35)
+### 3.9 Web Backend & Transport (`backend/` — Planned Phases 2, 21–22, 35)
 - **Responsibilities:** Django REST Framework API for scenario discovery, simulation lifecycle control (play/pause/step/reset), metrics querying, and experiment history persistence.
 - **Django Channels (ASGI / Daphne):** Streams authoritative simulation snapshots and V2V events over WebSockets at bounded frequencies (10–30 Hz).
 
-### 3.9 Frontend & Visualization (`frontend/` — Planned Phases 23–30)
+### 3.10 Frontend & Visualization (`frontend/` — Planned Phases 23–30)
 - **Responsibilities:** TypeScript + Three.js application rendering 3D road networks, vehicles, pedestrians, traffic signals, communication range rings, and hazard indicators.
 - **Strict Rendering Boundary:** The frontend never computes physics or invents simulation state; it strictly interpolates authoritative state received from WebSockets.
 
@@ -184,10 +193,10 @@ A fundamental requirement of AMAPP is the strict separation between global groun
 ## 4. Top-Level Module Blueprint
 
 | Module Path | Responsibility | Intro Phase | Dependencies | Public Contract | Test Suite | Forbidden Dependencies |
+|---|---|---|---|---|---|---|
 | `backend/apps/core/domain/` | Typed domain dataclasses, value objects, enums, units, validation, serialization | Phase 03 (IMPLEMENTED & TESTED) | Python Standard Library (`dataclasses`, `enum`, `typing`, `json`, `math`) | 10 Domain Models (`Vehicle`, `RoadNode`, `RoadEdge`, `Route`, `Pedestrian`, `TrafficSignal`, `Obstacle`, `Incident`, `V2VMessage`, `SimulationConfig`), 3 Value Types (`Position2D`, `GeoCoordinate`, `Dimensions2D`), `to_dict`, `from_dict`, `to_json`, `from_json` | `backend/apps/core/tests/test_domain_*.py` | Must NOT depend on Django ORM, Channels, or external geometry packages |
-| `backend/apps/core/graph/` | Directed road graph abstraction, synthetic city grid generator, connectivity analysis | Phase 04 (IMPLEMENTED & TESTED) | NetworkX, `backend/apps/core/domain/` | `RoadGraph`, `CityGridConfig`, `generate_synthetic_city_grid` | `backend/apps/core/tests/test_road_graph.py`, `backend/apps/core/tests/test_city_generator.py` | Must NOT depend on vehicle kinematics, routing, or web layer |
-| `sim_engine/map/` | OpenStreetMap parser and network normalization (OSMnx) | Phase 05 | NetworkX, NumPy, optional OSMnx | `OSMImporter`, `OSMNormalizer` | `tests/unit/test_osm_import.py` | Must NOT depend on vehicle agents or web layer |
-| `sim_engine/planning/` | A* baseline, dynamic cost fields, adaptive rerouting | Phase 06 | NetworkX, `sim_engine/map/` | `AStarPlanner`, `DynamicCostField`, `RouteEvaluator` | `tests/unit/test_planning.py` | Must NOT depend on global simulation scheduler |
+| `backend/apps/core/graph/` | Directed road graph abstraction, synthetic city grid generator, OSM road-network acquisition and normalization, offline fallback | Phase 04 & 05 (IMPLEMENTED & TESTED) | NetworkX, `backend/apps/core/domain/`, optional OSMnx | `RoadGraph`, `CityGridConfig`, `generate_synthetic_city_grid`, `BoundingBox`, `OSMImportConfig`, `OSMImportResult`, `LocalPlanarProjector`, `normalize_osm_graph`, `import_osm_road_network` | `backend/apps/core/tests/test_road_graph.py`, `backend/apps/core/tests/test_city_generator.py`, `backend/apps/core/tests/test_osm_*.py` | Must NOT depend on vehicle kinematics, routing, or web layer |
+| `sim_engine/planning/` | A* baseline, dynamic cost fields, adaptive rerouting | Phase 06 | NetworkX, `backend/apps/core/graph/` | `AStarPlanner`, `DynamicCostField`, `RouteEvaluator` | `tests/unit/test_planning.py` | Must NOT depend on global simulation scheduler |
 | `sim_engine/agents/` | Vehicle kinematics, agent lifecycle, belief state | Phase 07 | `sim_engine/domain/`, NumPy | `VehicleAgent`, `LocalKnowledgeBase`, `KinematicModel` | `tests/unit/test_agents.py` | Must NOT access global simulation state directly |
 | `sim_engine/core/` | Authoritative simulation clock, stepping loop, world state | Phase 08 | All `sim_engine/` subsystems | `SimulationEngine`, `SimulationClock`, `WorldState` | `tests/unit/test_sim_engine.py` | Must NOT depend on Django views or WebSocket consumers |
 | `sim_engine/v2v/` | Message validation, proximity detection, channel noise | Phase 11 | `sim_engine/domain/`, SciPy/NumPy | `V2VChannel`, `ProximityDetector`, `MessageDispatcher` | `tests/unit/test_v2v.py` | Must NOT modify agent routes directly |

@@ -1,5 +1,7 @@
-# AMAPP Backend Runtime Dependencies (Phase 02)
+# AMAPP Backend Runtime Dependencies (Phase 02, 04 & 05)
 # Target Runtime: Python 3.11.x
 Django>=5.1.2,<5.2
 djangorestframework>=3.15.2,<3.16
 networkx>=3.3,<3.4
+osmnx>=2.0.0,<2.1.0
+

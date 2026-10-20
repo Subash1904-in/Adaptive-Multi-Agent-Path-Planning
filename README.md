@@ -157,7 +157,14 @@ ruff check backend
 pytest
 ```
 
-### 6.7 Troubleshooting
+### 6.7 OpenStreetMap Road Network Import & Offline Fallback
+The platform supports ingesting real-world road networks from OpenStreetMap via OSMnx:
+- **Dependency:** `osmnx>=2.0.0,<2.1.0` is declared in `requirements.txt`.
+- **Offline Reliability:** All automated unit tests run 100% offline using mock fixtures.
+- **Deterministic Fallback:** When OSMnx is not installed or when Overpass queries fail/timeout, `import_osm_road_network(config)` seamlessly falls back to the Phase 4 deterministic synthetic city grid when `allow_fallback=True`.
+- **Safety Boundaries:** Bounding boxes exceeding $0.25^\circ$ span (~25 km) or with invalid orientations are strictly rejected to prevent runaway network requests.
+
+### 6.8 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -174,6 +181,7 @@ pytest
 - [docs/progress/PHASE_02.md](docs/progress/PHASE_02.md): Phase 2 scaffold and dev environment report.
 - [docs/progress/PHASE_03.md](docs/progress/PHASE_03.md): Phase 3 domain models and simulation contracts report.
 - [docs/progress/PHASE_04.md](docs/progress/PHASE_04.md): Phase 4 road graph and deterministic city report.
+- [docs/progress/PHASE_05.md](docs/progress/PHASE_05.md): Phase 5 OpenStreetMap import and road network normalization report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

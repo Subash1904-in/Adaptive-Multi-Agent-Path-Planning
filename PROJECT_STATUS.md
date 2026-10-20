@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 4 (Road graph and deterministic synthetic city)
+- **Current Phase:** Phase 5 (OpenStreetMap import and road network normalization)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 5 (OpenStreetMap import) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 6 (Route planning baseline) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-20
 
 ---
@@ -19,7 +19,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 02** | **Project scaffold and development environment** | **COMPLETED** | Clean Python/Django scaffold, venv, dependencies, .env.example, health endpoint, automated tests & CI verified. |
 | **Phase 03** | **Domain models and simulation contracts** | **COMPLETED** | Typed domain models (10 entities, 3 value objects, 9 enums), validation invariants, JSON codecs & 110 tests passed. |
 | **Phase 04** | **Road graph and deterministic city** | **COMPLETED** | Directed road graph (nx.DiGraph), domain integration, deterministic synthetic grid generator, 151 tests passed. |
-| **Phase 05** | OpenStreetMap import | Pending | Optional OSMnx road network import, normalization into internal graph, offline fallback. |
+| **Phase 05** | **OpenStreetMap import** | **COMPLETED** | BoundingBox validation, LocalPlanarProjector, OSMnx acquisition adapter, RoadGraph normalizer, offline fallback, 211 tests passed. |
 | **Phase 06** | Route planning baseline | Pending | NetworkX and A* shortest path, travel time cost, road closures, unit test comparisons. |
 | **Phase 07** | Vehicle agents and lifecycle | Pending | Independent agents, start/dest nodes, speeds, route progress, spawn/arrive/remove lifecycle. |
 | **Phase 08** | Simulation clock and world state | Pending | Deterministic simulation engine, fixed time steps, pause/resume/step/reset, authoritative state. |
@@ -58,7 +58,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 
 ---
 
-## 3. Implemented Features (Phases 0, 1, 2, 3 & 4)
+## 3. Implemented Features (Phases 0, 1, 2, 3, 4 & 5)
 - **Phase 0: Preparation & Repository Isolation:**
   - Initialized isolated Git repository on branch `main` connected to remote origin.
   - Implemented GitHub Actions CI workflow pipeline (`.github/workflows/ci.yml`) with verified pass.
@@ -103,23 +103,38 @@ This roadmap is strictly aligned with our agreed master development plan, divide
   - Guaranteed mathematical Euclidean consistency between planar positions and edge lengths ($L = \Delta x$ or $\Delta y$).
   - Configurable grid dimensions ($R \times C$), intersection spacing, speed limits, lane counts, traffic signals, and bidirectional/one-way configurations.
   - Strict seed reproducibility via local pseudorandom instances (`random.Random(seed)`).
-  - 100% offline operation with zero external map services or network dependencies.
   - Added 41 new unit tests (25 graph tests, 16 generator tests) bringing total suite to 151 passed tests.
   - Documented full evidence in `docs/progress/PHASE_04.md`.
+- **Phase 5: OpenStreetMap Import & Road Network Normalization:**
+  - Pinned runtime dependency `osmnx>=2.0.0,<2.1.0` in `requirements.txt` (installed 2.0.7 in Python 3.11 with NetworkX 3.3).
+  - Designed defensive/lazy loading for optional geospatial libraries, ensuring core backend runs without OSMnx.
+  - Implemented `BoundingBox` with strict geographic coordinate validation, ordering checks, and safety span limits ($\le 0.25^\circ$).
+  - Implemented `LocalPlanarProjector` providing conformal local equirectangular projection from WGS84 $(\text{lat}, \text{lon})$ to local Cartesian meters $(\text{Position2D})$ relative to the southwest origin $(x \ge 0, y \ge 0)$.
+  - Implemented `normalize_osm_graph` converting external NetworkX graphs into `RoadGraph` with deterministic node/edge IDs, positive lengths, parsed speeds (km/h, mph, road-class fallbacks), and lane counts.
+  - Implemented `acquire_osm_graph` with Overpass error classification (`OSMTimeoutError`, `OSMServiceUnavailableError`, `OSMEmptyGraphError`, `OSMNotInstalledError`).
+  - Implemented `import_osm_road_network` service with deterministic offline fallback to Phase 4 synthetic city grid when `allow_fallback=True`.
+  - Added `has_edge_between(u, v)` query method to `RoadGraph`.
+  - Added 60 new unit tests (31 model/projector tests, 12 normalizer tests, 17 service/fallback tests) bringing total suite to 211 passed tests in 1.49s.
+  - Documented full evidence in `docs/progress/PHASE_05.md`.
 
 ---
 
-## 4. Files Created or Modified (Phase 4)
+## 4. Files Created or Modified (Phase 5)
 - **Created:**
-  - `backend/apps/core/graph/__init__.py`
-  - `backend/apps/core/graph/exceptions.py`
-  - `backend/apps/core/graph/road_graph.py`
-  - `backend/apps/core/graph/generator.py`
-  - `backend/apps/core/tests/test_road_graph.py`
-  - `backend/apps/core/tests/test_city_generator.py`
-  - `docs/progress/PHASE_04.md`
+  - `backend/apps/core/graph/osm_exceptions.py`
+  - `backend/apps/core/graph/osm_models.py`
+  - `backend/apps/core/graph/osm_projector.py`
+  - `backend/apps/core/graph/osm_normalizer.py`
+  - `backend/apps/core/graph/osm_acquisition.py`
+  - `backend/apps/core/graph/osm_service.py`
+  - `backend/apps/core/tests/test_osm_models_and_projector.py`
+  - `backend/apps/core/tests/test_osm_normalizer.py`
+  - `backend/apps/core/tests/test_osm_service_and_fallback.py`
+  - `docs/progress/PHASE_05.md`
 - **Modified:**
   - `requirements.txt`
+  - `backend/apps/core/graph/road_graph.py`
+  - `backend/apps/core/graph/__init__.py`
   - `ARCHITECTURE.md`
   - `REQUIREMENTS_TRACEABILITY.md`
   - `README.md`
@@ -131,30 +146,30 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ## 5. Commands Executed and Actual Results
 1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
 2. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-3. `.\.venv\Scripts\pytest.exe`: Executed entire test suite; returned `151 passed in 0.82s` (exit code 0).
+3. `.\.venv\Scripts\pytest.exe`: Executed entire test suite; returned `211 passed in 1.49s` (exit code 0).
 
 ---
 
 ## 6. Test Results
+- **OSM Models & Projector Tests (`test_osm_models_and_projector.py`):** 31 passed.
+- **OSM Normalizer Tests (`test_osm_normalizer.py`):** 12 passed.
+- **OSM Service & Fallback Tests (`test_osm_service_and_fallback.py`):** 17 passed.
 - **Road Graph Abstraction Tests (`test_road_graph.py`):** 25 passed.
 - **Synthetic City Generator Tests (`test_city_generator.py`):** 16 passed.
 - **Value Types Tests (`test_domain_values.py`):** 33 passed.
 - **Domain Models & Invariants Tests (`test_domain_models.py`):** 55 passed.
 - **Serialization & Codecs Tests (`test_domain_serialization.py`):** 17 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **151 passed, 0 failed in 0.82s**.
+- **Total:** **211 passed, 0 failed in 1.49s**.
 - **Django System Check:** 0 issues identified.
-- **Remote CI Run:** VERIFIED & PASSED ([GitHub Actions Run 39308010144](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39308010144)).
-  - `Backend Lint, Test & Coverage`: PASSED (Ruff, manage.py check, pytest: 151 passed in 0.93s)
-  - `Repository Hygiene & Documentation Integrity`: PASSED
-  - `Frontend Lint, Typecheck & Build`: PASSED (deferred cleanly)
+- **Remote CI Run:** Verified locally; awaiting push and remote GitHub Actions verification.
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Road graph abstraction and deterministic synthetic grid complete. Ready for Phase 5 OpenStreetMap import.
+- **Notes:** OSM acquisition and normalization complete with offline fallback. Ready for Phase 6 route planning baseline.
 
 ---
 
@@ -181,6 +196,6 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 9. Exact Next Steps
-1. Push Phase 4 changes to remote repository and verify GitHub Actions CI run.
-2. Wait for user prompt for **Phase 05: OpenStreetMap import**.
-3. Implement optional OSMnx road network ingestion, coordinate projection, normalization into `RoadGraph`, and offline fallback.
+1. Push Phase 5 changes to remote repository and verify GitHub Actions CI run.
+2. Wait for user prompt for **Phase 06: Route planning baseline**.
+3. Implement NetworkX Dijkstra and custom A* shortest-path algorithms on `RoadGraph`, dynamic travel cost formulation, and road closure support.

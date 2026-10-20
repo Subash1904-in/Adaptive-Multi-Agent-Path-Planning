@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 4 (Road graph and deterministic city)  
+**Current Phase:** Phase 5 (OpenStreetMap import and road network normalization)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 4 (Road Graph & Synthetic City Infrastructure):* Phase 4 establishes the directed road network graph abstraction (`RoadGraph`) wrapping NetworkX and the deterministic synthetic city grid generator (`generate_synthetic_city_grid`) under `backend/apps/core/graph/` with full test coverage (151 total tests passing). This provides the structural topological foundation supporting FR-03 (offline fallback grid), FR-04, FR-05, and FR-07. However, because OpenStreetMap live ingestion (Phase 5), pathfinding algorithms (Phase 6), vehicle kinematic agents (Phase 7), and V2V protocols (Phase 11) have not yet been implemented, all 14 functional requirements remain honestly classified as `NOT STARTED` functionally.
+> *Note on Phase 5 (OpenStreetMap Ingestion & Normalization Infrastructure):* Phase 5 establishes the OpenStreetMap import subsystem (`BoundingBox`, `LocalPlanarProjector`, `normalize_osm_graph`, `import_osm_road_network`) under `backend/apps/core/graph/` with full offline fallback to the Phase 4 deterministic synthetic city grid and automated test coverage (211 total tests passing). This provides the structural and geospatial network substrate supporting FR-03, FR-04, FR-05, and FR-07. However, because pathfinding algorithms (Phase 6), vehicle kinematic agents (Phase 7), V2V protocols (Phase 11), and 3D road rendering (Phase 24) have not yet been implemented, all 14 functional requirements remain honestly classified as `NOT STARTED` functionally.
 
 ---
 
@@ -20,7 +20,7 @@
 |---|---|---|---|---|---|
 | **FR-01** | Vehicle-to-Vehicle (V2V) Communication | `sim_engine/v2v/` | Phase 11, 13, 27 | `NOT STARTED` | Pending Phase 11 |
 | **FR-02** | Multi-Agent Autonomous Vehicle Environment | `sim_engine/agents/`, `sim_engine/core/` | Phase 07, 10, 25 | `NOT STARTED` | Pending Phase 07 |
-| **FR-03** | Real-World Map Integration | `sim_engine/map/` | Phase 04, 05, 24 | `NOT STARTED` | Pending Phase 04 |
+| **FR-03** | Real-World Map Integration | `backend/apps/core/graph/` | Phase 04, 05, 24 | `NOT STARTED` | Phase 04 & 05 Foundation Tested (`test_osm_*.py`, `test_road_graph.py`) |
 | **FR-04** | Traffic and Pedestrian Simulation | `sim_engine/safety/`, `sim_engine/pedestrians/` | Phase 09, 17, 25, 29 | `NOT STARTED` | Pending Phase 09 |
 | **FR-05** | Motion Planning and Performance Benchmarking | `sim_engine/planning/`, `sim_engine/benchmarks/` | Phase 06, 30, 31 | `NOT STARTED` | Pending Phase 06 |
 | **FR-06** | Decentralized Vehicle Communication | `sim_engine/v2v/`, `sim_engine/agents/` | Phase 11, 12, 13 | `NOT STARTED` | Pending Phase 11 |

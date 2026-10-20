@@ -174,6 +174,10 @@ class RoadGraph:
         """Retrieve the directed RoadEdge between two nodes, or None if no edge exists."""
         return self._edges_by_endpoints.get((start_node_id, end_node_id))
 
+    def has_edge_between(self, start_node_id: str, end_node_id: str) -> bool:
+        """Check if a directed edge exists from start_node_id to end_node_id."""
+        return (start_node_id, end_node_id) in self._edges_by_endpoints
+
     def edge_ids(self) -> list[str]:
         """Return a list of all edge identifiers."""
         return list(self._edges.keys())

@@ -84,21 +84,26 @@ def set_deterministic_seed():
 
 ---
 
-## 4. Active Test Suites & Commands (Phase 04)
+## 4. Active Test Suites & Commands (Phase 05)
 
 ### 4.1 Running Active Tests
 ```bash
-# Run entire backend test suite via pytest
+# Run entire backend test suite via pytest (211 passed)
 pytest
 
 # Run with verbose output
 pytest -v
 
-# Run specific graph test suites
+# Run specific OSM test suites (Phase 05)
+pytest backend/apps/core/tests/test_osm_models_and_projector.py
+pytest backend/apps/core/tests/test_osm_normalizer.py
+pytest backend/apps/core/tests/test_osm_service_and_fallback.py
+
+# Run specific graph test suites (Phase 04)
 pytest backend/apps/core/tests/test_road_graph.py
 pytest backend/apps/core/tests/test_city_generator.py
 
-# Run specific domain test suites
+# Run specific domain test suites (Phase 03)
 pytest backend/apps/core/tests/test_domain_values.py
 pytest backend/apps/core/tests/test_domain_models.py
 pytest backend/apps/core/tests/test_domain_serialization.py
@@ -110,22 +115,28 @@ ruff check backend
 python backend/manage.py check
 ```
 
-### 4.2 Verified Test Coverage (Phase 04 — 151 Tests Passing)
+### 4.2 Verified Test Coverage (Phase 05 — 211 Tests Passing)
+- **OSM Models, Bounds & Planar Projector (`test_osm_models_and_projector.py`, 31 passed):**
+  - BoundingBox validation: range checks ($[-90, 90]$, $[-180, 180]$), non-numeric and non-finite rejection, strict ordering (`north > south`, `east > west`), span limits ($\le 0.25^\circ$).
+  - BoundingBox conversion: `to_osmnx_bbox` converting to `(west, south, east, north)`, dictionary serialization and deserialization.
+  - LocalPlanarProjector: origin projection to $(0.0, 0.0)$, Cartesian meters displacement matching geodesic formulas, bidirectional unproject round-trip restoration, invalid coordinate rejection.
+  - Configuration & Results: `OSMImportConfig` mode/timeout validation, `OSMImportResult` serialization via `to_dict()`.
+- **OSM Graph Normalization Pipeline (`test_osm_normalizer.py`, 12 passed):**
+  - Node normalization: WGS84 coordinates to `GeoCoordinate` and `Position2D`, deterministic node IDs (`osm_node_{id}`), skipping malformed/uninitialized nodes.
+  - Edge normalization: one-way vs. bidirectional road generation, forward and reverse directed edge separation, deterministic edge IDs (`osm_edge_{u}_{v}`).
+  - Attribute extraction: speed limit parsing (km/h, mph, numeric strings, road class fallbacks), lane count parsing, length calculation fallback via Euclidean distance.
+  - Invariant enforcement: skipping parallel edges in simple graph, skipping self-loops, skipping edges with nonexistent endpoints, raising `OSMEmptyGraphError` on empty input.
+- **OSM Import Service & Fallback (`test_osm_service_and_fallback.py`, 17 passed):**
+  - End-to-end orchestration: successful acquisition and normalization returning `source_type="osm"`.
+  - Fallback policy: missing OSMnx, service unavailable, timeouts, and empty graphs fall back to synthetic grid when `allow_fallback=True`.
+  - Strict error raising: raising `OSMNotInstalledError`, `OSMServiceUnavailableError`, `OSMTimeoutError`, or `OSMEmptyGraphError` when `allow_fallback=False`.
+  - Bounds integrity: invalid bounding boxes raise `InvalidBoundingBoxError` immediately and are never disguised by synthetic fallback.
+  - Fallback determinism: identical seeds produce bit-identical graph topology; custom `fallback_config` options are strictly respected.
+  - Acquisition error classification: verifying timeout, connection error, and empty response mappings.
 - **Road Network Graph Abstraction (`test_road_graph.py`, 25 passed):**
-  - Node storage: unique ID enforcement, typed RoadNode retrieval, duplicate ID rejection, missing node error.
-  - Directed edge storage: valid endpoint verification, duplicate edge ID rejection, directed pair collision rejection, distinct reverse edge support, missing edge error.
-  - Adjacency & neighborhoods: incoming/outgoing neighbor IDs, incoming/outgoing RoadEdge domain objects.
-  - Connectivity & reachability: weak vs strong connectivity distinction, directed path reachability, isolated node detection.
-  - Traffic signal integration: adding signals, node existence check, duplicate signal per node rejection, dictionary export.
-  - Graph integrity: `validate_topology` ensuring strict sync between domain storage and NetworkX graph.
+  - Node storage, directed edge storage, adjacency & neighborhoods, weak vs strong connectivity, traffic signals, topology validation.
 - **Deterministic Synthetic City Generator (`test_city_generator.py`, 16 passed):**
-  - Configuration validation: rows/cols $\ge 2$, positive spacing and speeds, lane bounds, speed variance range, intersection coordinate bounds.
-  - Default 3x3 grid: 9 nodes, 24 directed edges, 1 central traffic signal, length-spacing consistency, strong & weak connectivity.
-  - Alternative path verification: multiple distinct paths between diagonal corner nodes for dynamic rerouting.
-  - One-way grid: forward-only edges, weak connectivity without strong connectivity.
-  - Custom signalized intersections: selective signal placement.
-  - Deterministic reproducibility: bit-identical graph topology, coordinates, and edge attributes across repeated runs with identical seed.
-  - Seeded speed variance: reproducible speed distributions with identical seed, deterministic variation across differing seeds.
+  - Dimensions, spacing, speed limits, alternative paths, one-way grids, signal placement, deterministic seeded reproducibility.
 - **Domain Value Types (`test_domain_values.py`, 33 passed):**
   - Position2D, GeoCoordinate, Dimensions2D validations and round-trips.
 - **Domain Models & Invariants (`test_domain_models.py`, 55 passed):**
@@ -138,6 +149,7 @@ python backend/manage.py check
 ---
 
 ## 5. CI Rules & Testing Policy
+- **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.
 - **Coverage Target:** Minimum line coverage threshold of 80% for `sim_engine/`.
