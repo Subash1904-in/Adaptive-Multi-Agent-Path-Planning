@@ -109,6 +109,7 @@ class ScenarioBuilder:
                 communication_config=self.scenario.v2v_config,
                 coordination_config=self.scenario.coordination_config,
                 adaptive_routing_config=self.scenario.adaptive_routing_config,
+                safety_config=self.scenario.safety_config,
             )
         except Exception as exc:
             msg = (
@@ -161,11 +162,17 @@ class ScenarioBuilder:
             # Instantiate vehicle entity and agent
             try:
                 start_node = graph.get_node(vdef.start_node_id)
+                max_spd = (
+                    vdef.kinematics.max_speed_mps
+                    if vdef.kinematics
+                    else max(13.89, vdef.initial_speed_mps)
+                )
                 vehicle_entity = Vehicle(
                     id=vdef.vehicle_id,
                     vehicle_type=vdef.vehicle_type,
                     position=Position2D(x=start_node.position.x, y=start_node.position.y),
                     speed_mps=vdef.initial_speed_mps,
+                    max_speed_mps=max(max_spd, vdef.initial_speed_mps),
                 )
                 agent = VehicleAgent(
                     vehicle=vehicle_entity,

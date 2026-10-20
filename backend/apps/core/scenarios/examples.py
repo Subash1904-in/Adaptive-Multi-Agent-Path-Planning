@@ -14,6 +14,7 @@ from apps.core.domain.enums import VehicleType
 from apps.core.graph.generator import CityGridConfig
 from apps.core.kinematics.models import KinematicsConfig
 from apps.core.routing.models import AdaptiveRoutingConfig, CostMode, RoutingAlgorithm
+from apps.core.safety.models import SafetyConfig
 from apps.core.scenarios.models import (
     RoadNetworkDefinition,
     RoadNetworkSourceType,
@@ -991,4 +992,239 @@ def create_adaptive_reroute_delayed_network_scenario(
         ),
         seed=seed,
     )
+
+
+# -----------------------------------------------------------------------------
+# Phase 16 — Collision Detection, Safe Separation, and Avoidance Scenarios
+# -----------------------------------------------------------------------------
+
+
+def create_head_on_collision_avoidance_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 100,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create scenario with two vehicles moving toward each other on a bidirectional corridor.
+
+    Both vehicles detect the closing conflict and apply braking to prevent collision.
+    """
+    grid_cfg = CityGridConfig(
+        rows=2,
+        cols=4,
+        spacing_m=40.0,
+        speed_limit_mps=10.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_eastbound",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c3",
+        initial_speed_mps=6.0,
+        kinematics=KinematicsConfig(max_speed_mps=10.0, max_deceleration_mps2=5.0),
+    )
+    v2 = VehicleScenarioDefinition(
+        vehicle_id="veh_westbound",
+        start_node_id="node_r0_c3",
+        destination_node_id="node_r0_c0",
+        initial_speed_mps=6.0,
+        kinematics=KinematicsConfig(max_speed_mps=10.0, max_deceleration_mps2=5.0),
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_safety_head_on",
+            name="Head-On Collision Avoidance",
+            description=(
+                "Two vehicles approaching each other along a straight corridor apply braking."
+            ),
+        ),
+        road_network=rn,
+        vehicles=(v1, v2),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        safety_config=SafetyConfig(
+            enabled=True,
+            min_separation_m=4.0,
+            reaction_time_s=0.3,
+            ttc_imminent_s=1.5,
+            ttc_high_risk_s=3.0,
+            ttc_caution_s=5.0,
+        ),
+        seed=seed,
+    )
+
+
+def create_rear_end_following_safety_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 100,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create scenario where a fast vehicle approaches a slower leading vehicle on the same route.
+
+    The following vehicle detects the closing speed, safe separation violation, and applies braking.
+    """
+    grid_cfg = CityGridConfig(
+        rows=2,
+        cols=5,
+        spacing_m=40.0,
+        speed_limit_mps=15.0,
+        bidirectional=False,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    # Slow leader starting at c1
+    v_leader = VehicleScenarioDefinition(
+        vehicle_id="veh_leader",
+        start_node_id="node_r0_c1",
+        destination_node_id="node_r0_c4",
+        initial_speed_mps=3.0,
+        kinematics=KinematicsConfig(max_speed_mps=4.0),
+    )
+    # Fast follower starting at c0
+    v_follower = VehicleScenarioDefinition(
+        vehicle_id="veh_follower",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c4",
+        initial_speed_mps=12.0,
+        kinematics=KinematicsConfig(max_speed_mps=15.0, max_deceleration_mps2=6.0),
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_safety_rear_end",
+            name="Rear-End Headway Protection",
+            description=(
+                "Follower vehicle closes in on slower leader and brakes to avoid collision."
+            ),
+        ),
+        road_network=rn,
+        vehicles=(v_leader, v_follower),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        safety_config=SafetyConfig(
+            enabled=True,
+            min_separation_m=5.0,
+            reaction_time_s=0.5,
+        ),
+        seed=seed,
+    )
+
+
+def create_intersection_conflict_safety_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 100,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create scenario with two vehicles approaching a shared intersection perpendicularly."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=50.0,
+        speed_limit_mps=10.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    # Vehicle moving East through (1, 1): from (1, 0) to (1, 2)
+    v_east = VehicleScenarioDefinition(
+        vehicle_id="veh_crossing_east",
+        start_node_id="node_r1_c0",
+        destination_node_id="node_r1_c2",
+        initial_speed_mps=7.0,
+        kinematics=KinematicsConfig(max_speed_mps=10.0, max_deceleration_mps2=5.0),
+    )
+    # Vehicle moving North through (1, 1): from (0, 1) to (2, 1)
+    v_north = VehicleScenarioDefinition(
+        vehicle_id="veh_crossing_north",
+        start_node_id="node_r0_c1",
+        destination_node_id="node_r2_c1",
+        initial_speed_mps=7.0,
+        kinematics=KinematicsConfig(max_speed_mps=10.0, max_deceleration_mps2=5.0),
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_safety_intersection",
+            name="Intersection Crossing Conflict",
+            description="Perpendicular crossing paths at intersection resolved via braking.",
+        ),
+        road_network=rn,
+        vehicles=(v_east, v_north),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        safety_config=SafetyConfig(
+            enabled=True,
+            min_separation_m=4.0,
+            ttc_imminent_s=1.5,
+            ttc_high_risk_s=3.0,
+        ),
+        seed=seed,
+    )
+
+
+def create_unavoidable_collision_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 50,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create scenario where vehicles close at extreme speed with limited braking,
+    causing collision.
+    """
+    grid_cfg = CityGridConfig(
+        rows=2,
+        cols=3,
+        spacing_m=15.0,
+        speed_limit_mps=25.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    # Closing at 40 m/s relative speed with only 1.0 m/s^2 deceleration capability and 15m distance
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_fast_a",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+        initial_speed_mps=20.0,
+        kinematics=KinematicsConfig(max_speed_mps=25.0, max_deceleration_mps2=1.0),
+    )
+    v2 = VehicleScenarioDefinition(
+        vehicle_id="veh_fast_b",
+        start_node_id="node_r0_c1",
+        destination_node_id="node_r0_c0",
+        initial_speed_mps=20.0,
+        kinematics=KinematicsConfig(max_speed_mps=25.0, max_deceleration_mps2=1.0),
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_safety_unavoidable_collision",
+            name="Unavoidable Physical Collision",
+            description=(
+                "High relative velocity and low braking capability result in physical collision."
+            ),
+        ),
+        road_network=rn,
+        vehicles=(v1, v2),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        safety_config=SafetyConfig(
+            enabled=True,
+            min_separation_m=3.0,
+            gentle_decel_mps2=0.5,
+            strong_decel_mps2=0.8,
+            emergency_decel_mps2=1.0,
+        ),
+        seed=seed,
+    )
+
 

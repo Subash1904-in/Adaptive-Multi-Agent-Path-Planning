@@ -112,10 +112,10 @@
 
 ### FR-09: Collision Detection and Avoidance
 - **Requirement Statement:** Detect nearby vehicles, pedestrians, and obstacles; implement collision avoidance mechanisms and maintain safe distances.
-- **Target Phases:** Phase 16 (Collision detection and avoidance), Phase 37 (Automated testing and regression).
-- **Components:** `sim_engine/safety/collision.py`, `sim_engine/safety/idm.py`, `sim_engine/safety/emergency_brake.py`
-- **Verification Plan:** Geometric overlap tests, Time-To-Collision (TTC) calculations, and deceleration validation preventing rear-end and intersection collisions.
-- **Current Status:** `NOT STARTED`
+- **Target Phases:** Phase 16 (Collision detection and avoidance), Phase 17 (Pedestrians and traffic signals), Phase 37 (Automated testing and regression).
+- **Components:** `backend/apps/core/safety/` (`geometry.py`, `detection.py`, `policy.py`, `manager.py`, `metrics.py`, `models.py`)
+- **Verification Plan:** 2D OBB Separating Axis Theorem overlap tests, closing speed and Time-To-Collision (TTC) calculations, minimum safe separation distance enforcement, controlled deceleration and emergency braking overrides, conservative multi-conflict resolution, atomic rollback, and deterministic scenario fixtures (`test_safety_*.py`: 48 tests passing).
+- **Current Status:** `IN PROGRESS (Phase 16 V2V Collision Detection, Safe Separation, and Avoidance Complete; Pedestrian/Obstacle safety scoped to Phase 17)`
 
 ---
 

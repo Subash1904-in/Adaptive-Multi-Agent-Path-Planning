@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 15 (Adaptive Rerouting and Dynamic Route Adjustment)
+- **Current Phase:** Phase 16 (Collision Detection, Safe Separation, and Collision Avoidance)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 16 (Collision Detection and Avoidance) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 17 (Pedestrians and Traffic Signals) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-21
 
 ---
@@ -30,7 +30,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 13** | **Decentralized V2V coordination** | **COMPLETED** | Vehicle-private knowledge stores, typed reports, deterministic belief fusion, multi-hop dissemination, atomic rollback, 676 tests passed (96% coverage). |
 | **Phase 14** | **Communication latency, packet loss, and degradation** | **COMPLETED** | Multi-tick transit queues, deterministic latency, distance loss, two-state Markov burst loss, outages, links, partitions, 709 tests passed (96% coverage). |
 | **Phase 15** | **Adaptive rerouting and dynamic route adjustment** | **COMPLETED** | Vehicle-private dynamic edge costs, congestion/closure/hazard evaluation, benefit hysteresis & cooldown, safe route suffix replacement, rollback, 760 tests passed (95.69% coverage). |
-| **Phase 16** | Collision detection and avoidance | Pending | Geometric collision checks, safe separation distance, braking, near-miss logging, safety metrics. |
+| **Phase 16** | **Collision detection and avoidance** | **COMPLETED** | 2D OBB SAT collision detection, safe separation distance, TTC estimation, 5-tier risk classification, controlled deceleration/emergency braking, deterministic conflict resolution, atomic rollback, 808 tests passed (96% coverage). |
 | **Phase 17** | Pedestrians and traffic signals | Pending | Pedestrian agents & crossing zones, signal phases, stop lines, intersection right-of-way. |
 | **Phase 18** | Emergency vehicle priority | Pending | Ambulance/emergency types, priority beacons, cooperative yielding and corridor creation. |
 | **Phase 19** | AI decision policy | Pending | Pluggable local decision policy evaluating travel time, congestion, risk, confidence scores. |
@@ -187,6 +187,15 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Neighbor Tables & Coordinator (`test_communication_neighbors.py`):** 24 passed.
 - **Heartbeat Timing & Loss Detection (`test_communication_heartbeat.py`):** 8 passed.
 - **Neighbor Subsystem Engine Integration (`test_communication_neighbors_integration.py`):** 6 passed.
+- **Safety Geometry & SAT Overlap (`test_safety_geometry.py`):** 18 passed.
+- **Safety Detection, TTC & Pairwise Classification (`test_safety_detection_and_ttc.py`):** 13 passed.
+- **Safety Policy & Simultaneous Conflict Resolution (`test_safety_policy.py`):** 9 passed.
+- **Safety Engine Integration & Atomic Rollback (`test_safety_engine_integration.py`):** 8 passed.
+- **Adaptive Rerouting Policy & Engine Integration (`test_routing_adaptive_policy.py`, `test_routing_engine_integration.py`, `test_routing_replacement.py`):** 36 passed.
+- **Routing Costs, Dynamic Graph & A* (`test_routing_*.py`):** 60 passed.
+- **Communication Degradation & Latency (`test_communication_*.py`):** 74 passed.
+- **V2V Coordination & Belief Dissemination (`test_coordination_*.py`):** 52 passed.
+- **Dynamic Neighbor Tables & Heartbeats (`test_communication_neighbors*.py`):** 38 passed.
 - **V2V Message Protocol & Codecs (`test_communication_protocol.py`):** 35 passed.
 - **Spatial Peer Discovery (`test_communication_discovery.py`):** 24 passed.
 - **Simulated Communication Network (`test_communication_network.py`):** 16 passed.
@@ -200,14 +209,15 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Road Graph & City Generator (`test_road_graph.py`, `test_city_generator.py`):** 41 passed.
 - **Domain Models, Values & Codecs (`test_domain_*.py`):** 105 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **760 passed, 0 failed in 5.50s**, **95.69% line coverage** (exceeds 80% threshold).
+- **Total:** **808 passed, 0 failed in 5.98s**, **96% line coverage** (exceeds 80% threshold).
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Adaptive rerouting and dynamic route adjustment (`backend/apps/core/routing/`) complete, deterministic, vehicle-private, and fully integrated with `WorldState` and `SimulationEngine` with atomic rollback guarantees.
+- **Notes:** Safety subsystem (`backend/apps/core/safety/`) complete, deterministic, and fully integrated with `SimulationEngine.step()` with atomic rollback guarantees.
+- **Educational Disclaimer:** This simulation is developed solely for educational and research purposes and is NOT certified for physical vehicle deployment.
 
 ---
 
@@ -234,7 +244,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 9. Exact Next Steps
-1. Wait for user prompt for **Phase 16: Collision Detection and Avoidance**.
-2. Implement geometric collision checks, safe separation distances, and deceleration policies.
+1. Wait for user prompt for **Phase 17: Pedestrians and Traffic Signals**.
+2. Implement pedestrian agents, crossing zones, signal phases, stop lines, and intersection right-of-way.
 
 

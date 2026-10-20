@@ -19,6 +19,8 @@ from apps.core.graph.road_graph import RoadGraph
 from apps.core.kinematics.vehicle_agent import VehicleAgent
 from apps.core.routing.adapter import DynamicRouteAdapter
 from apps.core.routing.models import AdaptiveRoutingConfig
+from apps.core.safety.manager import SafetyManager
+from apps.core.safety.models import SafetyConfig
 from apps.core.signals.controller import TrafficSignalController
 from apps.core.signals.exceptions import (
     DuplicateSignalError,
@@ -51,6 +53,7 @@ class WorldState:
         communication_config: Optional[CommunicationConfig] = None,
         coordination_config: Optional[CoordinationConfig] = None,
         adaptive_routing_config: Optional[AdaptiveRoutingConfig] = None,
+        safety_config: Optional[SafetyConfig] = None,
     ) -> None:
         """Initialize the world state container.
 
@@ -62,6 +65,7 @@ class WorldState:
             communication_config: Optional CommunicationConfig governing V2V parameters.
             coordination_config: Optional CoordinationConfig governing knowledge sharing.
             adaptive_routing_config: Optional AdaptiveRoutingConfig governing dynamic rerouting.
+            safety_config: Optional SafetyConfig governing collision detection and avoidance.
 
         Raises:
             TypeError: If road_graph is not an instance of RoadGraph.
@@ -120,6 +124,14 @@ class WorldState:
             config=self.adaptive_routing_config,
         )
         self._routing_baseline: Optional[dict[str, Any]] = None
+
+        # Initialize Safety and Collision Avoidance subsystem
+        if safety_config is not None:
+            self.safety_config: SafetyConfig = safety_config
+        else:
+            self.safety_config = SafetyConfig(enabled=False)
+        self.safety_manager: SafetyManager = SafetyManager(config=self.safety_config)
+        self._safety_baseline: Optional[dict[str, Any]] = None
 
         # Auto-register signals defined in the road_graph
         for sig in self.road_graph.get_traffic_signals().values():
@@ -431,6 +443,7 @@ class WorldState:
         self._sched_baseline = self.broadcast_scheduler.capture_state()
         self._coord_baseline = self.coordination_manager.capture_state()
         self._routing_baseline = self.adaptive_routing_adapter.capture_state()
+        self._safety_baseline = self.safety_manager.capture_state()
 
     def restore_baseline(self) -> None:
         """Restore all registered agents and subsystems to their recorded baseline states."""
@@ -445,9 +458,11 @@ class WorldState:
             self.coordination_manager.restore_state(self._coord_baseline)
         if self._routing_baseline is not None:
             self.adaptive_routing_adapter.restore_state(self._routing_baseline)
+        if self._safety_baseline is not None:
+            self.safety_manager.restore_state(self._safety_baseline)
 
     def reset(self) -> None:
-        """Reset the simulation clock to tick 0 and restore all agents, signals, and comms."""
+        """Reset simulation clock to tick 0 and restore all agents, signals, comms, and safety."""
         self.clock.reset(initial_tick=0)
         self.restore_baseline()
         for ctrl in self._signals.values():
@@ -456,6 +471,7 @@ class WorldState:
         self.broadcast_scheduler.reset()
         self.coordination_manager.reset()
         self.adaptive_routing_adapter.reset()
+        self.safety_manager.reset()
         if self.communication_network.config.enabled:
             for aid in self._agents:
                 if not self.communication_network.is_participant_registered(aid):
@@ -502,6 +518,10 @@ class WorldState:
         if self.adaptive_routing_adapter.config.enabled:
             routing_snap = self.adaptive_routing_adapter.metrics.to_dict()
 
+        safety_snap = None
+        if self.safety_manager.config.enabled:
+            safety_snap = self.safety_manager.metrics.to_dict()
+
         return WorldSnapshot(
             tick=self.clock.tick_count,
             elapsed_time_s=self.clock.elapsed_time_s,
@@ -513,6 +533,7 @@ class WorldState:
             communication=comm_snap,
             coordination=coord_snap,
             routing=routing_snap,
+            safety=safety_snap,
             metadata=dict(self.metadata),
         )
 

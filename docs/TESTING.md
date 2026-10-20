@@ -187,6 +187,27 @@ python backend/manage.py check
 - **Degradation, Neighbor & Engine Integration (`test_communication_degradation_integration.py`, 7 passed)**
 - **Coordination Models & Reports (`test_coordination_models.py`, 21 passed)**
 - **Vehicle Knowledge Stores (`test_coordination_knowledge.py`, 11 passed)**
+- **Safety Geometry & SAT Overlap (`test_safety_geometry.py`, 18 passed)**
+  - 2D Oriented Bounding Box (OBB) construction and dimension/coordinate validation.
+  - Separating Axis Theorem (SAT) 4-axis interval projection overlap tests.
+  - Parallel, perpendicular (T-bone), angled diagonal, and boundary-touching geometries.
+  - Exact polygon separation distance computations.
+- **Safety Detection, Closing Speed, TTC & Risk (`test_safety_detection_and_ttc.py`, 13 passed)**
+  - Vector closing-speed formulation along relative position direction.
+  - Safe separation distance computation with reaction time and braking distance terms.
+  - Time-To-Collision (TTC) estimation with non-closing / receding vehicle safety bounds.
+  - 5-tier risk classification: `COLLISION`, `IMMINENT`, `HIGH_RISK`, `CAUTION`, `SAFE`.
+  - Canonical sorted pair evaluation and self-pairing rejection.
+- **Safety Policy & Simultaneous Conflict Resolution (`test_safety_policy.py`, 9 passed)**
+  - Braking action selection (`GENTLE_BRAKE`, `STRONG_BRAKE`, `EMERGENCY_BRAKE`).
+  - Kinematic bounds clamping (acceleration never exceeds vehicle deceleration capability; speed cannot become negative).
+  - Conservative multi-conflict resolution: selects strongest deceleration override regardless of pair iteration order.
+  - SafetyMetrics cumulative recording, snapshot capture, and atomic restoration.
+- **Safety Engine Integration, Deterministic Scenarios & Rollback (`test_safety_engine_integration.py`, 8 passed)**
+  - End-to-end SimulationEngine.step() safety evaluation from frozen pre-tick world snapshots.
+  - Normal acceleration override verification under elevated risk.
+  - Atomic rollback: failure during agent step restores pre-tick vehicle positions, speeds, routing, comms, and safety metrics without double-counting.
+  - Deterministic execution of Phase 16 scenario templates: head-on collision avoidance, rear-end headway protection, intersection crossing conflict, unavoidable collision, and replay reproducibility.
 - **Adaptive Dynamic Costs & Edge Evaluation (`test_routing_dynamic_costs.py`, 17 passed)**
 - **Adaptive Rerouting Policy & Cooldowns (`test_routing_adaptive_policy.py`, 13 passed)**
 - **Safe Active Route Replacement (`test_routing_replacement.py`, 7 passed)**
@@ -240,8 +261,8 @@ python backend/manage.py check
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 15: **95.69%** coverage across 760 passing tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_15.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 16: **96%** coverage across 808 passing tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_16.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend Deferred Cleanly:** Frontend build/lint/typecheck job runs in Node 22.x, deferring execution cleanly until `frontend/package.json` is introduced.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.

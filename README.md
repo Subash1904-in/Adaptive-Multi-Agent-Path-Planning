@@ -494,7 +494,42 @@ The platform includes an individual vehicle kinematics and route-following coord
   print(f"Vehicle safely rerouted around closure in {result.completed_ticks} ticks.")
   ```
 
-### 6.18 Troubleshooting
+### 6.18 Collision Detection, Safe Separation, and Avoidance (Phase 16)
+- **Subsystem:** Deterministic geometric collision detection, safe separation, and collision avoidance subsystem under `backend/apps/core/safety/`.
+- **Educational Simulation Disclaimer:** This software is an educational and research simulation model. It is NOT certified, verified, or suitable for direct deployment in physical autonomous vehicles.
+- **Key Classes:** `OrientedBoundingBox2D`, `check_obb_overlap_sat`, `compute_obb_separation_distance`, `CollisionDetector`, `SafetyPolicy`, `SafetyManager`, `SafetyMetrics`, `SafetyConfig`, `SafetyEvent`.
+- **Capabilities:** 2D Oriented Bounding Box (OBB) representation with Separating Axis Theorem (SAT) overlap detection; safe separation distance ($d_{\text{safe}} = d_0 + v_{\text{rel}}^{+} T_r + \frac{v^2}{2 a_{\text{brake}}}$); Time-to-Collision (TTC) estimation; 5-tier risk classification (`COLLISION`, `IMMINENT`, `HIGH_RISK`, `CAUTION`, `SAFE`); controlled deceleration and emergency braking overrides; conservative multi-conflict resolution (selecting strongest valid deceleration); structured near-miss and collision event logging; full SimulationEngine integration with atomic rollback.
+- **Python API Usage Example:**
+  ```python
+  from apps.core.domain.models import Vehicle
+  from apps.core.domain.values import Position2D
+  from apps.core.kinematics.config import KinematicsConfig
+  from apps.core.kinematics.vehicle_agent import VehicleAgent
+  from apps.core.safety import CollisionDetector, SafetyConfig, SafetyPolicy
+  from apps.core.graph import RoadGraph
+
+  # 1. Setup two approaching vehicles on a collision course
+  graph = RoadGraph("safety_demo")
+  v1 = Vehicle(id="veh_1", position=Position2D(x=0.0, y=0.0), speed_mps=10.0, heading_rad=0.0)
+  v2 = Vehicle(id="veh_2", position=Position2D(x=15.0, y=0.0), speed_mps=10.0, heading_rad=3.14159)
+
+  ag1 = VehicleAgent(v1, graph, config=KinematicsConfig(max_deceleration_mps2=8.0))
+  ag2 = VehicleAgent(v2, graph, config=KinematicsConfig(max_deceleration_mps2=8.0))
+
+  # 2. Evaluate pairwise conflict
+  detector = CollisionDetector(config=SafetyConfig(enabled=True, min_separation_m=4.0))
+  conflicts = detector.detect_all_conflicts([ag1, ag2])
+
+  # 3. Resolve safety policy to obtain braking overrides
+  policy = SafetyPolicy(config=SafetyConfig(enabled=True, emergency_decel_mps2=7.0))
+  overrides = policy.resolve_conflicts([ag1, ag2], conflicts)
+
+  for vid, override in overrides.items():
+      print(f"Vehicle {vid}: Action={override.action_type.value}, Decel={override.target_acceleration_mps2} m/s^2")
+  # Vehicles receive emergency braking commands to prevent predicted physical collision!
+  ```
+
+### 6.19 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -522,6 +557,7 @@ The platform includes an individual vehicle kinematics and route-following coord
 - [docs/progress/PHASE_13.md](docs/progress/PHASE_13.md): Phase 13 decentralized V2V coordination and shared traffic knowledge report.
 - [docs/progress/PHASE_14.md](docs/progress/PHASE_14.md): Phase 14 communication latency, packet loss, network degradation, and recovery report.
 - [docs/progress/PHASE_15.md](docs/progress/PHASE_15.md): Phase 15 adaptive rerouting and dynamic route adjustment report.
+- [docs/progress/PHASE_16.md](docs/progress/PHASE_16.md): Phase 16 collision detection, safe separation, and avoidance report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

@@ -71,6 +71,7 @@ class WorldSnapshot:
     communication: Optional[dict[str, Any]] = None
     coordination: Optional[dict[str, Any]] = None
     routing: Optional[dict[str, Any]] = None
+    safety: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize world snapshot to a plain JSON-compatible dictionary."""
@@ -89,6 +90,11 @@ class WorldSnapshot:
             if hasattr(self.routing, "to_dict")
             else self.routing
         )
+        safety_dict = (
+            self.safety.to_dict()
+            if hasattr(self.safety, "to_dict")
+            else self.safety
+        )
         return {
             "tick": self.tick,
             "elapsed_time_s": self.elapsed_time_s,
@@ -103,6 +109,7 @@ class WorldSnapshot:
             "communication": comm_dict,
             "coordination": coord_dict,
             "routing": routing_dict,
+            "safety": safety_dict,
             "metadata": dict(self.metadata),
         }
 
@@ -123,6 +130,8 @@ class TickResult:
     coordination_metrics: Optional[dict[str, int]] = None
     routing_metrics: Optional[dict[str, Any]] = None
     routing_decisions: Optional[list[dict[str, Any]]] = None
+    safety_metrics: Optional[dict[str, Any]] = None
+    safety_events: Optional[list[dict[str, Any]]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize tick result to a plain JSON-compatible dictionary."""
@@ -147,6 +156,12 @@ class TickResult:
             ),
             "routing_decisions": (
                 list(self.routing_decisions) if self.routing_decisions else None
+            ),
+            "safety_metrics": (
+                dict(self.safety_metrics) if self.safety_metrics else None
+            ),
+            "safety_events": (
+                list(self.safety_events) if self.safety_events else None
             ),
             "arrived_agent_ids": list(self.arrived_agent_ids),
             "active_agent_ids": list(self.active_agent_ids),

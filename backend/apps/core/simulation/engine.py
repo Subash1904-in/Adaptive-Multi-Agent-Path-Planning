@@ -179,6 +179,7 @@ class SimulationEngine:
         sched_rollback = None
         coord_rollback = None
         routing_rollback = None
+        safety_rollback = None
         if self.world.communication_network.config.enabled:
             comm_rollback = self.world.communication_network.capture_state()
             sched_rollback = self.world.broadcast_scheduler.capture_state()
@@ -190,6 +191,12 @@ class SimulationEngine:
             and self.world.adaptive_routing_adapter.config.enabled
         ):
             routing_rollback = self.world.adaptive_routing_adapter.capture_state()
+        if (
+            hasattr(self.world, "safety_manager")
+            and self.world.safety_manager
+            and self.world.safety_manager.config.enabled
+        ):
+            safety_rollback = self.world.safety_manager.capture_state()
 
         # 2. Advance communication network tick (moves transit messages to inboxes)
         if self.world.communication_network.config.enabled:
@@ -262,9 +269,11 @@ class SimulationEngine:
                     current_time_s=self.clock.elapsed_time_s,
                 )
 
-        # 2.5 & 3. Evaluate adaptive rerouting and advance each agent
+        # 2.5, 2.7 & 3. Evaluate adaptive rerouting, safety overrides, and advance each agent
         step_results: dict[str, MotionStepResult] = {}
         routing_decisions = []
+        safety_overrides = {}
+        safety_events = []
         try:
             if (
                 hasattr(self.world, "adaptive_routing_adapter")
@@ -285,13 +294,40 @@ class SimulationEngine:
                     )
                     routing_decisions.append(dec)
 
+            # Evaluate safety detection and stage collision avoidance overrides
+            if (
+                hasattr(self.world, "safety_manager")
+                and self.world.safety_manager
+                and self.world.safety_manager.config.enabled
+            ):
+                scenario_id = self.world.metadata.get("scenario_id")
+                (
+                    safety_overrides,
+                    _pair_conflicts,
+                    safety_events,
+                ) = self.world.safety_manager.evaluate_and_stage(
+                    agents=agents,
+                    current_time_s=self.clock.elapsed_time_s,
+                    scenario_id=scenario_id,
+                )
+
             for agent in agents:
                 vid = agent.vehicle.id
-                accel = target_accels.get(vid) if target_accels else None
-                step_res = agent.step(dt=dt, target_accel=accel)
+                caller_accel = target_accels.get(vid) if target_accels else None
+                if vid in safety_overrides:
+                    # Safety deceleration override takes precedence over caller acceleration
+                    safety_accel = safety_overrides[vid].target_acceleration_mps2
+                    if caller_accel is not None:
+                        effective_accel = min(caller_accel, safety_accel)
+                    else:
+                        effective_accel = safety_accel
+                else:
+                    effective_accel = caller_accel
+
+                step_res = agent.step(dt=dt, target_accel=effective_accel)
                 step_results[vid] = step_res
         except Exception as exc:
-            # Atomic rollback: restore all agents, signals, comms, coord, and routing
+            # Atomic rollback: restore all agents, signals, comms, coord, routing, and safety
             for agent in agents:
                 vid = agent.vehicle.id
                 if vid in rollback_states:
@@ -338,6 +374,8 @@ class SimulationEngine:
                 self.world.coordination_manager.restore_state(coord_rollback)
             if routing_rollback is not None and hasattr(self.world, "adaptive_routing_adapter"):
                 self.world.adaptive_routing_adapter.restore_state(routing_rollback)
+            if safety_rollback is not None and hasattr(self.world, "safety_manager"):
+                self.world.safety_manager.restore_state(safety_rollback)
 
             self.status = EngineStatus.FAILED
             raise TickExecutionError(
@@ -376,6 +414,17 @@ class SimulationEngine:
             [d.to_dict() for d in routing_decisions] if routing_decisions else None
         )
 
+        safety_metrics = None
+        if (
+            hasattr(self.world, "safety_manager")
+            and self.world.safety_manager.config.enabled
+        ):
+            safety_metrics = self.world.safety_manager.metrics.to_dict()
+
+        safety_evt_dicts = (
+            [e.to_dict() for e in safety_events] if safety_events else None
+        )
+
         tick_result = TickResult(
             tick=new_tick,
             elapsed_time_s=self.clock.elapsed_time_s,
@@ -389,10 +438,9 @@ class SimulationEngine:
             coordination_metrics=coord_metrics,
             routing_metrics=routing_metrics,
             routing_decisions=routing_dec_dicts,
+            safety_metrics=safety_metrics,
+            safety_events=safety_evt_dicts,
         )
-
-        self.last_tick_result = tick_result
-        return tick_result
 
         self.last_tick_result = tick_result
         return tick_result

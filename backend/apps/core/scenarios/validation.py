@@ -11,6 +11,7 @@ from apps.core.coordination.models import CoordinationConfig
 from apps.core.graph.road_graph import RoadGraph
 from apps.core.kinematics.models import KinematicsConfig
 from apps.core.routing.models import AdaptiveRoutingConfig, CostMode, RoutingAlgorithm
+from apps.core.safety.models import SafetyConfig
 from apps.core.scenarios.exceptions import ScenarioValidationError
 from apps.core.scenarios.models import (
     RoadNetworkSourceType,
@@ -203,6 +204,15 @@ def validate_scenario(
         raise ScenarioValidationError(
             "adaptive_routing_config must be an instance of AdaptiveRoutingConfig.",
             field="adaptive_routing_config",
+        )
+
+    # 8.5. Safety configuration validation
+    if scenario.safety_config is not None and not isinstance(
+        scenario.safety_config, SafetyConfig
+    ):
+        raise ScenarioValidationError(
+            "safety_config must be an instance of SafetyConfig.",
+            field="safety_config",
         )
 
     # 9. Graph compatibility validation if graph is provided
