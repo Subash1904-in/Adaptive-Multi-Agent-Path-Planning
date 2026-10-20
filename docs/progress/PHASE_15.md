@@ -196,9 +196,20 @@ Nine standard Phase 15 scenario factories were implemented in `apps.core.scenari
 ## 9. CI/CD Integration & GitHub Actions Verification
 
 - **Workflow File:** `.github/workflows/ci.yml`
-- **Authoritative Gate:** All jobs must pass in GitHub Actions.
-- **Commit SHA:** *(To be verified upon push)*
-- **Run URL:** *(To be verified upon push)*
+- **Authoritative Gate:** All jobs passed in GitHub Actions.
+- **Commit SHA:** `3ac1174` (`feat(phase-15): implement adaptive rerouting and dynamic route adjustment`)
+- **Run URL:** [https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39480605410](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39480605410)
+- **Individual Job Outcomes:**
+  - `Backend Lint, Test & Coverage` (Job ID: `118827843363`): **SUCCESS** (31s)
+    - Python 3.11 environment verification
+    - Ruff linting: 0 errors
+    - Django system checks: 0 issues
+    - Pytest regression suite: **760 passed in 7.82s**, **95.69% line coverage** (surpassing 80% threshold)
+  - `Repository Hygiene & Documentation Integrity` (Job ID: `118827843854`): **SUCCESS** (5s)
+    - Mandatory documentation and phase progress artifacts verified (`PHASE_01.md` through `PHASE_15.md`)
+    - Zero prohibited binary files or secret patterns detected
+  - `Frontend Lint, Typecheck & Build` (Job ID: `118827844047`): **SUCCESS** (5s)
+    - Node 22.x runtime verified; clean deferred message logged until frontend packages introduced
 
 ---
 
