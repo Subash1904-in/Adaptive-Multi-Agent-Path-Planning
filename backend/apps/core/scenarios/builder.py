@@ -106,6 +106,7 @@ class ScenarioBuilder:
                 road_graph=graph,
                 clock=clock,
                 metadata=dict(self.scenario.simulation_metadata),
+                communication_config=self.scenario.v2v_config,
             )
         except Exception as exc:
             msg = (

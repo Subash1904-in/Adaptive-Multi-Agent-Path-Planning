@@ -43,6 +43,7 @@ jobs:
             "docs/progress/PHASE_08.md"
             "docs/progress/PHASE_09.md"
             "docs/progress/PHASE_10.md"
+            "docs/progress/PHASE_11.md"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"
@@ -110,7 +111,7 @@ jobs:
         run: |
           python backend/manage.py check
 
-      - name: Run Full Automated Test Suite with Coverage (Phases 2-10)
+      - name: Run Full Automated Test Suite with Coverage (Phases 2-11)
         shell: bash
         run: |
           pytest --cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80
@@ -139,5 +140,5 @@ jobs:
             npm run typecheck
             npm run build
           else
-            echo "Phase 10 verified: Scenario orchestration and simulation configuration active; frontend/package.json not yet declared. Node 22.x environment verified."
+            echo "Phase 11 verified: V2V Communication Protocol and Spatial Peer Discovery active; frontend/package.json not yet declared. Node 22.x environment verified."
           fi

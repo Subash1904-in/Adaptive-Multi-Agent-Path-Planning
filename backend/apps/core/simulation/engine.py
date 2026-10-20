@@ -6,6 +6,7 @@ pause/resume/single-step semantics, and point-in-time snapshot access.
 
 from typing import Optional
 
+from apps.core.communication.models import V2VMessagePacket
 from apps.core.domain.values import Position2D
 from apps.core.kinematics.models import MotionStepResult
 from apps.core.signals.models import SignalQueryResult
@@ -146,7 +147,7 @@ class SimulationEngine:
         agents = self.world.get_agents()
         dt = self.clock.time_step_s
 
-        # 1. Capture atomic rollback snapshots of all agents and signals before stepping
+        # 1. Capture atomic rollback snapshots of agents, signals, and communication
         rollback_states: dict[str, tuple] = {}
         for agent in agents:
             v = agent.vehicle
@@ -166,7 +167,35 @@ class SimulationEngine:
             for ctrl in self.world.get_signals()
         }
 
-        # 2. Advance each agent by identical dt in deterministic order
+        comm_rollback = None
+        sched_rollback = None
+        if self.world.communication_network.config.enabled:
+            comm_rollback = self.world.communication_network.capture_state()
+            sched_rollback = self.world.broadcast_scheduler.capture_state()
+
+        # 2. Advance communication network tick (moves transit messages to inboxes)
+        if self.world.communication_network.config.enabled:
+            self.world.communication_network.advance_tick(self.clock.elapsed_time_s)
+
+            # Perform due periodic status broadcasts before agent motion
+            candidate_positions = {
+                agent.vehicle.id: Position2D(x=agent.vehicle.position.x, y=agent.vehicle.position.y)
+                for agent in agents
+            }
+            for agent in agents:
+                vid = agent.vehicle.id
+                if self.world.broadcast_scheduler.is_broadcast_due(vid, self.clock.elapsed_time_s):
+                    broadcast_packet = self.world.broadcast_scheduler.create_broadcast(
+                        vehicle=agent,
+                        current_time_s=self.clock.elapsed_time_s,
+                    )
+                    self.world.communication_network.broadcast(
+                        message=broadcast_packet,
+                        candidate_positions=candidate_positions,
+                        current_time_s=self.clock.elapsed_time_s,
+                    )
+
+        # 3. Advance each agent by identical dt in deterministic order
         step_results: dict[str, MotionStepResult] = {}
         try:
             for agent in agents:
@@ -175,7 +204,7 @@ class SimulationEngine:
                 step_res = agent.step(dt=dt, target_accel=accel)
                 step_results[vid] = step_res
         except Exception as exc:
-            # Atomic rollback: restore all agents and signals to pre-tick snapshot
+            # Atomic rollback: restore all agents, signals, and comms to pre-tick snapshot
             for agent in agents:
                 vid = agent.vehicle.id
                 if vid in rollback_states:
@@ -204,6 +233,11 @@ class SimulationEngine:
                     ctrl.signal.state = r_sig_state
                     ctrl.signal.remaining_phase_s = r_sig_rem
 
+            if comm_rollback is not None:
+                self.world.communication_network.restore_state(comm_rollback)
+            if sched_rollback is not None:
+                self.world.broadcast_scheduler.restore_state(sched_rollback)
+
             self.status = EngineStatus.FAILED
             raise TickExecutionError(
                 f"Tick {self.clock.tick_count + 1} failed during agent execution: {exc}",
@@ -211,16 +245,19 @@ class SimulationEngine:
                 cause=exc,
             ) from exc
 
-        # 3. Advance authoritative clock exactly once
+        # 4. Advance authoritative clock exactly once
         new_tick = self.clock.tick(force=is_single_step)
 
-        # 4. Synchronize all traffic signals to new simulation time
+        # 5. Synchronize all traffic signals to new simulation time
         self.world.update_signals(self.clock.elapsed_time_s)
 
-        # 5. Construct typed tick result
+        # 6. Construct typed tick result
         arrived_ids = [vid for vid, r in step_results.items() if r.arrived]
         active_ids = [vid for vid, r in step_results.items() if not r.arrived]
         signal_states = {c.id: c.signal.state for c in self.world.get_signals()}
+        comm_metrics = None
+        if self.world.communication_network.config.enabled:
+            comm_metrics = self.world.communication_network.metrics.to_dict()
 
         tick_result = TickResult(
             tick=new_tick,
@@ -231,6 +268,7 @@ class SimulationEngine:
             arrived_agent_ids=arrived_ids,
             active_agent_ids=active_ids,
             signal_states=signal_states,
+            communication_metrics=comm_metrics,
         )
 
         self.last_tick_result = tick_result
@@ -304,3 +342,63 @@ class SimulationEngine:
             SignalQueryResult if the edge terminates at a signalized intersection, else None.
         """
         return self.world.query_signal_for_edge(edge_id, sim_time_s=self.clock.elapsed_time_s)
+
+    def broadcast_v2v(self, message: V2VMessagePacket) -> list[str]:
+        """Broadcast a V2V message across all eligible vehicle agents within range.
+
+        Args:
+            message: V2VMessagePacket to broadcast.
+
+        Returns:
+            List of vehicle IDs that successfully received or enqueued the message.
+        """
+        candidates = {
+            a.vehicle.id: Position2D(x=a.vehicle.position.x, y=a.vehicle.position.y)
+            for a in self.world.get_agents()
+        }
+        return self.world.communication_network.broadcast(
+            message=message,
+            candidate_positions=candidates,
+            current_time_s=self.clock.elapsed_time_s,
+        )
+
+    def send_v2v_unicast(self, message: V2VMessagePacket) -> bool:
+        """Transmit a targeted unicast V2V message to a specific recipient.
+
+        Args:
+            message: V2VMessagePacket with non-empty recipient_id.
+
+        Returns:
+            True if delivered or enqueued; False otherwise.
+        """
+        candidates = {
+            a.vehicle.id: Position2D(x=a.vehicle.position.x, y=a.vehicle.position.y)
+            for a in self.world.get_agents()
+        }
+        return self.world.communication_network.send_unicast(
+            message=message,
+            candidate_positions=candidates,
+            current_time_s=self.clock.elapsed_time_s,
+        )
+
+    def get_vehicle_inbox(self, vehicle_id: str) -> list[V2VMessagePacket]:
+        """Inspect deliverable messages in a vehicle agent's inbox."""
+        return self.world.communication_network.get_inbox(vehicle_id)
+
+    def clear_vehicle_inbox(self, vehicle_id: str) -> list[V2VMessagePacket]:
+        """Drain deliverable messages from a vehicle agent's inbox."""
+        return self.world.communication_network.clear_inbox(vehicle_id)
+
+    def discover_peers(self, vehicle_id: str) -> list[str]:
+        """Discover communicating vehicle peers within range for a registered vehicle."""
+        agent = self.world.get_agent(vehicle_id)
+        candidates = {
+            a.vehicle.id: Position2D(x=a.vehicle.position.x, y=a.vehicle.position.y)
+            for a in self.world.get_agents()
+        }
+        return self.world.communication_network.discovery.find_peers(
+            sender_id=vehicle_id,
+            sender_position=agent.vehicle.position,
+            candidates=candidates,
+        )
+

@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 10 (Scenario orchestration and simulation configuration)  
+**Current Phase:** Phase 11 (V2V Communication Protocol and Spatial Peer Discovery)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 10 (Scenario Orchestration and Simulation Configuration):* Phase 10 implements declarative scenario definitions, structural and graph compatibility validation, unified object assembly (`ScenarioBuilder`), and deterministic execution orchestration (`ScenarioRunner`) with bit-identical replay guarantees (485 total tests passing, 97.14% line coverage). This satisfies the orchestration foundation for FR-02 (Multi-Agent Autonomous Vehicle Environment) and FR-05 (Motion Planning and Performance Benchmarking). Note that Phase 10 strictly provides scenario configuration and execution; decentralized V2V coordination (FR-01/FR-06), adaptive rerouting (FR-07), and collision avoidance (FR-09) are deferred to their designated future phases.
+> *Note on Phase 11 (V2V Communication Protocol and Spatial Peer Discovery):* Phase 11 implements typed, validated, immutable V2V message contracts (`V2VMessagePacket`, `VehicleStatusPayload`), JSON serialization/deserialization, spatial peer discovery ($d \le R$, 50m default with exact boundary inclusion and self-exclusion), an in-memory simulated network with deterministic packet loss and availability failure simulation, a periodic broadcast scheduler synchronized with the discrete simulation clock, and atomic engine rollback integration (586 total tests passing, 96.70% line coverage). This fulfills the foundational communication layer for FR-01 (V2V Communication), FR-06 (Decentralized Vehicle Communication), and FR-11 (Communication Range Detection). Note that Phase 11 strictly provides communication infrastructure; decentralized cooperative coordination (Phase 13), adaptive rerouting (Phase 15), and collision avoidance (Phase 16) are deferred to their designated future phases.
 
 ---
 
@@ -18,18 +18,18 @@
 
 | Req # | Requirement Name | Implementation Modules | Target Phases | Current Status | Test Coverage |
 |---|---|---|---|---|---|
-| **FR-01** | Vehicle-to-Vehicle (V2V) Communication | `sim_engine/v2v/` | Phase 11, 13, 27 | `NOT STARTED` | Pending Phase 11 |
+| **FR-01** | Vehicle-to-Vehicle (V2V) Communication | `backend/apps/core/communication/` | Phase 11, 13, 27 | `NOT STARTED` | Phase 11 Protocol & Delivery Tested (`test_communication_*.py`) |
 | **FR-02** | Multi-Agent Autonomous Vehicle Environment | `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 07, 08, 10, 25 | `NOT STARTED` | Phase 07, 08, 10 Tested (`test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`) |
 | **FR-03** | Real-World Map Integration | `backend/apps/core/graph/` | Phase 04, 05, 24 | `NOT STARTED` | Phase 04 & 05 Foundation Tested (`test_osm_*.py`, `test_road_graph.py`) |
 | **FR-04** | Traffic and Pedestrian Simulation | `backend/apps/core/signals/`, `sim_engine/safety/`, `sim_engine/pedestrians/` | Phase 09, 17, 25, 29 | `NOT STARTED` | Phase 09 Signals Tested (`test_signals_*.py`) |
 | **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 06, 07, 08, 10, 30, 31 | `NOT STARTED` | Phase 06–10 Tested (`test_routing_*.py`, `test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`) |
-| **FR-06** | Decentralized Vehicle Communication | `sim_engine/v2v/`, `sim_engine/agents/` | Phase 11, 12, 13 | `NOT STARTED` | Pending Phase 11 |
+| **FR-06** | Decentralized Vehicle Communication | `backend/apps/core/communication/`, `sim_engine/agents/` | Phase 11, 12, 13 | `NOT STARTED` | Phase 11 Protocol & Discovery Tested (`test_communication_*.py`) |
 | **FR-07** | Adaptive Path Planning | `backend/apps/core/routing/`, `sim_engine/planning/` | Phase 06, 15, 28 | `NOT STARTED` | Phase 06 Baseline Tested (`test_routing_*.py`) |
 | **FR-08** | AI-Based Decision-Making | `sim_engine/agents/`, `rl_engine/policies/` | Phase 19, 34 | `NOT STARTED` | Pending Phase 19 |
 | **FR-09** | Collision Detection and Avoidance | `sim_engine/safety/` | Phase 16, 37 | `NOT STARTED` | Pending Phase 16 |
 | **FR-10** | Emergency Vehicle Priority | `sim_engine/agents/`, `sim_engine/safety/` | Phase 18, 25, 29 | `NOT STARTED` | Pending Phase 18 |
-| **FR-11** | Communication Range Detection | `sim_engine/v2v/`, `sim_engine/core/` | Phase 12, 27 | `NOT STARTED` | Pending Phase 12 |
-| **FR-12** | Communication Failure Handling | `sim_engine/v2v/`, `sim_engine/agents/` | Phase 14, 27 | `NOT STARTED` | Pending Phase 14 |
+| **FR-11** | Communication Range Detection | `backend/apps/core/communication/discovery.py` | Phase 11, 12, 27 | `NOT STARTED` | Phase 11 Spatial Discovery Tested (`test_communication_discovery.py`) |
+| **FR-12** | Communication Failure Handling | `backend/apps/core/communication/network.py` | Phase 11, 14, 27 | `NOT STARTED` | Phase 11 Loss & Availability Tested (`test_communication_network.py`) |
 | **FR-13** | AI Model Training Using Reinforcement Learning | `rl_engine/` | Phase 32, 33, 34 | `NOT STARTED` | Pending Phase 32 |
 | **FR-14** | Real-Time 3D Visualization and Interactive Dashboard | `backend/`, `frontend/` | Phase 21–30 | `NOT STARTED` | Pending Phase 21 |
 

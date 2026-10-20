@@ -68,9 +68,15 @@ class WorldSnapshot:
     vehicles: dict[str, VehicleSnapshot]
     metadata: dict[str, Any]
     signals: dict[str, Any] = field(default_factory=dict)
+    communication: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize world snapshot to a plain JSON-compatible dictionary."""
+        comm_dict = (
+            self.communication.to_dict()
+            if hasattr(self.communication, "to_dict")
+            else self.communication
+        )
         return {
             "tick": self.tick,
             "elapsed_time_s": self.elapsed_time_s,
@@ -82,6 +88,7 @@ class WorldSnapshot:
                 sid: snap.to_dict() if hasattr(snap, "to_dict") else snap
                 for sid, snap in self.signals.items()
             },
+            "communication": comm_dict,
             "metadata": dict(self.metadata),
         }
 
@@ -98,6 +105,7 @@ class TickResult:
     arrived_agent_ids: list[str]
     active_agent_ids: list[str]
     signal_states: dict[str, Any] = field(default_factory=dict)
+    communication_metrics: Optional[dict[str, int]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize tick result to a plain JSON-compatible dictionary."""
@@ -111,6 +119,9 @@ class TickResult:
                 sid: st.value if hasattr(st, "value") else str(st)
                 for sid, st in self.signal_states.items()
             },
+            "communication_metrics": (
+                dict(self.communication_metrics) if self.communication_metrics else None
+            ),
             "arrived_agent_ids": list(self.arrived_agent_ids),
             "active_agent_ids": list(self.active_agent_ids),
         }

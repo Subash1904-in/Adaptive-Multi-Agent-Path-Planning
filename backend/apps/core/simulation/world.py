@@ -6,6 +6,9 @@ immutable state snapshots, and baseline state capture for reproducible resets.
 
 from typing import Any, Optional, Union
 
+from apps.core.communication.models import CommunicationConfig
+from apps.core.communication.network import SimulatedCommunicationNetwork
+from apps.core.communication.scheduler import BroadcastScheduler
 from apps.core.domain.models import SimulationConfig, TrafficSignal
 from apps.core.domain.values import Position2D
 from apps.core.graph.road_graph import RoadGraph
@@ -39,6 +42,7 @@ class WorldState:
         config: Optional[SimulationConfig] = None,
         clock: Optional[SimulationClock] = None,
         metadata: Optional[dict[str, Any]] = None,
+        communication_config: Optional[CommunicationConfig] = None,
     ) -> None:
         """Initialize the world state container.
 
@@ -47,6 +51,7 @@ class WorldState:
             config: Optional SimulationConfig defining time steps and parameters.
             clock: Optional authoritative SimulationClock. If omitted, initialized with config dt.
             metadata: Optional user-defined dictionary for simulation context.
+            communication_config: Optional CommunicationConfig governing V2V parameters.
 
         Raises:
             TypeError: If road_graph is not an instance of RoadGraph.
@@ -67,6 +72,24 @@ class WorldState:
         self._signals: dict[str, TrafficSignalController] = {}
         self._signal_node_map: dict[str, str] = {}
         self._signal_edge_map: dict[str, str] = {}
+
+        # Initialize V2V communication subsystem
+        if communication_config is not None:
+            self.communication_config: CommunicationConfig = communication_config
+        else:
+            self.communication_config = CommunicationConfig(
+                enabled=self.config.enable_v2v,
+                range_m=self.config.communication_radius_m,
+            )
+        self.communication_network: SimulatedCommunicationNetwork = SimulatedCommunicationNetwork(
+            config=self.communication_config
+        )
+        self.broadcast_scheduler: BroadcastScheduler = BroadcastScheduler(
+            broadcast_interval_s=self.communication_config.broadcast_interval_s,
+            message_ttl_s=self.communication_config.message_ttl_s,
+        )
+        self._comm_baseline: Optional[dict[str, Any]] = None
+        self._sched_baseline: Optional[dict[str, Any]] = None
 
         # Auto-register signals defined in the road_graph
         for sig in self.road_graph.get_traffic_signals().values():
@@ -282,6 +305,11 @@ class WorldState:
 
         self._agents[agent_id] = agent
         self._agent_baselines[agent_id] = self._capture_agent_state(agent)
+        if (
+            self.communication_network.config.enabled
+            and not self.communication_network.is_participant_registered(agent_id)
+        ):
+            self.communication_network.register_participant(agent_id)
 
     def get_agent(self, agent_id: str) -> VehicleAgent:
         """Retrieve a registered vehicle agent by identifier.
@@ -319,6 +347,8 @@ class WorldState:
             raise AgentNotFoundError(agent_id)
         agent = self._agents.pop(agent_id)
         self._agent_baselines.pop(agent_id, None)
+        if self.communication_network.config.enabled:
+            self.communication_network.unregister_participant(agent_id)
         return agent
 
     @staticmethod
@@ -356,28 +386,40 @@ class WorldState:
             agent.assign_route(state_dict["route"])
 
     def save_baseline(self) -> None:
-        """Capture the current state of all registered agents as the baseline for reset."""
+        """Capture the current state of all registered agents and subsystems for reset."""
         for agent_id, agent in self._agents.items():
             self._agent_baselines[agent_id] = self._capture_agent_state(agent)
+        self._comm_baseline = self.communication_network.capture_state()
+        self._sched_baseline = self.broadcast_scheduler.capture_state()
 
     def restore_baseline(self) -> None:
-        """Restore all registered agents to their recorded baseline states."""
+        """Restore all registered agents and subsystems to their recorded baseline states."""
         for agent_id, baseline in self._agent_baselines.items():
             if agent_id in self._agents:
                 self._apply_agent_state(self._agents[agent_id], baseline)
+        if self._comm_baseline is not None:
+            self.communication_network.restore_state(self._comm_baseline)
+        if self._sched_baseline is not None:
+            self.broadcast_scheduler.restore_state(self._sched_baseline)
 
     def reset(self) -> None:
-        """Reset the simulation clock to tick 0 and restore all agents and signals to baseline."""
+        """Reset the simulation clock to tick 0 and restore all agents, signals, and comms."""
         self.clock.reset(initial_tick=0)
         self.restore_baseline()
         for ctrl in self._signals.values():
             ctrl.reset()
+        self.communication_network.reset()
+        self.broadcast_scheduler.reset()
+        if self.communication_network.config.enabled:
+            for aid in self._agents:
+                if not self.communication_network.is_participant_registered(aid):
+                    self.communication_network.register_participant(aid)
 
     def get_snapshot(self) -> WorldSnapshot:
-        """Generate an immutable point-in-time snapshot of the world, agents, and signals.
+        """Generate an immutable point-in-time snapshot of world, agents, signals, and comms.
 
         Returns:
-            WorldSnapshot containing clock status, vehicle snapshots, and signal snapshots.
+            WorldSnapshot containing clock status, vehicle snapshots, signals, and comms.
         """
         vehicle_snaps: dict[str, VehicleSnapshot] = {}
         for agent in self.get_agents():
@@ -400,6 +442,10 @@ class WorldState:
             c.id: c.get_snapshot(self.clock.elapsed_time_s) for c in self.get_signals()
         }
 
+        comm_snap = None
+        if self.communication_network.config.enabled:
+            comm_snap = self.communication_network.get_snapshot().to_dict()
+
         return WorldSnapshot(
             tick=self.clock.tick_count,
             elapsed_time_s=self.clock.elapsed_time_s,
@@ -408,5 +454,6 @@ class WorldState:
             agent_count=len(vehicle_snaps),
             vehicles=vehicle_snaps,
             signals=signal_snaps,
+            communication=comm_snap,
             metadata=dict(self.metadata),
         )

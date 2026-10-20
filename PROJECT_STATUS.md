@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 10 (Scenario orchestration and simulation configuration)
+- **Current Phase:** Phase 11 (V2V Communication Protocol and Spatial Peer Discovery)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 11 (V2V message protocol) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 12 (Decentralized V2V Coordination / Dynamic Neighbor Tables) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-20
 
 ---
@@ -25,8 +25,8 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 08** | **Simulation clock and world state** | **COMPLETED** | Authoritative discrete clock, WorldState container, SimulationEngine, pause/resume/single-step, atomic rollback, 377 tests passed (97.08% coverage). |
 | **Phase 09** | **Traffic signals and intersection management** | **COMPLETED** | Cyclic state machine (RED->GREEN->YELLOW->RED), clock sync, approach edge lookup, query API, 441 tests passed (97.19% coverage). |
 | **Phase 10** | **Scenario orchestration and simulation configuration** | **COMPLETED** | Typed scenario configuration, builder assembly, execution runner, deterministic replay, 485 tests passed (97.14% coverage). |
-| **Phase 11** | V2V message protocol | Pending | Typed V2V messages (ID, scope, type, timestamp, position, payload, expiry), deduplication. |
-| **Phase 12** | Communication range and peer discovery | Pending | Configurable communication radius, spatial peer discovery, dynamic neighbor tables. |
+| **Phase 11** | **V2V communication protocol and spatial peer discovery** | **COMPLETED** | Typed V2V message protocol, spatial peer discovery ($d \le R$, 50m default), in-memory network, periodic broadcast scheduler, metrics, atomic rollback, 586 tests passed (96.70% coverage). |
+| **Phase 12** | Communication range and peer discovery / dynamic neighbor tables | Pending | Configurable communication radius, spatial peer discovery, dynamic neighbor tables. |
 | **Phase 13** | Decentralized V2V coordination | Pending | P2P sharing of congestion, incidents, hazards; private agent knowledge stores. |
 | **Phase 14** | Communication failures and recovery | Pending | Configurable latency, packet loss, disconnection, timeout, fallback to local sensors. |
 | **Phase 15** | Adaptive rerouting | Pending | Dynamic route-cost updates, reroute on closure/accident/congestion, cooldown & oscillation prevention. |
@@ -88,74 +88,82 @@ This roadmap is strictly aligned with our agreed master development plan, divide
   - Implemented programmatic scenario templates/examples (`create_single_vehicle_scenario`, `create_multi_vehicle_scenario`, `create_signalized_scenario`, `create_unreachable_vehicle_scenario`, `create_tick_limited_scenario`).
   - Added 44 automated scenario tests bringing total test suite to 485 passing tests (97.14% coverage).
   - Documented full evidence in `docs/progress/PHASE_10.md`.
+- **Phase 11: V2V Communication Protocol & Spatial Peer Discovery:**
+  - Implemented `apps.core.communication` package for deterministic, simulation-only V2V communication.
+  - Defined typed, validated, immutable message packets (`V2VMessagePacket`, `VehicleStatusPayload`, `CommunicationConfig`, `CommunicationSnapshot`).
+  - Implemented deterministic JSON codecs (`serialize_message`, `deserialize_message`) with round-trip verification and strict schema validation.
+  - Implemented spatial peer discovery (`SpatialPeerDiscovery`) applying Euclidean distance metric $d = \sqrt{(x_2-x_1)^2 + (y_2-y_1)^2} \le R$ (50m default, configurable), strict self-exclusion, exact boundary inclusion, deterministic `(distance, id)` tie-breaking, and brute-force parity testing.
+  - Implemented in-memory simulated communication network (`SimulatedCommunicationNetwork`) supporting participant registration, broadcast and unicast delivery, inboxes, transit queues (`NEXT_TICK` and `SAME_TICK` policies), deduplication caches, message expiration, participant availability toggling, deterministic packet loss via seeded PRNG, and atomic rollback/reset.
+  - Implemented periodic broadcast scheduler (`BroadcastScheduler`) with simulation-clock time synchronization, monotonic sequence numbers, non-divisible interval progression, and isolation from wall-clock timers.
+  - Integrated with `WorldState` (auto participant registration, baseline save/restore) and `SimulationEngine` (`pre-tick` rollback state staging, scheduled broadcasting, delivery synchronization, and convenience APIs).
+  - Extended scenario configuration (`ScenarioDefinition.v2v_config`, `WorldState.communication_network`).
+  - Added 101 automated communication tests bringing total test suite to 586 passing tests (96.70% coverage).
+  - Documented full evidence in `docs/progress/PHASE_11.md`.
 
 ---
 
-## 4. Files Created or Modified (Phase 10)
+## 4. Files Created or Modified (Phase 11)
 - **Created:**
-  - `backend/apps/core/scenarios/__init__.py`
-  - `backend/apps/core/scenarios/models.py`
-  - `backend/apps/core/scenarios/exceptions.py`
-  - `backend/apps/core/scenarios/validation.py`
-  - `backend/apps/core/scenarios/builder.py`
-  - `backend/apps/core/scenarios/runner.py`
-  - `backend/apps/core/scenarios/examples.py`
-  - `backend/apps/core/tests/test_scenarios_validation.py`
-  - `backend/apps/core/tests/test_scenarios_builder.py`
-  - `backend/apps/core/tests/test_scenarios_runner.py`
-  - `backend/apps/core/tests/test_scenarios_determinism.py`
-  - `docs/progress/PHASE_10.md`
+  - `backend/apps/core/communication/__init__.py`
+  - `backend/apps/core/communication/models.py`
+  - `backend/apps/core/communication/exceptions.py`
+  - `backend/apps/core/communication/protocol.py`
+  - `backend/apps/core/communication/discovery.py`
+  - `backend/apps/core/communication/network.py`
+  - `backend/apps/core/communication/scheduler.py`
+  - `backend/apps/core/communication/metrics.py`
+  - `backend/apps/core/tests/test_communication_protocol.py`
+  - `backend/apps/core/tests/test_communication_discovery.py`
+  - `backend/apps/core/tests/test_communication_network.py`
+  - `backend/apps/core/tests/test_communication_scheduler.py`
+  - `backend/apps/core/tests/test_communication_engine_integration.py`
+  - `docs/progress/PHASE_11.md`
 - **Modified:**
+  - `backend/apps/core/simulation/models.py`
+  - `backend/apps/core/simulation/world.py`
+  - `backend/apps/core/simulation/engine.py`
+  - `backend/apps/core/scenarios/models.py`
+  - `backend/apps/core/scenarios/builder.py`
+  - `backend/apps/core/scenarios/validation.py`
   - `.github/workflows/ci.yml`
   - `PROJECT_STATUS.md`
   - `ARCHITECTURE.md`
   - `REQUIREMENTS_TRACEABILITY.md`
   - `README.md`
   - `docs/TESTING.md`
-  - `docs/API.md`
 
 ---
 
 ## 5. Commands Executed and Actual Results
 1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
 2. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `485 passed in 3.72s`, `97.14% coverage` (exit code 0).
+3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `586 passed in 4.05s`, `96.70% coverage` (exit code 0).
 
 ---
 
 ## 6. Test Results
-- **Signal Controller & Cycle Timing (`test_signals_controller.py`):** 40 passed.
-- **WorldState Signal Integration (`test_signals_world_integration.py`):** 17 passed.
-- **SimulationEngine Signal Orchestration (`test_signals_engine_integration.py`):** 7 passed.
-- **Simulation Clock & Precision (`test_simulation_clock.py`):** 30 passed.
-- **WorldState Container & Baselines (`test_simulation_world.py`):** 14 passed.
-- **SimulationEngine & Atomic Rollback (`test_simulation_engine.py`):** 12 passed.
-- **Multi-Agent Simulation Determinism (`test_simulation_determinism.py`):** 3 passed.
-- **Kinematics Motion Integration & Limits (`test_kinematics_motion.py`):** 38 passed.
-- **Vehicle Agent Lifecycle & Route Following (`test_kinematics_vehicle_agent.py`):** 19 passed.
-- **Kinematics Grid & OSM Integration (`test_kinematics_integration.py`):** 4 passed.
-- **Routing Costs, Traversability & Heuristics (`test_routing_costs_and_heuristics.py`):** 18 passed.
-- **Dijkstra Shortest Path Search (`test_routing_dijkstra.py`):** 11 passed.
-- **Custom A\* Pathfinding (`test_routing_astar.py`):** 9 passed.
-- **Route Planner & Cross-Algorithm Comparison (`test_routing_planner.py`):** 8 passed.
-- **OSM Models & Projector Tests (`test_osm_models_and_projector.py`):** 31 passed.
-- **OSM Normalizer Tests (`test_osm_normalizer.py`):** 12 passed.
-- **OSM Service & Fallback Tests (`test_osm_service_and_fallback.py`):** 17 passed.
-- **Road Graph Abstraction Tests (`test_road_graph.py`):** 25 passed.
-- **Synthetic City Generator Tests (`test_city_generator.py`):** 16 passed.
-- **Value Types Tests (`test_domain_values.py`):** 33 passed.
-- **Domain Models & Invariants Tests (`test_domain_models.py`):** 55 passed.
-- **Serialization & Codecs Tests (`test_domain_serialization.py`):** 17 passed.
+- **V2V Message Protocol & Codecs (`test_communication_protocol.py`):** 35 passed.
+- **Spatial Peer Discovery (`test_communication_discovery.py`):** 24 passed.
+- **Simulated Communication Network (`test_communication_network.py`):** 16 passed.
+- **Broadcast Scheduler (`test_communication_scheduler.py`):** 14 passed.
+- **Simulation Engine & Scenario Integration (`test_communication_engine_integration.py`):** 7 passed.
+- **Scenario Validation & Execution (`test_scenarios_*.py`):** 44 passed.
+- **Signal Controller & World Integration (`test_signals_*.py`):** 64 passed.
+- **Clock, World, & Engine (`test_simulation_*.py`):** 59 passed.
+- **Kinematics & Vehicle Agent (`test_kinematics_*.py`):** 61 passed.
+- **Routing & Pathfinding (`test_routing_*.py`):** 46 passed.
+- **OSM Acquisition & Graph Normalization (`test_osm_*.py`):** 60 passed.
+- **Road Graph & City Generator (`test_road_graph.py`, `test_city_generator.py`):** 41 passed.
+- **Domain Models, Values & Codecs (`test_domain_*.py`):** 105 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **441 passed, 0 failed in 3.35s**, **97.19% line coverage** (exceeds 80% threshold).
-- **Remote CI Run:** [39387891906](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39387891906) — All 3 jobs passed (commit `ec57fcb`).
+- **Total:** **586 passed, 0 failed in 4.05s**, **96.70% line coverage** (exceeds 80% threshold).
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Traffic signals and intersection management subsystem (`backend/apps/core/signals/`) complete and verified in GitHub Actions CI. Ready for Phase 10 multi-agent scenario orchestration.
+- **Notes:** V2V communication protocol and spatial peer discovery subsystem (`backend/apps/core/communication/`) complete, deterministic, and fully integrated with `WorldState` and `SimulationEngine`.
 
 ---
 
@@ -182,7 +190,6 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 9. Exact Next Steps
-1. Wait for user prompt for **Phase 10: Multi-agent scenario orchestration**.
-2. Implement scenario configuration (agent count, origin/destination distribution, random seed, density profiles).
-3. Implement independent multi-agent scenario execution runner and telemetry capture.
+1. Wait for user prompt for **Phase 12: Communication range and peer discovery / dynamic neighbor tables**.
+2. Advance dynamic neighbor tables, communication range degradation, or decentralized peer-to-peer data synchronization.
 

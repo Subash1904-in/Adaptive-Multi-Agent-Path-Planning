@@ -273,7 +273,46 @@ The platform includes an individual vehicle kinematics and route-following coord
   assert result.to_dict() == replay_result.to_dict()
   ```
 
-### 6.13 Troubleshooting
+### 6.13 V2V Communication Protocol and Spatial Peer Discovery (Phase 11)
+- **Subsystem:** Deterministic in-memory V2V communication subsystem under `backend/apps/core/communication/`.
+- **Key Classes:** `V2VMessagePacket`, `VehicleStatusPayload`, `CommunicationConfig`, `SpatialPeerDiscovery`, `SimulatedCommunicationNetwork`, `BroadcastScheduler`, `CommunicationMetrics`.
+- **Capabilities:** Typed immutable message packets, deterministic JSON serialization/deserialization, Euclidean spatial peer discovery ($d \le R$, 50m default) with exact boundary inclusion and self-exclusion, in-memory network with `NEXT_TICK` (default) and `SAME_TICK` delivery, deduplication cache, expiry enforcement, endpoint availability and seeded packet-loss simulation, periodic broadcast scheduling, and atomic simulation engine rollback.
+- **Python API Usage Example:**
+  ```python
+  from apps.core.communication import (
+      CommunicationConfig,
+      DeliveryPolicy,
+      SimulatedCommunicationNetwork,
+      SpatialPeerDiscovery,
+      create_status_message,
+  )
+  from apps.core.domain.models import Vehicle
+  from apps.core.domain.values import Position2D
+
+  # 1. Instantiate vehicles
+  v1 = Vehicle(id="veh_A", position=Position2D(x=0.0, y=0.0), speed_mps=10.0)
+  v2 = Vehicle(id="veh_B", position=Position2D(x=30.0, y=0.0), speed_mps=8.0)
+
+  # 2. Discover spatial peers within 50m range (30m <= 50m -> discovered)
+  discovery = SpatialPeerDiscovery(range_m=50.0)
+  peers = discovery.find_peers("veh_A", v1.position, {"veh_A": v1.position, "veh_B": v2.position})
+  print(f"Discovered peers: {peers}")  # ['veh_B']
+
+  # 3. Create typed status message packet
+  msg = create_status_message(v1, current_time_s=1.0, sequence_number=0, ttl_s=2.0)
+
+  # 4. Transmit over in-memory network
+  config = CommunicationConfig(enabled=True, range_m=50.0, delivery_policy=DeliveryPolicy.SAME_TICK)
+  network = SimulatedCommunicationNetwork(config=config)
+  network.register_participant("veh_A")
+  network.register_participant("veh_B")
+
+  receivers = network.broadcast(msg, {"veh_A": v1.position, "veh_B": v2.position}, current_time_s=1.0)
+  inbox = network.get_inbox("veh_B")
+  print(f"Delivered to: {receivers}, veh_B inbox count: {len(inbox)}")
+  ```
+
+### 6.14 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -296,6 +335,7 @@ The platform includes an individual vehicle kinematics and route-following coord
 - [docs/progress/PHASE_08.md](docs/progress/PHASE_08.md): Phase 8 simulation clock and world state report.
 - [docs/progress/PHASE_09.md](docs/progress/PHASE_09.md): Phase 9 traffic signals and intersection management report.
 - [docs/progress/PHASE_10.md](docs/progress/PHASE_10.md): Phase 10 scenario orchestration and simulation configuration report.
+- [docs/progress/PHASE_11.md](docs/progress/PHASE_11.md): Phase 11 V2V communication protocol and spatial peer discovery report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

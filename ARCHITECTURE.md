@@ -261,7 +261,7 @@ A fundamental requirement of AMAPP is the strict separation between global groun
 | `backend/apps/core/graph/` | Directed road graph abstraction, synthetic city grid generator, OSM road-network acquisition and normalization, offline fallback | Phase 04 & 05 (IMPLEMENTED & TESTED) | NetworkX, `backend/apps/core/domain/`, optional OSMnx | `RoadGraph`, `CityGridConfig`, `generate_synthetic_city_grid`, `BoundingBox`, `OSMImportConfig`, `OSMImportResult`, `LocalPlanarProjector`, `normalize_osm_graph`, `import_osm_road_network` | `backend/apps/core/tests/test_road_graph.py`, `backend/apps/core/tests/test_city_generator.py`, `backend/apps/core/tests/test_osm_*.py` | Must NOT depend on vehicle kinematics, routing, or web layer |
 | `backend/apps/core/routing/` | Baseline shortest-path planning (Dijkstra, A*), distance/travel-time cost modes, road closures, heuristic admissibility | Phase 06 (IMPLEMENTED & TESTED) | NetworkX, `backend/apps/core/domain/`, `backend/apps/core/graph/` | `RoutePlanner`, `find_route`, `dijkstra_search`, `astar_search`, `CostMode`, `RoutingAlgorithm`, `RoutingRequest`, `RoutingResult` | `backend/apps/core/tests/test_routing_*.py` | Must NOT depend on vehicle kinematics, global clock, or web endpoints |
 | `backend/apps/core/simulation/` | Authoritative simulation clock, fixed-step execution sequencer, world-state container, atomic rollback, pause/resume/step | Phase 08 (IMPLEMENTED & TESTED) | `backend/apps/core/domain/`, `backend/apps/core/graph/`, `backend/apps/core/kinematics/` | `SimulationEngine`, `SimulationClock`, `WorldState`, `EngineStatus`, `WorldSnapshot`, `TickResult` | `backend/apps/core/tests/test_simulation_*.py` | Must NOT depend on Django views or WebSocket consumers |
-| `sim_engine/v2v/` | Message validation, proximity detection, channel noise | Phase 11 | `sim_engine/domain/`, SciPy/NumPy | `V2VChannel`, `ProximityDetector`, `MessageDispatcher` | `tests/unit/test_v2v.py` | Must NOT modify agent routes directly |
+| `backend/apps/core/communication/` | Typed V2V messages, JSON codecs, spatial peer discovery ($d \le R$), in-memory network, periodic broadcast scheduler, metrics, atomic rollback | Phase 11 (IMPLEMENTED & TESTED) | `backend/apps/core/domain/` | `V2VMessagePacket`, `VehicleStatusPayload`, `SpatialPeerDiscovery`, `SimulatedCommunicationNetwork`, `BroadcastScheduler`, `serialize_message`, `deserialize_message` | `backend/apps/core/tests/test_communication_*.py` | Must NOT open real network sockets, use wall-clock timers, or execute collision avoidance/rerouting |
 | `sim_engine/safety/` | Collision detection, IDM, signals, pedestrian yielding | Phase 16 | `sim_engine/domain/`, NumPy | `CollisionDetector`, `IDMController`, `TrafficSignalController` | `tests/unit/test_safety.py` | Must NOT depend on frontend rendering |
 | `backend/` | Django project, settings, ASGI/WSGI, health check API (scaffold: Phase 02; full APIs: Phase 21) | Phase 02, 21 | Django, DRF, Channels, Daphne | Health check (`/api/v1/health/`), future REST API & WebSockets | `backend/apps/core/tests/test_health.py` | Core simulation must run without `backend/` |
 | `rl_engine/` | Gymnasium environment, SB3 PPO training, model evaluation | Phase 32 | Gymnasium, Stable-Baselines3, PyTorch | `AMAPPEnv`, `train_ppo()`, `evaluate_policy()` | `tests/unit/test_gym_env.py` | Core simulation must function if SB3 is absent |
@@ -433,8 +433,119 @@ The `ScenarioBuilder` executes a deterministic 10-step assembly process:
 
 ### 7.4 Architectural Boundaries with Future Phases
 - **Phase 10 Boundary:** Orchestrates static deployment, initial routing, kinematics advancement, and signal state.
-- **Phase 11 (V2V Protocol):** Will introduce typed peer-to-peer message models. Phase 10 does not simulate V2V messages.
-- **Phase 12–14 (Spatial Discovery & Decentralized Coordination):** Phase 10 does not perform spatial neighbor queries or packet delivery.
+- **Phase 11 (V2V Protocol):** Introduces typed peer-to-peer message models, spatial peer discovery, periodic broadcasts, in-memory networking, and atomic rollback.
+- **Phase 12–14 (Decentralized V2V Coordination & Fault Recovery):** Peer-to-peer data synchronization, congestion sharing, and recovery from communication dropouts are layered in subsequent phases.
 - **Phase 15 (Adaptive Rerouting):** Vehicles follow their initial pre-planned static routes; dynamic mid-simulation cost rerouting is strictly deferred to Phase 15.
-- **Phase 16 (Collision Avoidance):** Phase 10 tracks kinematic motion and arrival; vehicles do not execute evasive maneuvers or spatial collision avoidance.
+- **Phase 16 (Collision Avoidance):** Vehicles do not execute evasive maneuvers, emergency braking, or spatial collision avoidance in response to received messages.
+
+---
+
+## 8. V2V Communication Protocol & Spatial Peer Discovery (Phase 11)
+
+Phase 11 establishes a pure Python, deterministic, in-memory Vehicle-to-Vehicle (V2V) communication subsystem (`backend/apps/core/communication/`). It provides simulated wireless communication between vehicles based on physical spatial proximity, strict schema validation, periodic status broadcasting, and seamless integration with the discrete simulation engine.
+
+```mermaid
+flowchart TD
+    subgraph VehicleLifecycle["1. Vehicle Agent & Clock"]
+        SimClock["SimulationClock (Simulated Timestamp t)"]
+        VehAgent["VehicleAgent / WorldState (Position, Heading, Speed)"]
+    end
+
+    subgraph SchedulerLayer["2. Periodic Broadcast Scheduler"]
+        Sched["BroadcastScheduler (Interval delta_t_b, Monotonic seq_no)"]
+        PacketGen["create_status_message() -> V2VMessagePacket (Immutable)"]
+    end
+
+    subgraph DiscoveryLayer["3. Spatial Peer Discovery"]
+        PeerDisc["SpatialPeerDiscovery (Range R, 50m default)"]
+        DistCalc["Euclidean Distance: d = sqrt((x2-x1)^2 + (y2-y1)^2) <= R"]
+        Ordering["Deterministic Sorting: (Distance ASC, PeerID ASC)"]
+    end
+
+    subgraph NetworkLayer["4. Simulated Communication Network"]
+        Net["SimulatedCommunicationNetwork (In-Memory Transit & Inboxes)"]
+        LossModel["Seeded Deterministic Packet Loss / Availability Checks"]
+        DeliveryPol["DeliveryPolicy (NEXT_TICK / SAME_TICK)"]
+        Dedup["Deduplication Cache & TTL Expiry Purging"]
+        Metrics["CommunicationMetrics (Deterministic Counters)"]
+    end
+
+    subgraph EngineRollback["5. SimulationEngine Integration"]
+        RollbackSnap["Atomic Rollback Snapshot (Inboxes, Transit, Counters, PRNG)"]
+        EngineTick["SimulationEngine.step() Coordination Cycle"]
+    end
+
+    SimClock --> Sched
+    VehAgent --> PacketGen
+    Sched --> PacketGen
+    PacketGen --> Net
+    Net --> PeerDisc
+    PeerDisc --> DistCalc --> Ordering
+    Net --> LossModel --> DeliveryPol --> Dedup --> Metrics
+    Net <--> RollbackSnap
+    EngineTick --> Net
+```
+
+### 8.1 Typed V2V Message Protocol & Validation Contracts
+The message protocol defines strictly validated, immutable dataclasses:
+- **`V2VMessagePacket`**: Authoritative transmission container holding:
+  - `protocol_version`: String identifier (default `"1.0"`).
+  - `message_id`: Unique non-empty string identifier.
+  - `message_type`: `V2VMessageType` enum (`VEHICLE_STATUS`, `HAZARD_ALERT`, `TRAFFIC_PROBE`, `ROUTE_ADVISORY`).
+  - `sender_id`: Non-empty vehicle identifier.
+  - `recipient_id`: Optional target vehicle identifier (`None` represents broadcast).
+  - `sequence_number`: Strictly non-negative integer ($\ge 0$), strictly increasing per sender.
+  - `timestamp_s`: Simulation clock timestamp at packet generation ($t \ge 0.0$, finite).
+  - `expiry_timestamp_s`: Optional simulation clock timestamp at which packet becomes stale.
+  - `sender_position`: `Position2D` coordinate in meters.
+  - `sender_heading_rad`: Bounded yaw angle ($-\pi \le \theta \le \pi$).
+  - `sender_speed_mps`: Non-negative forward speed ($v \ge 0.0$).
+  - `payload`: Typed message payload (e.g., `VehicleStatusPayload`).
+  - `correlation_id`: Optional trace identifier.
+- **`VehicleStatusPayload`**: Primary periodic telemetry payload containing current edge ID, destination node ID, and vehicle dimensions.
+- **Factory & Codecs**:
+  - `create_status_message()` extracts authoritative telemetry from `VehicleAgent` or `VehicleSnapshot` without mutating vehicle state.
+  - `serialize_message()` and `deserialize_message()` provide deterministic JSON round-trip conversions without dependency on external networking or memory addresses.
+
+### 8.2 Spatial Peer Discovery ($d \le R$)
+`SpatialPeerDiscovery` identifies communicating neighbors within a configured transmission radius $R$:
+- **Distance Formula:** Planar Cartesian Euclidean distance:
+  $$d = \sqrt{(x_2 - x_1)^2 + (y_2 - y_1)^2}$$
+- **Boundary Inclusion:** Eligible peers satisfy $d \le R + 10^{-7}$ meters. Points precisely on the boundary are included.
+- **Self-Exclusion:** The sender vehicle is strictly excluded from its own peer list.
+- **Deterministic Ordering:** Discovered peers are sorted deterministically by primary key `distance` ascending, with secondary tie-breaking by `peer_id` ascending.
+- **Brute-Force Reference Parity:** Validated against an independent brute-force reference implementation.
+
+### 8.3 Simulated Communication Network & Delivery Semantics
+`SimulatedCommunicationNetwork` simulates an in-memory packet transmission medium:
+- **Delivery Policies:**
+  - `NEXT_TICK` (Default): Broadcasts and unicasts are held in `_transit_queue` until the next simulation clock advancement, completely eliminating execution order dependency among agents during sequential stepping.
+  - `SAME_TICK`: Immediate in-memory delivery to receiver inboxes during the same tick.
+- **Deduplication & Expiry:**
+  - Message IDs are recorded in a per-vehicle deduplication set (`_received_message_ids`). Repeated receipts of the same `message_id` are dropped with reason `DUPLICATE`.
+  - Stale packets ($t_{\text{sim}} > t_{\text{expiry}}$) are purged at dispatch, during transit flush, and upon inbox inspection.
+- **Deterministic Failure Modeling:**
+  - **Endpoint Availability:** Individual vehicle transmitters/receivers can be marked unavailable via `set_participant_availability(vid, False)`.
+  - **Deterministic Packet Loss:** Controlled by `packet_loss_rate` ($[0.0, 1.0]$) evaluated via an isolated seeded `random.Random` instance, preserving 100% deterministic test repeatability without affecting Python's global random state.
+
+### 8.4 Periodic Broadcast Scheduling
+`BroadcastScheduler` triggers vehicle status transmissions at discrete simulated-time intervals:
+- **Time Synchronization:** Governed strictly by the authoritative `SimulationClock` ($t_{\text{sim}}$). Zero use of wall-clock timers, threads, or `time.sleep`.
+- **Monotonic Sequence Numbers:** Sequence numbers increment monotonically ($0, 1, 2, \dots$) per vehicle.
+- **Boundary Precision:** Prevents duplicate broadcasts at the exact same scheduled boundary and accurately handles non-divisible time step intervals.
+
+### 8.5 Simulation Engine Integration & Atomic Rollback
+Communication is embedded in the discrete stepping loop of `SimulationEngine.step()`:
+1. **Pre-Tick Snapshot:** `network.capture_state()` and `scheduler.capture_state()` preserve pre-tick communication state.
+2. **Transit Delivery:** Inboxes are populated from prior transit queues for the new tick.
+3. **Scheduled Broadcasting:** Eligible vehicles broadcast status messages if their scheduled interval is due.
+4. **Kinematic Stepping:** Vehicles advance along their assigned routes.
+5. **Atomic Rollback on Error:** If any agent raises an exception during kinematics or signal updates, `engine.step()` catches `Exception`, rolls back `world`, `signals`, `network`, and `scheduler` to their exact pre-tick baselines, ensuring zero partial mutations or corrupted metric counters.
+
+### 8.6 Architectural Boundaries with Future Phases
+- **Phase 11 Scope:** In-memory V2V message contracts, serialization, spatial peer discovery, broadcast scheduling, delivery semantics, and atomic simulation engine integration.
+- **Strictly Deferred to Future Phases:**
+  - **No Decentralized Coordination (Phase 13):** Vehicles exchange information, but do not yet merge cooperative hazard maps or negotiate maneuvers.
+  - **No Adaptive Rerouting (Phase 15):** Received messages do not trigger path recalculation.
+  - **No Collision Avoidance / Braking (Phase 16):** Received messages do not alter vehicle kinematics, acceleration, or target speeds.
 

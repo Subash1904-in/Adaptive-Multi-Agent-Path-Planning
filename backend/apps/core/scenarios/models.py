@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional, Union
 
+from apps.core.communication.models import CommunicationConfig
 from apps.core.domain.enums import VehicleType
 from apps.core.graph.generator import CityGridConfig
 from apps.core.graph.osm_models import OSMImportConfig
@@ -160,6 +161,7 @@ class ScenarioDefinition:
     seed: Optional[int] = None
     allow_unreachable_vehicles: bool = False
     simulation_metadata: dict[str, Any] = field(default_factory=dict)
+    v2v_config: Optional[CommunicationConfig] = None
 
     @property
     def effective_max_ticks(self) -> Optional[int]:
@@ -189,6 +191,7 @@ class ScenarioDefinition:
             "stop_on_all_arrived": self.stop_on_all_arrived,
             "seed": self.seed,
             "allow_unreachable_vehicles": self.allow_unreachable_vehicles,
+            "v2v_config": self.v2v_config.to_dict() if self.v2v_config else None,
             "simulation_metadata": dict(self.simulation_metadata),
         }
 
