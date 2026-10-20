@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 8 (Simulation clock and world state)
+- **Current Phase:** Phase 9 (Traffic signals and intersection management)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 9 (Traffic signals and intersection management) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 10 (Multi-agent scenario orchestration) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-20
 
 ---
@@ -23,7 +23,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 06** | **Route planning baseline** | **COMPLETED** | Dijkstra, custom A*, distance/travel-time cost modes, road closures, heuristic admissibility, 257 tests passed (96.76% coverage). |
 | **Phase 07** | **Vehicle agents and lifecycle** | **COMPLETED** | Bounded constant-acceleration kinematics, lifecycle states (IDLE/EN_ROUTE/BLOCKED/ARRIVED), route tracking, 318 tests passed (96.51% coverage). |
 | **Phase 08** | **Simulation clock and world state** | **COMPLETED** | Authoritative discrete clock, WorldState container, SimulationEngine, pause/resume/single-step, atomic rollback, 377 tests passed (97.08% coverage). |
-| **Phase 09** | Traffic signals and intersection management | Pending | Intersection signal phases, cycle management, stop lines, signal query API for vehicle agents. |
+| **Phase 09** | **Traffic signals and intersection management** | **COMPLETED** | Deterministic cyclic state machine (RED->GREEN->YELLOW->RED), clock sync, approach edge lookup, query API, 441 tests passed (97.19% coverage). |
 | **Phase 10** | Multi-agent scenario orchestration | Pending | Scenario configuration (agent count, destinations, seed, density), independent run demo. |
 | **Phase 11** | V2V message protocol | Pending | Typed V2V messages (ID, scope, type, timestamp, position, payload, expiry), deduplication. |
 | **Phase 12** | Communication range and peer discovery | Pending | Configurable communication radius, spatial peer discovery, dynamic neighbor tables. |
@@ -58,99 +58,63 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 
 ---
 
-## 3. Implemented Features (Phases 0, 1, 2, 3, 4 & 5)
-- **Phase 0: Preparation & Repository Isolation:**
-  - Initialized isolated Git repository on branch `main` connected to remote origin.
-  - Implemented GitHub Actions CI workflow pipeline (`.github/workflows/ci.yml`) with verified pass.
-  - Established `.gitignore` and baseline project documents.
-- **Phase 1: Repository Audit & Project Blueprint:**
-  - Performed technical audit of workspace and Git state, confirming 0 premature lines of application code.
-  - Reconciled 40-phase master roadmap across all documentation.
-  - Formulated comprehensive Top-Level Module Blueprint in `ARCHITECTURE.md` with explicit dependencies and forbidden couplings.
-  - Established proposed dependency strategy and version compatibility matrix (Python 3.11, Django 5.1, Channels 4.2, NetworkX, NumPy, Gymnasium, SB3, Three.js).
-  - Drafted comprehensive REST API and WebSocket telemetry frame blueprints in `docs/API.md`.
-  - Upgraded testing standards and phased test layout in `docs/TESTING.md`.
-  - Replaced machine-specific absolute links with repository-relative Markdown links.
-  - Documented evidence in `docs/progress/PHASE_01.md`.
-- **Phase 2: Project Scaffold & Development Environment:**
-  - Python virtual environment `.venv` created and configured with Python 3.11.9.
-  - Pinned runtime dependencies in `requirements.txt` (`Django>=5.1.2,<5.2`, `djangorestframework>=3.15.2,<3.16`).
-  - Pinned developer and testing dependencies in `requirements-dev.txt` (`pytest>=8.2.2,<8.3`, `pytest-django>=4.8.0,<4.9`, `ruff>=0.5.0,<0.6`).
-  - Created `.env.example` with documented environment variable placeholders.
-  - Configured `pytest.ini` and `ruff.toml`.
-  - Implemented modular Django backend scaffold in `backend/` with `manage.py`, `config/settings.py`, `config/urls.py`, `config/asgi.py`, and `config/wsgi.py`.
-  - Implemented `backend/apps/core/` application with `GET /api/v1/health/` returning HTTP 200 JSON payload `{"status": "healthy", "service": "amapp-backend", "version": "1.0.0"}`.
-  - Implemented comprehensive automated test suite in `backend/apps/core/tests/test_health.py`.
-  - Verified Django system check (0 issues), Ruff linting (0 issues), and pytest (5 passed).
-  - Upgraded GitHub Actions workflow `.github/workflows/ci.yml` to execute active backend checks (Ruff, Django check, Pytest).
-  - Documented full evidence in `docs/progress/PHASE_02.md`.
-- **Phase 3: Domain Models & Simulation Contracts:**
-  - Implemented pure Python domain package in `backend/apps/core/domain/` decoupled from Django ORM models and migrations.
-  - Implemented 10 core domain dataclasses: `RoadNode`, `RoadEdge`, `Route`, `Vehicle`, `Pedestrian`, `TrafficSignal`, `Obstacle`, `Incident`, `V2VMessage`, `SimulationConfig`.
-  - Implemented 3 immutable value types (`frozen=True`): `Position2D`, `GeoCoordinate`, `Dimensions2D`.
-  - Implemented 9 domain string enumerations (`str, Enum`): `VehicleState`, `VehicleType`, `TrafficSignalState`, `IncidentType`, `IncidentSeverity`, `IncidentStatus`, `ObstacleType`, `V2VMessageType`, `PedestrianState`.
-  - Enforced validation boundaries at object construction via `__post_init__` raising `DomainValidationError`.
-  - Implemented robust JSON-compatible serialization contracts (`to_dict`, `from_dict`, `to_json`, `from_json`) with round-trip guarantees and strict error handling (`SerializationError`).
-  - Implemented 105 new automated tests across values, models, and serialization (total 110 passed in 0.51s).
-  - Documented full evidence in `docs/progress/PHASE_03.md`.
-- **Phase 4: Road Graph & Deterministic Synthetic City:**
-  - Pinned runtime dependency `networkx>=3.3,<3.4` in `requirements.txt`.
-  - Created dedicated graph module in `backend/apps/core/graph/` decoupled from Django HTTP layer and database.
-  - Implemented `RoadGraph` wrapping `networkx.DiGraph`, with typed entity stores for `RoadNode`, `RoadEdge`, and `TrafficSignal`.
-  - Supported directed forward/reverse edge separation, self-loop prevention, connectivity analysis (weak vs strong), alternative path discovery, and clean serialization (`to_dict`).
-  - Implemented custom graph exceptions (`GraphValidationError`, `NodeNotFoundError`, `EdgeNotFoundError`, `DuplicateEntityError`).
-  - Implemented deterministic synthetic city generator `generate_synthetic_city_grid` with `CityGridConfig` dataclass.
-  - Guaranteed mathematical Euclidean consistency between planar positions and edge lengths ($L = \Delta x$ or $\Delta y$).
-  - Configurable grid dimensions ($R \times C$), intersection spacing, speed limits, lane counts, traffic signals, and bidirectional/one-way configurations.
-  - Strict seed reproducibility via local pseudorandom instances (`random.Random(seed)`).
-  - Added 41 new unit tests (25 graph tests, 16 generator tests) bringing total suite to 151 passed tests.
-  - Documented full evidence in `docs/progress/PHASE_04.md`.
-- **Phase 5: OpenStreetMap Import & Road Network Normalization:**
-  - Pinned runtime dependency `osmnx>=2.0.0,<2.1.0` in `requirements.txt` (installed 2.0.7 in Python 3.11 with NetworkX 3.3).
-  - Designed defensive/lazy loading for optional geospatial libraries, ensuring core backend runs without OSMnx.
-  - Implemented `BoundingBox` with strict geographic coordinate validation, ordering checks, and safety span limits ($\le 0.25^\circ$).
-  - Implemented `LocalPlanarProjector` providing conformal local equirectangular projection from WGS84 $(\text{lat}, \text{lon})$ to local Cartesian meters $(\text{Position2D})$ relative to the southwest origin $(x \ge 0, y \ge 0)$.
-  - Implemented `normalize_osm_graph` converting external NetworkX graphs into `RoadGraph` with deterministic node/edge IDs, positive lengths, parsed speeds (km/h, mph, road-class fallbacks), and lane counts.
-  - Implemented `acquire_osm_graph` with Overpass error classification (`OSMTimeoutError`, `OSMServiceUnavailableError`, `OSMEmptyGraphError`, `OSMNotInstalledError`).
-  - Implemented `import_osm_road_network` service with deterministic offline fallback to Phase 4 synthetic city grid when `allow_fallback=True`.
-  - Added `has_edge_between(u, v)` query method to `RoadGraph`.
-  - Added 60 new unit tests (31 model/projector tests, 12 normalizer tests, 17 service/fallback tests) bringing total suite to 211 passed tests in 1.49s.
-  - Documented full evidence in `docs/progress/PHASE_05.md`.
+## 3. Implemented Features (Phases 0 through 9)
+- **Phase 0: Preparation & Repository Isolation:** Initialized isolated Git repository on branch `main`, verified CI pipeline, baseline docs.
+- **Phase 1: Repository Audit & Project Blueprint:** Performed technical audit, verified clean state, established roadmap, architecture blueprint, API/testing plans.
+- **Phase 2: Project Scaffold & Development Environment:** Configured `.venv` (Python 3.11), pinned requirements, Django scaffold with health endpoint, 5 tests passed.
+- **Phase 3: Domain Models & Simulation Contracts:** Pure Python domain package, 10 entities, 3 value types, 9 enums, JSON serialization, 110 tests passed.
+- **Phase 4: Road Graph & Deterministic Synthetic City:** Directed `RoadGraph` wrapping `nx.DiGraph`, synthetic city generator, mathematical consistency, 151 tests passed.
+- **Phase 5: OpenStreetMap Import & Road Network Normalization:** `BoundingBox`, `LocalPlanarProjector`, OSMnx acquisition adapter, graph normalizer, offline fallback, 211 tests passed.
+- **Phase 6: Route Planning Baseline:** Dijkstra, custom A*, distance/travel-time cost modes, road closures, 257 tests passed (96.76% coverage).
+- **Phase 7: Vehicle Agents & Lifecycle:** Constant-acceleration kinematics, lifecycle states (IDLE/EN_ROUTE/BLOCKED/ARRIVED), 318 tests passed (96.51% coverage).
+- **Phase 8: Simulation Clock & World State:** Authoritative discrete clock, WorldState container, SimulationEngine, pause/resume/single-step, atomic rollback, 377 tests passed (97.08% coverage).
+- **Phase 9: Traffic Signals & Intersection Management:**
+  - Implemented `apps.core.signals` package for intersection traffic signal management.
+  - Implemented `SignalCycleConfig` with validation rules for green, yellow, red durations, initial phases, and phase offsets.
+  - Implemented `TrafficSignalController` executing strict cyclic progression $\text{RED} \to \text{GREEN} \to \text{YELLOW} \to \text{RED}$ synchronized with authoritative simulation clock ($\tau = (t_{\text{sim}} + t_{\text{offset}}) \pmod T$).
+  - Built intersection node and road-approach (`incoming_edge_ids`) validation and lookups.
+  - Implemented structured signal-state query API (`SignalQueryResult`) providing `time_to_green_s` and `time_to_red_s`.
+  - Integrated signals into `WorldState` (centralized registry, auto-registration from `RoadGraph`, point-in-time snapshots, reset handling).
+  - Integrated signal stepping and atomic rollback into `SimulationEngine` (`TickResult.signal_states`).
+  - Added 64 automated tests bringing total suite to 441 passing tests (97.19% coverage).
+  - Documented full evidence in `docs/progress/PHASE_09.md`.
 
 ---
 
-## 4. Files Created or Modified (Phase 5)
+## 4. Files Created or Modified (Phase 9)
 - **Created:**
-  - `backend/apps/core/graph/osm_exceptions.py`
-  - `backend/apps/core/graph/osm_models.py`
-  - `backend/apps/core/graph/osm_projector.py`
-  - `backend/apps/core/graph/osm_normalizer.py`
-  - `backend/apps/core/graph/osm_acquisition.py`
-  - `backend/apps/core/graph/osm_service.py`
-  - `backend/apps/core/tests/test_osm_models_and_projector.py`
-  - `backend/apps/core/tests/test_osm_normalizer.py`
-  - `backend/apps/core/tests/test_osm_service_and_fallback.py`
-  - `docs/progress/PHASE_05.md`
+  - `backend/apps/core/signals/__init__.py`
+  - `backend/apps/core/signals/exceptions.py`
+  - `backend/apps/core/signals/models.py`
+  - `backend/apps/core/signals/controller.py`
+  - `backend/apps/core/tests/test_signals_controller.py`
+  - `backend/apps/core/tests/test_signals_world_integration.py`
+  - `backend/apps/core/tests/test_signals_engine_integration.py`
+  - `docs/progress/PHASE_09.md`
 - **Modified:**
-  - `requirements.txt`
-  - `backend/apps/core/graph/road_graph.py`
-  - `backend/apps/core/graph/__init__.py`
+  - `backend/apps/core/simulation/models.py`
+  - `backend/apps/core/simulation/world.py`
+  - `backend/apps/core/simulation/engine.py`
+  - `.github/workflows/ci.yml`
+  - `PROJECT_STATUS.md`
   - `ARCHITECTURE.md`
   - `REQUIREMENTS_TRACEABILITY.md`
   - `README.md`
   - `docs/TESTING.md`
-  - `PROJECT_STATUS.md`
 
 ---
 
 ## 5. Commands Executed and Actual Results
 1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
 2. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `377 passed in 3.54s`, `97.08% coverage` (exit code 0).
+3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `441 passed in 3.35s`, `97.19% coverage` (exit code 0).
 
 ---
 
 ## 6. Test Results
+- **Signal Controller & Cycle Timing (`test_signals_controller.py`):** 40 passed.
+- **WorldState Signal Integration (`test_signals_world_integration.py`):** 17 passed.
+- **SimulationEngine Signal Orchestration (`test_signals_engine_integration.py`):** 7 passed.
 - **Simulation Clock & Precision (`test_simulation_clock.py`):** 30 passed.
 - **WorldState Container & Baselines (`test_simulation_world.py`):** 14 passed.
 - **SimulationEngine & Atomic Rollback (`test_simulation_engine.py`):** 12 passed.
@@ -171,15 +135,14 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Domain Models & Invariants Tests (`test_domain_models.py`):** 55 passed.
 - **Serialization & Codecs Tests (`test_domain_serialization.py`):** 17 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **377 passed, 0 failed in 3.54s**, **97.08% line coverage** (exceeds 80% threshold).
-- **Remote CI Run:** [39380569928](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39380569928) — All 3 jobs passed (commit `a58b114`).
+- **Total:** **441 passed, 0 failed in 3.35s**, **97.19% line coverage** (exceeds 80% threshold).
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Simulation clock and world state (`backend/apps/core/simulation/`) complete and tested. Ready for Phase 9 traffic signals and intersection management.
+- **Notes:** Traffic signals and intersection management subsystem (`backend/apps/core/signals/`) complete and verified. Ready for Phase 10 multi-agent scenario orchestration.
 
 ---
 

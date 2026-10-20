@@ -8,6 +8,7 @@ from typing import Optional
 
 from apps.core.domain.values import Position2D
 from apps.core.kinematics.models import MotionStepResult
+from apps.core.signals.models import SignalQueryResult
 from apps.core.simulation.clock import SimulationClock
 from apps.core.simulation.exceptions import EngineStateError, TickExecutionError
 from apps.core.simulation.models import EngineStatus, TickResult, WorldSnapshot
@@ -145,7 +146,7 @@ class SimulationEngine:
         agents = self.world.get_agents()
         dt = self.clock.time_step_s
 
-        # 1. Capture atomic rollback snapshots of all agents before stepping
+        # 1. Capture atomic rollback snapshots of all agents and signals before stepping
         rollback_states: dict[str, tuple] = {}
         for agent in agents:
             v = agent.vehicle
@@ -160,6 +161,11 @@ class SimulationEngine:
                 agent.distance_along_segment_m,
             )
 
+        signal_rollback_states: dict[str, tuple] = {
+            ctrl.id: (ctrl.signal.state, ctrl.signal.remaining_phase_s)
+            for ctrl in self.world.get_signals()
+        }
+
         # 2. Advance each agent by identical dt in deterministic order
         step_results: dict[str, MotionStepResult] = {}
         try:
@@ -169,7 +175,7 @@ class SimulationEngine:
                 step_res = agent.step(dt=dt, target_accel=accel)
                 step_results[vid] = step_res
         except Exception as exc:
-            # Atomic rollback: restore all agents to pre-tick snapshot
+            # Atomic rollback: restore all agents and signals to pre-tick snapshot
             for agent in agents:
                 vid = agent.vehicle.id
                 if vid in rollback_states:
@@ -192,6 +198,12 @@ class SimulationEngine:
                     agent.current_edge_index = r_eidx
                     agent.distance_along_segment_m = r_dist
 
+            for ctrl in self.world.get_signals():
+                if ctrl.id in signal_rollback_states:
+                    r_sig_state, r_sig_rem = signal_rollback_states[ctrl.id]
+                    ctrl.signal.state = r_sig_state
+                    ctrl.signal.remaining_phase_s = r_sig_rem
+
             self.status = EngineStatus.FAILED
             raise TickExecutionError(
                 f"Tick {self.clock.tick_count + 1} failed during agent execution: {exc}",
@@ -202,9 +214,13 @@ class SimulationEngine:
         # 3. Advance authoritative clock exactly once
         new_tick = self.clock.tick(force=is_single_step)
 
-        # 4. Construct typed tick result
+        # 4. Synchronize all traffic signals to new simulation time
+        self.world.update_signals(self.clock.elapsed_time_s)
+
+        # 5. Construct typed tick result
         arrived_ids = [vid for vid, r in step_results.items() if r.arrived]
         active_ids = [vid for vid, r in step_results.items() if not r.arrived]
+        signal_states = {c.id: c.signal.state for c in self.world.get_signals()}
 
         tick_result = TickResult(
             tick=new_tick,
@@ -214,6 +230,7 @@ class SimulationEngine:
             step_results=step_results,
             arrived_agent_ids=arrived_ids,
             active_agent_ids=active_ids,
+            signal_states=signal_states,
         )
 
         self.last_tick_result = tick_result
@@ -263,5 +280,27 @@ class SimulationEngine:
         return results
 
     def get_snapshot(self) -> WorldSnapshot:
-        """Expose an immutable snapshot of the current world and agent states."""
+        """Expose an immutable snapshot of the current world, agent, and signal states."""
         return self.world.get_snapshot()
+
+    def query_signal(self, signal_id: str) -> SignalQueryResult:
+        """Query state and timing for a traffic signal at the current simulation time.
+
+        Args:
+            signal_id: Unique traffic signal identifier.
+
+        Returns:
+            SignalQueryResult containing current state and time to next phase transitions.
+        """
+        return self.world.query_signal(signal_id, sim_time_s=self.clock.elapsed_time_s)
+
+    def query_signal_for_edge(self, edge_id: str) -> Optional[SignalQueryResult]:
+        """Query state and timing for the signal governing an incoming road edge approach.
+
+        Args:
+            edge_id: Incoming directed road edge identifier.
+
+        Returns:
+            SignalQueryResult if the edge terminates at a signalized intersection, else None.
+        """
+        return self.world.query_signal_for_edge(edge_id, sim_time_s=self.clock.elapsed_time_s)

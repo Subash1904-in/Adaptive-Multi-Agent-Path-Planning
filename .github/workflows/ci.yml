@@ -41,6 +41,7 @@ jobs:
             "docs/progress/PHASE_06.md"
             "docs/progress/PHASE_07.md"
             "docs/progress/PHASE_08.md"
+            "docs/progress/PHASE_09.md"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"
@@ -108,7 +109,7 @@ jobs:
         run: |
           python backend/manage.py check
 
-      - name: Run Full Automated Test Suite with Coverage (Phases 2-8)
+      - name: Run Full Automated Test Suite with Coverage (Phases 2-9)
         shell: bash
         run: |
           pytest --cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80
@@ -137,5 +138,5 @@ jobs:
             npm run typecheck
             npm run build
           else
-            echo "Phase 8 verified: Authoritative simulation clock and world state active; frontend/package.json not yet declared. Node 22.x environment verified."
+            echo "Phase 9 verified: Traffic signals and intersection management active; frontend/package.json not yet declared. Node 22.x environment verified."
           fi

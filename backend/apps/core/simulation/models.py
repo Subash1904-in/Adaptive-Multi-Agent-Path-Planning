@@ -4,7 +4,7 @@ Provides immutable representations of vehicle states, world states, tick results
 and engine status enumerations.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
@@ -67,6 +67,7 @@ class WorldSnapshot:
     agent_count: int
     vehicles: dict[str, VehicleSnapshot]
     metadata: dict[str, Any]
+    signals: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize world snapshot to a plain JSON-compatible dictionary."""
@@ -77,6 +78,10 @@ class WorldSnapshot:
             "is_paused": self.is_paused,
             "agent_count": self.agent_count,
             "vehicles": {vid: snap.to_dict() for vid, snap in self.vehicles.items()},
+            "signals": {
+                sid: snap.to_dict() if hasattr(snap, "to_dict") else snap
+                for sid, snap in self.signals.items()
+            },
             "metadata": dict(self.metadata),
         }
 
@@ -92,6 +97,7 @@ class TickResult:
     step_results: dict[str, MotionStepResult]
     arrived_agent_ids: list[str]
     active_agent_ids: list[str]
+    signal_states: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize tick result to a plain JSON-compatible dictionary."""
@@ -101,6 +107,10 @@ class TickResult:
             "time_step_s": self.time_step_s,
             "agent_count": self.agent_count,
             "step_results": {vid: res.to_dict() for vid, res in self.step_results.items()},
+            "signal_states": {
+                sid: st.value if hasattr(st, "value") else str(st)
+                for sid, st in self.signal_states.items()
+            },
             "arrived_agent_ids": list(self.arrived_agent_ids),
             "active_agent_ids": list(self.active_agent_ids),
         }

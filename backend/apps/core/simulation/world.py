@@ -4,12 +4,19 @@ Maintains deterministic vehicle collections, agent-graph compatibility checks,
 immutable state snapshots, and baseline state capture for reproducible resets.
 """
 
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
-from apps.core.domain.models import SimulationConfig
+from apps.core.domain.models import SimulationConfig, TrafficSignal
 from apps.core.domain.values import Position2D
 from apps.core.graph.road_graph import RoadGraph
 from apps.core.kinematics.vehicle_agent import VehicleAgent
+from apps.core.signals.controller import TrafficSignalController
+from apps.core.signals.exceptions import (
+    DuplicateSignalError,
+    InvalidIntersectionAssociationError,
+    SignalNotFoundError,
+)
+from apps.core.signals.models import SignalCycleConfig, SignalQueryResult
 from apps.core.simulation.clock import SimulationClock
 from apps.core.simulation.exceptions import (
     AgentNotFoundError,
@@ -56,6 +63,182 @@ class WorldState:
 
         self._agents: dict[str, VehicleAgent] = {}
         self._agent_baselines: dict[str, dict[str, Any]] = {}
+
+        self._signals: dict[str, TrafficSignalController] = {}
+        self._signal_node_map: dict[str, str] = {}
+        self._signal_edge_map: dict[str, str] = {}
+
+        # Auto-register signals defined in the road_graph
+        for sig in self.road_graph.get_traffic_signals().values():
+            if sig.id not in self._signals:
+                controller = TrafficSignalController(
+                    signal=sig,
+                    road_graph=self.road_graph,
+                )
+                self._register_controller(controller)
+
+    def _register_controller(self, controller: TrafficSignalController) -> None:
+        """Register an initialized TrafficSignalController into internal lookup maps."""
+        self._signals[controller.id] = controller
+        self._signal_node_map[controller.node_id] = controller.id
+        for edge_id in controller.incoming_edge_ids:
+            self._signal_edge_map[edge_id] = controller.id
+
+    @property
+    def signal_count(self) -> int:
+        """Total number of registered traffic signals in the world."""
+        return len(self._signals)
+
+    @property
+    def signal_ids(self) -> list[str]:
+        """List of all registered signal identifiers in deterministic sorted order."""
+        return sorted(self._signals.keys())
+
+    def get_signals(self) -> list[TrafficSignalController]:
+        """Enumerate all registered traffic signal controllers in deterministic sorted order."""
+        return [self._signals[sid] for sid in sorted(self._signals.keys())]
+
+    def has_signal(self, signal_id: str) -> bool:
+        """Check whether a traffic signal is registered in the world."""
+        return signal_id in self._signals
+
+    def get_signal(self, signal_id: str) -> TrafficSignalController:
+        """Retrieve a registered traffic signal controller by signal ID."""
+        if signal_id not in self._signals:
+            raise SignalNotFoundError(signal_id)
+        return self._signals[signal_id]
+
+    def get_signal_at_node(self, node_id: str) -> Optional[TrafficSignalController]:
+        """Retrieve the traffic signal governing an intersection node, or None."""
+        sig_id = self._signal_node_map.get(node_id)
+        if sig_id is None:
+            return None
+        return self._signals.get(sig_id)
+
+    def get_signal_for_edge(self, edge_id: str) -> Optional[TrafficSignalController]:
+        """Retrieve the traffic signal governing an incoming road edge approach, or None."""
+        sig_id = self._signal_edge_map.get(edge_id)
+        if sig_id is None:
+            return None
+        return self._signals.get(sig_id)
+
+    def add_traffic_signal(
+        self,
+        signal_or_controller: Union[TrafficSignal, TrafficSignalController],
+        config: Optional[SignalCycleConfig] = None,
+        incoming_edge_ids: Optional[list[str]] = None,
+    ) -> TrafficSignalController:
+        """Register a traffic signal or controller in the world state.
+
+        Args:
+            signal_or_controller: Domain TrafficSignal or pre-configured TrafficSignalController.
+            config: Optional SignalCycleConfig (used when passing TrafficSignal).
+            incoming_edge_ids: Optional list of incoming road edge IDs.
+
+        Returns:
+            The registered TrafficSignalController.
+
+        Raises:
+            TypeError: If input is not a TrafficSignal or TrafficSignalController.
+            DuplicateSignalError: If signal ID or intersection node already has a signal.
+            InvalidIntersectionAssociationError: If node or edge associations are invalid.
+        """
+        if isinstance(signal_or_controller, TrafficSignal):
+            controller = TrafficSignalController(
+                signal=signal_or_controller,
+                config=config,
+                road_graph=self.road_graph,
+                incoming_edge_ids=incoming_edge_ids,
+            )
+        elif isinstance(signal_or_controller, TrafficSignalController):
+            controller = signal_or_controller
+            if controller.road_graph is not None and controller.road_graph is not self.road_graph:
+                raise InvalidIntersectionAssociationError(
+                    f"TrafficSignalController '{controller.id}' is bound to a different RoadGraph.",
+                    node_id=controller.node_id,
+                )
+            if not self.road_graph.has_node(controller.node_id):
+                raise InvalidIntersectionAssociationError(
+                    f"Traffic signal '{controller.id}' references "
+                    f"non-existent node '{controller.node_id}'.",
+                    node_id=controller.node_id,
+                )
+            for eid in controller.incoming_edge_ids:
+                if not self.road_graph.has_edge(eid):
+                    raise InvalidIntersectionAssociationError(
+                        f"Traffic signal '{controller.id}' references non-existent edge '{eid}'.",
+                        node_id=controller.node_id,
+                    )
+                edge = self.road_graph.get_edge(eid)
+                if edge.end_node_id != controller.node_id:
+                    raise InvalidIntersectionAssociationError(
+                        f"Edge '{eid}' terminates at '{edge.end_node_id}', "
+                        f"not '{controller.node_id}'.",
+                        node_id=controller.node_id,
+                    )
+            # If controller had no road_graph or incoming edges, link it and discover
+            if controller.road_graph is None:
+                controller.road_graph = self.road_graph
+                if not controller.incoming_edge_ids:
+                    controller.incoming_edge_ids = sorted(
+                        [edge.id for edge in self.road_graph.get_incoming_edges(controller.node_id)]
+                    )
+        else:
+            raise TypeError(
+                f"Expected TrafficSignal or TrafficSignalController, "
+                f"got {type(signal_or_controller).__name__}."
+            )
+
+        if controller.id in self._signals:
+            raise DuplicateSignalError(controller.id)
+        if controller.node_id in self._signal_node_map:
+            raise DuplicateSignalError(
+                f"Intersection node '{controller.node_id}' already has a signal registered."
+            )
+
+        # Synchronize controller to road graph's signal registry if not present
+        if self.road_graph.get_traffic_signal(controller.node_id) is None:
+            self.road_graph._signals[controller.node_id] = controller.signal
+
+        # Synchronize to current simulation time
+        controller.update(self.clock.elapsed_time_s)
+
+        self._register_controller(controller)
+        return controller
+
+    def remove_signal(self, signal_id: str) -> TrafficSignalController:
+        """Remove and return a registered traffic signal controller."""
+        if signal_id not in self._signals:
+            raise SignalNotFoundError(signal_id)
+        ctrl = self._signals.pop(signal_id)
+        self._signal_node_map.pop(ctrl.node_id, None)
+        for eid in ctrl.incoming_edge_ids:
+            if self._signal_edge_map.get(eid) == signal_id:
+                self._signal_edge_map.pop(eid, None)
+        self.road_graph._signals.pop(ctrl.node_id, None)
+        return ctrl
+
+    def update_signals(self, sim_time_s: float) -> None:
+        """Update all traffic signal controllers to the specified simulation time."""
+        for ctrl in self._signals.values():
+            ctrl.update(sim_time_s)
+
+    def query_signal(self, signal_id: str, sim_time_s: Optional[float] = None) -> SignalQueryResult:
+        """Query state and phase timing for a specific traffic signal."""
+        if signal_id not in self._signals:
+            raise SignalNotFoundError(signal_id)
+        t = sim_time_s if sim_time_s is not None else self.clock.elapsed_time_s
+        return self._signals[signal_id].query(sim_time_s=t)
+
+    def query_signal_for_edge(
+        self, edge_id: str, sim_time_s: Optional[float] = None
+    ) -> Optional[SignalQueryResult]:
+        """Query state and phase timing for a signal governing an edge approach, or None."""
+        sig_id = self._signal_edge_map.get(edge_id)
+        if sig_id is None:
+            return None
+        t = sim_time_s if sim_time_s is not None else self.clock.elapsed_time_s
+        return self._signals[sig_id].query(sim_time_s=t)
 
     @property
     def agent_count(self) -> int:
@@ -184,15 +367,17 @@ class WorldState:
                 self._apply_agent_state(self._agents[agent_id], baseline)
 
     def reset(self) -> None:
-        """Reset the simulation clock to tick 0 and restore all agents to baseline states."""
+        """Reset the simulation clock to tick 0 and restore all agents and signals to baseline."""
         self.clock.reset(initial_tick=0)
         self.restore_baseline()
+        for ctrl in self._signals.values():
+            ctrl.reset()
 
     def get_snapshot(self) -> WorldSnapshot:
-        """Generate an immutable point-in-time snapshot of the world and all agents.
+        """Generate an immutable point-in-time snapshot of the world, agents, and signals.
 
         Returns:
-            WorldSnapshot containing clock status and all vehicle snapshots in sorted order.
+            WorldSnapshot containing clock status, vehicle snapshots, and signal snapshots.
         """
         vehicle_snaps: dict[str, VehicleSnapshot] = {}
         for agent in self.get_agents():
@@ -211,6 +396,10 @@ class WorldState:
                 target_node_id=v.target_node_id,
             )
 
+        signal_snaps = {
+            c.id: c.get_snapshot(self.clock.elapsed_time_s) for c in self.get_signals()
+        }
+
         return WorldSnapshot(
             tick=self.clock.tick_count,
             elapsed_time_s=self.clock.elapsed_time_s,
@@ -218,5 +407,6 @@ class WorldState:
             is_paused=self.clock.is_paused,
             agent_count=len(vehicle_snaps),
             vehicles=vehicle_snaps,
+            signals=signal_snaps,
             metadata=dict(self.metadata),
         )

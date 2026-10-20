@@ -224,7 +224,27 @@ The platform includes an individual vehicle kinematics and route-following coord
   print(f"Current tick: {engine.current_tick}, Elapsed time: {engine.elapsed_time_s}s")
   ```
 
-### 6.11 Troubleshooting
+### 6.11 Traffic Signals and Intersection Management (Phase 09)
+- **Subsystem:** Deterministic traffic signal subsystem under `backend/apps/core/signals/`.
+- **Key Classes:** `TrafficSignalController`, `SignalCycleConfig`, `SignalSnapshot`, `SignalQueryResult`.
+- **Capabilities:** Strict cyclic phase progression ($\text{RED} \to \text{GREEN} \to \text{YELLOW} \to \text{RED}$), simulation-time synchronization without drift ($\tau = (t_{\text{sim}} + t_{\text{offset}}) \pmod T$), intersection approach edge lookups, time-to-green and time-to-red query API, and atomic rollback integration.
+- **Python API Usage Example:**
+  ```python
+  from apps.core.domain.enums import TrafficSignalState
+  from apps.core.domain.models import TrafficSignal
+  from apps.core.signals import SignalCycleConfig, TrafficSignalController
+
+  # Configure cycle (30s green, 5s yellow, 30s red)
+  cfg = SignalCycleConfig(green_duration_s=30.0, yellow_duration_s=5.0, red_duration_s=30.0)
+  signal = TrafficSignal(id="sig_01", node_id="node_int", state=TrafficSignalState.RED)
+  controller = TrafficSignalController(signal=signal, config=cfg, road_graph=road_graph)
+
+  # Query phase and transition timing
+  query = controller.query(sim_time_s=15.0)
+  print(f"State: {query.state}, Time to Green: {query.time_to_green_s}s, Time to Red: {query.time_to_red_s}s")
+  ```
+
+### 6.12 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -245,6 +265,7 @@ The platform includes an individual vehicle kinematics and route-following coord
 - [docs/progress/PHASE_06.md](docs/progress/PHASE_06.md): Phase 6 route planning baseline (Dijkstra, A* and travel time) report.
 - [docs/progress/PHASE_07.md](docs/progress/PHASE_07.md): Phase 7 vehicle kinematics and agent lifecycle report.
 - [docs/progress/PHASE_08.md](docs/progress/PHASE_08.md): Phase 8 simulation clock and world state report.
+- [docs/progress/PHASE_09.md](docs/progress/PHASE_09.md): Phase 9 traffic signals and intersection management report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.
