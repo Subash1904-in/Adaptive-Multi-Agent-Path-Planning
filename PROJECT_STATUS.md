@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 11 (V2V Communication Protocol and Spatial Peer Discovery)
+- **Current Phase:** Phase 12 (Dynamic Neighbor Tables, Heartbeats, and Neighbor Loss Detection)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 12 (Decentralized V2V Coordination / Dynamic Neighbor Tables) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 13 (Decentralized V2V Coordination) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-20
 
 ---
@@ -26,8 +26,9 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 09** | **Traffic signals and intersection management** | **COMPLETED** | Cyclic state machine (RED->GREEN->YELLOW->RED), clock sync, approach edge lookup, query API, 441 tests passed (97.19% coverage). |
 | **Phase 10** | **Scenario orchestration and simulation configuration** | **COMPLETED** | Typed scenario configuration, builder assembly, execution runner, deterministic replay, 485 tests passed (97.14% coverage). |
 | **Phase 11** | **V2V communication protocol and spatial peer discovery** | **COMPLETED** | Typed V2V message protocol, spatial peer discovery ($d \le R$, 50m default), in-memory network, periodic broadcast scheduler, metrics, atomic rollback, 586 tests passed (96.70% coverage). |
-| **Phase 12** | Communication range and peer discovery / dynamic neighbor tables | Pending | Configurable communication radius, spatial peer discovery, dynamic neighbor tables. |
+| **Phase 12** | **Dynamic neighbor tables, heartbeats, and loss detection** | **COMPLETED** | Per-vehicle neighbor tables, simulation-time heartbeats, stale-neighbor transitions ($t_{\text{now}} - t_{\text{last\_hb}} \ge T_{\text{timeout}}$), grace-period removal, atomic rollback, 624 tests passed (96.78% coverage). |
 | **Phase 13** | Decentralized V2V coordination | Pending | P2P sharing of congestion, incidents, hazards; private agent knowledge stores. |
+
 | **Phase 14** | Communication failures and recovery | Pending | Configurable latency, packet loss, disconnection, timeout, fallback to local sensors. |
 | **Phase 15** | Adaptive rerouting | Pending | Dynamic route-cost updates, reroute on closure/accident/congestion, cooldown & oscillation prevention. |
 | **Phase 16** | Collision detection and avoidance | Pending | Geometric collision checks, safe separation distance, braking, near-miss logging, safety metrics. |
@@ -100,31 +101,34 @@ This roadmap is strictly aligned with our agreed master development plan, divide
   - Added 101 automated communication tests bringing total test suite to 586 passing tests (96.70% coverage).
   - Documented full evidence in `docs/progress/PHASE_11.md`.
 
+- **Phase 12: Dynamic Neighbor Tables, Heartbeats, and Neighbor Loss Detection:**
+  - Implemented dynamic, per-vehicle neighbor tables (`NeighborTable`) maintaining communication knowledge (`NeighborRecord`).
+  - Implemented clear distinction between physical proximity ($d \le R$), spatial discovery, and communication-derived neighbor records (no omniscient leakage).
+  - Implemented simulation-time heartbeat refresh and loss detection with exact boundary condition ($t_{\text{now}} - t_{\text{last\_hb}} \ge T_{\text{timeout}}$).
+  - Implemented configurable expiration policies (`STALE_THEN_REMOVE`, `REMOVE_IMMEDIATELY`, `MARK_STALE`) and optional grace period.
+  - Implemented deterministic sequence number validation (monotonically increasing per sender; out-of-order and duplicate packets rejected).
+  - Extended `CommunicationConfig` and `CommunicationSnapshot` with neighbor tracking attributes, snapshots, and isolated metrics.
+  - Integrated neighbor table updates and heartbeat maintenance with `SimulationEngine.step()` and `WorldState`.
+  - Extended atomic rollback guarantees: full restoration of neighbor tables, message sequences, and metrics on stepping failure.
+  - Added 38 automated tests (24 neighbor table unit, 8 heartbeat/timeout, 6 engine integration/rollback) bringing total test suite to 624 passing tests (96.78% coverage).
+  - Documented full evidence in `docs/progress/PHASE_12.md`.
+
 ---
 
-## 4. Files Created or Modified (Phase 11)
+## 4. Files Created or Modified (Phase 12)
 - **Created:**
-  - `backend/apps/core/communication/__init__.py`
-  - `backend/apps/core/communication/models.py`
-  - `backend/apps/core/communication/exceptions.py`
-  - `backend/apps/core/communication/protocol.py`
-  - `backend/apps/core/communication/discovery.py`
-  - `backend/apps/core/communication/network.py`
-  - `backend/apps/core/communication/scheduler.py`
-  - `backend/apps/core/communication/metrics.py`
-  - `backend/apps/core/tests/test_communication_protocol.py`
-  - `backend/apps/core/tests/test_communication_discovery.py`
-  - `backend/apps/core/tests/test_communication_network.py`
-  - `backend/apps/core/tests/test_communication_scheduler.py`
-  - `backend/apps/core/tests/test_communication_engine_integration.py`
-  - `docs/progress/PHASE_11.md`
+  - `backend/apps/core/communication/neighbors.py`
+  - `backend/apps/core/tests/test_communication_neighbors.py`
+  - `backend/apps/core/tests/test_communication_heartbeat.py`
+  - `backend/apps/core/tests/test_communication_neighbors_integration.py`
+  - `docs/progress/PHASE_12.md`
 - **Modified:**
-  - `backend/apps/core/simulation/models.py`
-  - `backend/apps/core/simulation/world.py`
+  - `backend/apps/core/communication/exceptions.py`
+  - `backend/apps/core/communication/models.py`
+  - `backend/apps/core/communication/network.py`
+  - `backend/apps/core/communication/__init__.py`
   - `backend/apps/core/simulation/engine.py`
-  - `backend/apps/core/scenarios/models.py`
-  - `backend/apps/core/scenarios/builder.py`
-  - `backend/apps/core/scenarios/validation.py`
+  - `backend/apps/core/simulation/world.py`
   - `.github/workflows/ci.yml`
   - `PROJECT_STATUS.md`
   - `ARCHITECTURE.md`
@@ -137,11 +141,14 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ## 5. Commands Executed and Actual Results
 1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
 2. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `586 passed in 4.05s`, `96.70% coverage` (exit code 0).
+3. `.\.venv\Scripts\pytest.exe --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `624 passed in 6.32s`, `96.78% coverage` (exit code 0).
 
 ---
 
 ## 6. Test Results
+- **Neighbor Tables & Coordinator (`test_communication_neighbors.py`):** 24 passed.
+- **Heartbeat Timing & Loss Detection (`test_communication_heartbeat.py`):** 8 passed.
+- **Neighbor Subsystem Engine Integration (`test_communication_neighbors_integration.py`):** 6 passed.
 - **V2V Message Protocol & Codecs (`test_communication_protocol.py`):** 35 passed.
 - **Spatial Peer Discovery (`test_communication_discovery.py`):** 24 passed.
 - **Simulated Communication Network (`test_communication_network.py`):** 16 passed.
@@ -156,15 +163,14 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Road Graph & City Generator (`test_road_graph.py`, `test_city_generator.py`):** 41 passed.
 - **Domain Models, Values & Codecs (`test_domain_*.py`):** 105 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **586 passed, 0 failed in 4.05s**, **96.70% line coverage** (exceeds 80% threshold).
-- **Remote CI Run:** [39399731808](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39399731808) — All 3 jobs passed (commit `57f10ab`).
+- **Total:** **624 passed, 0 failed in 6.32s**, **96.78% line coverage** (exceeds 80% threshold).
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** V2V communication protocol and spatial peer discovery subsystem (`backend/apps/core/communication/`) complete, deterministic, and fully integrated with `WorldState` and `SimulationEngine`.
+- **Notes:** Dynamic neighbor tables, simulation-time heartbeats, and loss detection (`backend/apps/core/communication/neighbors.py`) complete, deterministic, and fully integrated with `WorldState` and `SimulationEngine`.
 
 ---
 
@@ -191,6 +197,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 9. Exact Next Steps
-1. Wait for user prompt for **Phase 12: Communication range and peer discovery / dynamic neighbor tables**.
-2. Advance dynamic neighbor tables, communication range degradation, or decentralized peer-to-peer data synchronization.
+1. Wait for user prompt for **Phase 13: Decentralized V2V Coordination**.
+2. Advance peer-to-peer data sharing (congestion, incidents, hazards) and private agent knowledge stores.
+
 

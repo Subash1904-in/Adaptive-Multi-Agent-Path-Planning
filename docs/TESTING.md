@@ -180,21 +180,17 @@ python backend/manage.py check
   - Bit-identical outcomes across separately constructed scenarios with identical configurations and seeds.
   - Bit-identical replay after `runner.reset()` (matching snapshots and results).
   - Tick-by-tick intermediate step result determinism (distances, speeds, headings, positions).
-- **Signal Controller & Cycle Timing (`test_signals_controller.py`, 40 passed)**
-- **WorldState Signal Integration (`test_signals_world_integration.py`, 17 passed)**
-- **SimulationEngine Signal Orchestration (`test_signals_engine_integration.py`, 7 passed)**
-- **Simulation Clock & Precision (`test_simulation_clock.py`, 30 passed)**
-- **WorldState Container & Baselines (`test_simulation_world.py`, 14 passed)**
-- **SimulationEngine Coordinator & Atomic Rollback (`test_simulation_engine.py`, 12 passed)**
-- **Simulation Determinism & Reproducibility (`test_simulation_determinism.py`, 3 passed)**
+- **Neighbor Tables & Coordinator (`test_communication_neighbors.py`, 24 passed)**
+- **Heartbeat Timing & Loss Detection (`test_communication_heartbeat.py`, 8 passed)**
+- **Neighbor Subsystem Engine Integration (`test_communication_neighbors_integration.py`, 6 passed)**
 - **V2V Message Protocol & Codecs (`test_communication_protocol.py`, 35 passed)**
 - **Spatial Peer Discovery (`test_communication_discovery.py`, 24 passed)**
 - **Simulated Communication Network (`test_communication_network.py`, 16 passed)**
 - **Broadcast Scheduler (`test_communication_scheduler.py`, 14 passed)**
 - **Simulation Engine & Scenario Integration (`test_communication_engine_integration.py`, 7 passed)**
-- **Scenario Validation & Invariants (`test_scenarios_validation.py`, 19 passed)**
-- **ScenarioBuilder Assembly & Graph Resolution (`test_scenarios_builder.py`, 10 passed)**
-- **ScenarioRunner Execution & Replay (`test_scenarios_runner.py`, 12 passed)**
+- **Scenario Validation & Invariants (`test_scenarios_validation.py`, 20 passed)**
+- **ScenarioBuilder Assembly & Graph Resolution (`test_scenarios_builder.py`, 12 passed)**
+- **ScenarioRunner Execution & Replay (`test_scenarios_runner.py`, 9 passed)**
 - **Multi-Agent Scenario Determinism (`test_scenarios_determinism.py`, 3 passed)**
 - **Signal Controller & Cycle Timing (`test_signals_controller.py`, 40 passed)**
 - **WorldState Signal Integration (`test_signals_world_integration.py`, 17 passed)**
@@ -225,8 +221,9 @@ python backend/manage.py check
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 11: **96.70%** coverage across 586 passing tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_11.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 12: **96.78%** coverage across 624 passing tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_12.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend Deferred Cleanly:** Frontend build/lint/typecheck job runs in Node 22.x, deferring execution cleanly until `frontend/package.json` is introduced.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.
+

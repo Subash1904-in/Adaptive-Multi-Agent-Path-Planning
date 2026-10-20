@@ -7,6 +7,7 @@ pause/resume/single-step semantics, and point-in-time snapshot access.
 from typing import Optional
 
 from apps.core.communication.models import V2VMessagePacket
+from apps.core.communication.neighbors import NeighborRecord, NeighborTable
 from apps.core.domain.values import Position2D
 from apps.core.kinematics.models import MotionStepResult
 from apps.core.signals.models import SignalQueryResult
@@ -177,11 +178,23 @@ class SimulationEngine:
         if self.world.communication_network.config.enabled:
             self.world.communication_network.advance_tick(self.clock.elapsed_time_s)
 
-            # Perform due periodic status broadcasts before agent motion
             candidate_positions = {
                 agent.vehicle.id: Position2D(x=agent.vehicle.position.x, y=agent.vehicle.position.y)
                 for agent in agents
             }
+
+            # Ingest valid received messages into neighbor tables
+            self.world.communication_network.update_neighbor_tables(
+                candidate_positions=candidate_positions,
+                current_time_s=self.clock.elapsed_time_s,
+            )
+
+            # Perform heartbeat timeout and neighbor expiration maintenance
+            self.world.communication_network.perform_neighbor_maintenance(
+                current_time_s=self.clock.elapsed_time_s,
+            )
+
+            # Perform due periodic status broadcasts before agent motion
             for agent in agents:
                 vid = agent.vehicle.id
                 if self.world.broadcast_scheduler.is_broadcast_due(vid, self.clock.elapsed_time_s):
@@ -194,6 +207,13 @@ class SimulationEngine:
                         candidate_positions=candidate_positions,
                         current_time_s=self.clock.elapsed_time_s,
                     )
+
+            # If same-tick delivery is active, process newly broadcasted packets
+            # into neighbor tables
+            self.world.communication_network.update_neighbor_tables(
+                candidate_positions=candidate_positions,
+                current_time_s=self.clock.elapsed_time_s,
+            )
 
         # 3. Advance each agent by identical dt in deterministic order
         step_results: dict[str, MotionStepResult] = {}
@@ -401,4 +421,24 @@ class SimulationEngine:
             sender_position=agent.vehicle.position,
             candidates=candidates,
         )
+
+    def get_neighbor_table(self, vehicle_id: str) -> Optional[NeighborTable]:
+        """Retrieve the neighbor table for a vehicle agent."""
+        return self.world.communication_network.get_neighbor_table(vehicle_id)
+
+    def get_known_neighbors(self, vehicle_id: str) -> list[NeighborRecord]:
+        """Retrieve all known neighbor records for a vehicle agent in deterministic order."""
+        table = self.get_neighbor_table(vehicle_id)
+        return table.get_all_neighbors() if table else []
+
+    def get_active_neighbors(self, vehicle_id: str) -> list[NeighborRecord]:
+        """Retrieve active neighbor records for a vehicle agent."""
+        table = self.get_neighbor_table(vehicle_id)
+        return table.get_active_neighbors() if table else []
+
+    def get_stale_neighbors(self, vehicle_id: str) -> list[NeighborRecord]:
+        """Retrieve stale neighbor records for a vehicle agent."""
+        table = self.get_neighbor_table(vehicle_id)
+        return table.get_stale_neighbors() if table else []
+
 

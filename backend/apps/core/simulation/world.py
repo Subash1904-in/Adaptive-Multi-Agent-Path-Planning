@@ -7,6 +7,7 @@ immutable state snapshots, and baseline state capture for reproducible resets.
 from typing import Any, Optional, Union
 
 from apps.core.communication.models import CommunicationConfig
+from apps.core.communication.neighbors import NeighborTable
 from apps.core.communication.network import SimulatedCommunicationNetwork
 from apps.core.communication.scheduler import BroadcastScheduler
 from apps.core.domain.models import SimulationConfig, TrafficSignal
@@ -351,6 +352,10 @@ class WorldState:
             self.communication_network.unregister_participant(agent_id)
         return agent
 
+    def get_neighbor_table(self, vehicle_id: str) -> Optional[NeighborTable]:
+        """Retrieve the neighbor table for a registered vehicle agent, or None."""
+        return self.communication_network.get_neighbor_table(vehicle_id)
+
     @staticmethod
     def _capture_agent_state(agent: VehicleAgent) -> dict[str, Any]:
         """Capture a lightweight internal state dictionary of an agent for reset purposes."""
@@ -444,7 +449,7 @@ class WorldState:
 
         comm_snap = None
         if self.communication_network.config.enabled:
-            comm_snap = self.communication_network.get_snapshot().to_dict()
+            comm_snap = self.communication_network.get_snapshot(self.clock.elapsed_time_s).to_dict()
 
         return WorldSnapshot(
             tick=self.clock.tick_count,

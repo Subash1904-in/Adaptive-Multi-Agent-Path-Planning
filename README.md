@@ -312,7 +312,54 @@ The platform includes an individual vehicle kinematics and route-following coord
   print(f"Delivered to: {receivers}, veh_B inbox count: {len(inbox)}")
   ```
 
-### 6.14 Troubleshooting
+### 6.14 Dynamic Neighbor Tables, Heartbeats, and Loss Detection (Phase 12)
+- **Subsystem:** Dynamic neighbor table tracking, heartbeat freshness, and timeout loss detection under `backend/apps/core/communication/`.
+- **Key Classes:** `NeighborTable`, `NeighborManager`, `NeighborRecord`, `NeighborStatus`, `StaleNeighborPolicy`, `NeighborTableSnapshot`, `NeighborMetrics`.
+- **Capabilities:** Per-vehicle neighbor tables tracking communicating peers, last observed position, distance, speed, heading, sequence number, and timestamps. Simulation-time heartbeats, stale detection on timeout ($t_{\text{now}} - t_{\text{last\_hb}} \ge T_{\text{timeout}}$), grace-period removal, fresh heartbeat restoration, strict self-exclusion, and atomic rollback guarantees.
+- **Python API Usage Example:**
+  ```python
+  from apps.core.communication import (
+      CommunicationConfig,
+      DeliveryPolicy,
+      SimulatedCommunicationNetwork,
+      create_status_message,
+  )
+  from apps.core.domain.models import Vehicle
+  from apps.core.domain.values import Position2D
+
+  # 1. Setup network with neighbor tracking enabled
+  config = CommunicationConfig(
+      enabled=True,
+      range_m=50.0,
+      delivery_policy=DeliveryPolicy.SAME_TICK,
+      heartbeat_timeout_s=0.5,
+      stale_grace_period_s=1.0,
+  )
+  network = SimulatedCommunicationNetwork(config=config)
+  network.register_participant("veh_A")
+  network.register_participant("veh_B")
+
+  # 2. Transmit periodic heartbeat from veh_B
+  v_b = Vehicle(id="veh_B", position=Position2D(x=25.0, y=0.0), speed_mps=12.0)
+  packet = create_status_message(v_b, current_time_s=1.0, sequence_number=1)
+  network.broadcast(
+      packet,
+      {"veh_A": Position2D(x=0.0, y=0.0), "veh_B": v_b.position},
+      current_time_s=1.0,
+  )
+
+  # 3. Update neighbor tables from inboxes
+  network.update_neighbor_tables({"veh_A": Position2D(x=0.0, y=0.0)}, current_time_s=1.0)
+  table_a = network.get_neighbor_table("veh_A")
+  neighbor_b = table_a.get_neighbor("veh_B")
+  print(
+      f"Neighbor: {neighbor_b.vehicle_id}, Status: {neighbor_b.status.value}, "
+      f"Distance: {neighbor_b.last_distance_m}m"
+  )
+  # Output: Neighbor: veh_B, Status: active, Distance: 25.0m
+  ```
+
+### 6.15 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -336,6 +383,8 @@ The platform includes an individual vehicle kinematics and route-following coord
 - [docs/progress/PHASE_09.md](docs/progress/PHASE_09.md): Phase 9 traffic signals and intersection management report.
 - [docs/progress/PHASE_10.md](docs/progress/PHASE_10.md): Phase 10 scenario orchestration and simulation configuration report.
 - [docs/progress/PHASE_11.md](docs/progress/PHASE_11.md): Phase 11 V2V communication protocol and spatial peer discovery report.
+- [docs/progress/PHASE_12.md](docs/progress/PHASE_12.md): Phase 12 dynamic neighbor tables, heartbeats, and loss detection report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.
+

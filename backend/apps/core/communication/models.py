@@ -30,6 +30,21 @@ class DropReason(str, Enum):
     INVALID_MESSAGE = "invalid_message"
 
 
+class NeighborStatus(str, Enum):
+    """Lifecycle freshness status of a known communication neighbor."""
+
+    ACTIVE = "active"
+    STALE = "stale"
+
+
+class StaleNeighborPolicy(str, Enum):
+    """Policy governing handling and removal of neighbors exceeding heartbeat timeout."""
+
+    MARK_STALE = "mark_stale"
+    REMOVE_IMMEDIATELY = "remove_immediately"
+    STALE_THEN_REMOVE = "stale_then_remove"
+
+
 @dataclass(frozen=True)
 class VehicleStatusPayload:
     """Standardized vehicle telemetry payload inspired by CAM and BSM protocols."""
@@ -320,6 +335,11 @@ class CommunicationConfig:
         packet_loss_rate: Deterministic packet drop probability in [0.0, 1.0].
         packet_loss_seed: Optional integer seed for reproducible packet loss behavior.
         protocol_version: Enforced V2V protocol version string.
+        neighbor_tracking_enabled: Toggle dynamic neighbor table maintenance (default: True).
+        neighbor_update_interval_s: Discrete period between table updates (> 0.0, default: 0.1).
+        heartbeat_timeout_s: Seconds before a neighbor becomes stale (> 0.0, default: 0.5).
+        stale_grace_period_s: Optional grace period before stale neighbor removal (default: 1.0).
+        stale_policy: Policy for handling timed-out neighbors (STALE_THEN_REMOVE default).
     """
 
     enabled: bool = True
@@ -331,6 +351,11 @@ class CommunicationConfig:
     packet_loss_rate: float = 0.0
     packet_loss_seed: Optional[int] = None
     protocol_version: str = "1.0.0"
+    neighbor_tracking_enabled: bool = True
+    neighbor_update_interval_s: float = 0.1
+    heartbeat_timeout_s: float = 0.5
+    stale_grace_period_s: Optional[float] = 1.0
+    stale_policy: StaleNeighborPolicy = StaleNeighborPolicy.STALE_THEN_REMOVE
 
     def __post_init__(self) -> None:
         if (
@@ -387,12 +412,54 @@ class CommunicationConfig:
                 f"Invalid delivery_policy: {self.delivery_policy}.",
                 field="delivery_policy",
             )
+        if (
+            not isinstance(self.neighbor_update_interval_s, (int, float))
+            or not math.isfinite(self.neighbor_update_interval_s)
+            or self.neighbor_update_interval_s <= 0.0
+        ):
+            msg = (
+                f"neighbor_update_interval_s must be a finite positive number, got "
+                f"{self.neighbor_update_interval_s}."
+            )
+            raise CommunicationValidationError(msg, field="neighbor_update_interval_s")
+        if (
+            not isinstance(self.heartbeat_timeout_s, (int, float))
+            or not math.isfinite(self.heartbeat_timeout_s)
+            or self.heartbeat_timeout_s <= 0.0
+        ):
+            msg = (
+                f"heartbeat_timeout_s must be a finite positive number, got "
+                f"{self.heartbeat_timeout_s}."
+            )
+            raise CommunicationValidationError(msg, field="heartbeat_timeout_s")
+        if self.stale_grace_period_s is not None:
+            if (
+                not isinstance(self.stale_grace_period_s, (int, float))
+                or not math.isfinite(self.stale_grace_period_s)
+                or self.stale_grace_period_s < 0.0
+            ):
+                msg = (
+                    f"stale_grace_period_s must be a finite non-negative number when provided, "
+                    f"got {self.stale_grace_period_s}."
+                )
+                raise CommunicationValidationError(msg, field="stale_grace_period_s")
+        if not isinstance(self.stale_policy, StaleNeighborPolicy):
+            raise CommunicationValidationError(
+                f"Invalid stale_policy: {self.stale_policy}.",
+                field="stale_policy",
+            )
 
         object.__setattr__(self, "range_m", float(self.range_m))
         object.__setattr__(self, "broadcast_interval_s", float(self.broadcast_interval_s))
         object.__setattr__(self, "packet_loss_rate", float(self.packet_loss_rate))
         if self.message_ttl_s is not None:
             object.__setattr__(self, "message_ttl_s", float(self.message_ttl_s))
+        object.__setattr__(
+            self, "neighbor_update_interval_s", float(self.neighbor_update_interval_s)
+        )
+        object.__setattr__(self, "heartbeat_timeout_s", float(self.heartbeat_timeout_s))
+        if self.stale_grace_period_s is not None:
+            object.__setattr__(self, "stale_grace_period_s", float(self.stale_grace_period_s))
 
     def to_dict(self) -> dict[str, Any]:
         """Convert configuration to JSON-serializable dictionary."""
@@ -406,6 +473,11 @@ class CommunicationConfig:
             "packet_loss_rate": self.packet_loss_rate,
             "packet_loss_seed": self.packet_loss_seed,
             "protocol_version": self.protocol_version,
+            "neighbor_tracking_enabled": self.neighbor_tracking_enabled,
+            "neighbor_update_interval_s": self.neighbor_update_interval_s,
+            "heartbeat_timeout_s": self.heartbeat_timeout_s,
+            "stale_grace_period_s": self.stale_grace_period_s,
+            "stale_policy": self.stale_policy.value,
         }
 
     @classmethod
@@ -423,6 +495,14 @@ class CommunicationConfig:
                 f"Unknown delivery_policy '{policy_raw}'.", field="delivery_policy"
             ) from exc
 
+        stale_policy_raw = data.get("stale_policy", StaleNeighborPolicy.STALE_THEN_REMOVE.value)
+        try:
+            stale_policy = StaleNeighborPolicy(stale_policy_raw)
+        except ValueError as exc:
+            raise CommunicationValidationError(
+                f"Unknown stale_policy '{stale_policy_raw}'.", field="stale_policy"
+            ) from exc
+
         return cls(
             enabled=bool(data.get("enabled", True)),
             range_m=data.get("range_m", 50.0),
@@ -433,6 +513,11 @@ class CommunicationConfig:
             packet_loss_rate=data.get("packet_loss_rate", 0.0),
             packet_loss_seed=data.get("packet_loss_seed"),
             protocol_version=data.get("protocol_version", "1.0.0"),
+            neighbor_tracking_enabled=bool(data.get("neighbor_tracking_enabled", True)),
+            neighbor_update_interval_s=data.get("neighbor_update_interval_s", 0.1),
+            heartbeat_timeout_s=data.get("heartbeat_timeout_s", 0.5),
+            stale_grace_period_s=data.get("stale_grace_period_s", 1.0),
+            stale_policy=stale_policy,
         )
 
 
@@ -448,10 +533,12 @@ class CommunicationSnapshot:
     total_dropped: int
     pending_inbox_counts: dict[str, int]
     sequence_counters: dict[str, int]
+    neighbor_tables: Optional[dict[str, Any]] = None
+    neighbor_metrics: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert snapshot to JSON-compatible dictionary."""
-        return {
+        d: dict[str, Any] = {
             "enabled": self.enabled,
             "range_m": self.range_m,
             "delivery_policy": self.delivery_policy,
@@ -461,3 +548,9 @@ class CommunicationSnapshot:
             "pending_inbox_counts": dict(self.pending_inbox_counts),
             "sequence_counters": dict(self.sequence_counters),
         }
+        if self.neighbor_tables is not None:
+            d["neighbor_tables"] = dict(self.neighbor_tables)
+        if self.neighbor_metrics is not None:
+            d["neighbor_metrics"] = dict(self.neighbor_metrics)
+        return d
+

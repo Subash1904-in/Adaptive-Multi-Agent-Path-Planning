@@ -25,6 +25,7 @@ from apps.core.communication.models import (
     DropReason,
     V2VMessagePacket,
 )
+from apps.core.communication.neighbors import NeighborManager, NeighborTable
 from apps.core.domain.values import Position2D
 
 
@@ -73,6 +74,16 @@ class SimulatedCommunicationNetwork:
             self.config.packet_loss_seed if self.config.packet_loss_seed is not None else 42
         )
 
+        # Dynamic neighbor management subsystem
+        self.neighbor_manager: Optional[NeighborManager] = None
+        if self.config.neighbor_tracking_enabled:
+            self.neighbor_manager = NeighborManager(
+                update_interval_s=self.config.neighbor_update_interval_s,
+                heartbeat_timeout_s=self.config.heartbeat_timeout_s,
+                stale_grace_period_s=self.config.stale_grace_period_s,
+                stale_policy=self.config.stale_policy,
+            )
+
     # -------------------------------------------------------------------------
     # Participant Management
     # -------------------------------------------------------------------------
@@ -100,6 +111,9 @@ class SimulatedCommunicationNetwork:
         if vehicle_id not in self._received_message_ids:
             self._received_message_ids[vehicle_id] = set()
 
+        if self.neighbor_manager is not None:
+            self.neighbor_manager.register_participant(vehicle_id)
+
     def unregister_participant(self, vehicle_id: str) -> None:
         """Remove a vehicle agent from the communication network."""
         self._registered_participants.discard(vehicle_id)
@@ -108,6 +122,8 @@ class SimulatedCommunicationNetwork:
         self._transit_queue.pop(vehicle_id, None)
         self._received_message_ids.pop(vehicle_id, None)
         self._sender_sequence_numbers.pop(vehicle_id, None)
+        if self.neighbor_manager is not None:
+            self.neighbor_manager.unregister_participant(vehicle_id)
 
     def is_participant_registered(self, vehicle_id: str) -> bool:
         """Check if a vehicle is registered."""
@@ -381,6 +397,9 @@ class SimulatedCommunicationNetwork:
             "sender_sequence_numbers": dict(self._sender_sequence_numbers),
             "metrics": self.metrics.clone(),
             "rng_state": self._packet_loss_rng.getstate(),
+            "neighbor_manager": (
+                self.neighbor_manager.capture_state() if self.neighbor_manager else None
+            ),
         }
 
     def restore_state(self, state: dict[str, Any]) -> None:
@@ -402,6 +421,8 @@ class SimulatedCommunicationNetwork:
         self._sender_sequence_numbers = dict(state["sender_sequence_numbers"])
         self.metrics = state["metrics"].clone()
         self._packet_loss_rng.setstate(state["rng_state"])
+        if self.neighbor_manager is not None and state.get("neighbor_manager") is not None:
+            self.neighbor_manager.restore_state(state["neighbor_manager"])
 
     def reset(self) -> None:
         """Reset communication network back to clean baseline state."""
@@ -414,12 +435,17 @@ class SimulatedCommunicationNetwork:
         self._packet_loss_rng = random.Random(
             self.config.packet_loss_seed if self.config.packet_loss_seed is not None else 42
         )
+        if self.neighbor_manager is not None:
+            self.neighbor_manager.reset()
+
         for vid in self._registered_participants:
             self._inboxes[vid] = []
             self._transit_queue[vid] = []
             self._received_message_ids[vid] = set()
+            if self.neighbor_manager is not None:
+                self.neighbor_manager.register_participant(vid)
 
-    def get_snapshot(self) -> CommunicationSnapshot:
+    def get_snapshot(self, current_time_s: float = 0.0) -> CommunicationSnapshot:
         """Produce an immutable point-in-time snapshot for inclusion in WorldSnapshot."""
         inbox_counts = {vid: len(msgs) for vid, msgs in self._inboxes.items()}
         total_dropped = (
@@ -430,6 +456,13 @@ class SimulatedCommunicationNetwork:
             + self.metrics.dropped_duplicate
             + self.metrics.dropped_invalid
         )
+        neighbor_tables_snap = None
+        neighbor_metrics_snap = None
+        if self.neighbor_manager is not None:
+            snap_dict = self.neighbor_manager.get_snapshot(current_time_s)
+            neighbor_tables_snap = snap_dict["tables"]
+            neighbor_metrics_snap = snap_dict["metrics"]
+
         return CommunicationSnapshot(
             enabled=self.config.enabled,
             range_m=self.config.range_m,
@@ -439,4 +472,42 @@ class SimulatedCommunicationNetwork:
             total_dropped=total_dropped,
             pending_inbox_counts=inbox_counts,
             sequence_counters=dict(self._sender_sequence_numbers),
+            neighbor_tables=neighbor_tables_snap,
+            neighbor_metrics=neighbor_metrics_snap,
         )
+
+    # -------------------------------------------------------------------------
+    # Neighbor Subsystem Delegation
+    # -------------------------------------------------------------------------
+    def get_neighbor_table(self, vehicle_id: str) -> Optional[NeighborTable]:
+        """Retrieve the NeighborTable for a vehicle, or None if disabled/unregistered."""
+        if self.neighbor_manager is not None and self.neighbor_manager.has_table(vehicle_id):
+            return self.neighbor_manager.get_table(vehicle_id)
+        return None
+
+    def update_neighbor_tables(
+        self,
+        candidate_positions: Mapping[str, Position2D],
+        current_time_s: float,
+    ) -> None:
+        """Process messages currently in vehicle inboxes to refresh neighbor tables."""
+        if not self.config.enabled or self.neighbor_manager is None:
+            return
+
+        for vid in sorted(self._registered_participants):
+            inbox = self._inboxes.get(vid, [])
+            pos = candidate_positions.get(vid)
+            if pos is not None and inbox:
+                self.neighbor_manager.process_inbox(
+                    vehicle_id=vid,
+                    messages=inbox,
+                    observer_position=pos,
+                    current_time_s=current_time_s,
+                )
+
+    def perform_neighbor_maintenance(self, current_time_s: float) -> None:
+        """Perform heartbeat timeout and neighbor expiration maintenance."""
+        if not self.config.enabled or self.neighbor_manager is None:
+            return
+        self.neighbor_manager.perform_maintenance(current_time_s)
+
