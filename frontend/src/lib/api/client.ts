@@ -10,6 +10,11 @@ import type {
   ScenarioDefinition,
   ScenarioSummary,
 } from "../../types/simulation";
+import type {
+  CreateIncidentPayload,
+  IncidentListResponse,
+  IncidentRecord,
+} from "../../types/incidents";
 
 export class ApiClientError extends Error {
   public readonly statusCode: number;
@@ -260,6 +265,53 @@ export class SimulationApiClient {
       method: "GET",
       signal,
     });
+  }
+
+  /**
+   * Enumerate incidents registered on a simulation run.
+   */
+  public async listIncidents(
+    runId: string,
+    statusFilter?: "active" | "resolved",
+    signal?: AbortSignal
+  ): Promise<IncidentListResponse> {
+    const qs = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : "";
+    return this.request<IncidentListResponse>(
+      `/runs/${encodeURIComponent(runId)}/incidents/${qs}`,
+      { method: "GET", signal }
+    );
+  }
+
+  /**
+   * Inject a new dynamic roadway incident into an active simulation run.
+   */
+  public async createIncident(
+    runId: string,
+    payload: CreateIncidentPayload,
+    signal?: AbortSignal
+  ): Promise<IncidentRecord> {
+    return this.request<IncidentRecord>(
+      `/runs/${encodeURIComponent(runId)}/incidents/`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+        signal,
+      }
+    );
+  }
+
+  /**
+   * Deactivate and remove an active incident, restoring baseline traversability.
+   */
+  public async removeIncident(
+    runId: string,
+    incidentId: string,
+    signal?: AbortSignal
+  ): Promise<IncidentRecord> {
+    return this.request<IncidentRecord>(
+      `/runs/${encodeURIComponent(runId)}/incidents/${encodeURIComponent(incidentId)}/`,
+      { method: "DELETE", signal }
+    );
   }
 }
 

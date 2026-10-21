@@ -11,6 +11,7 @@ import type {
 } from "./simulation";
 import type { V2VSubsystemSnapshot } from "./v2v";
 import type { RouteSubsystemSnapshot } from "./routing";
+import type { IncidentSubsystemSnapshot } from "./incidents";
 
 export type PlaybackState =
   | "idle"
@@ -35,6 +36,7 @@ export interface SimulationFrameSnapshot {
   metrics?: RunMetrics | null;
   communication?: V2VSubsystemSnapshot | null;
   routing?: RouteSubsystemSnapshot | null;
+  incidents?: IncidentSubsystemSnapshot | null;
 }
 
 export interface TimelineRange {

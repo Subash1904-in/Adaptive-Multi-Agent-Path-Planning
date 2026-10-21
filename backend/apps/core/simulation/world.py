@@ -25,6 +25,7 @@ from apps.core.emergency.models import (
 )
 from apps.core.emergency.priority_manager import EmergencyPriorityManager
 from apps.core.graph.road_graph import RoadGraph
+from apps.core.incidents.manager import IncidentManager
 from apps.core.kinematics.vehicle_agent import VehicleAgent
 from apps.core.pedestrians.agent import PedestrianAgent
 from apps.core.pedestrians.crosswalk import Crosswalk
@@ -193,6 +194,15 @@ class WorldState:
                     road_graph=self.road_graph,
                 )
                 self._register_controller(controller)
+
+        # Initialize Traffic Incident Management subsystem
+        self.incident_manager: IncidentManager = IncidentManager(
+            road_graph=self.road_graph,
+            signals=self._signals,
+            coordination_manager=self.coordination_manager,
+        )
+        self._incident_baseline: Optional[dict[str, Any]] = None
+        self.adaptive_routing_adapter.incident_manager = self.incident_manager
 
     def _register_controller(self, controller: TrafficSignalController) -> None:
         """Register an initialized TrafficSignalController into internal lookup maps."""
@@ -619,6 +629,7 @@ class WorldState:
         self._safety_baseline = self.safety_manager.capture_state()
         self._emergency_baseline = self.emergency_manager.capture_state()
         self._decision_baseline = self.decision_manager.capture_state()
+        self._incident_baseline = self.incident_manager.capture_state()
 
     def restore_baseline(self) -> None:
         """Restore all registered agents and subsystems to their recorded baseline states."""
@@ -644,6 +655,8 @@ class WorldState:
             self.emergency_manager.restore_state(self._emergency_baseline)
         if self._decision_baseline is not None:
             self.decision_manager.restore_state(self._decision_baseline)
+        if self._incident_baseline is not None:
+            self.incident_manager.restore_state(self._incident_baseline)
 
     def reset(self) -> None:
         """Reset simulation clock to tick 0 and restore all agents, signals, comms, and safety."""
@@ -659,6 +672,7 @@ class WorldState:
         self.safety_manager.reset()
         self.emergency_manager.reset()
         self.decision_manager.reset()
+        self.incident_manager.reset()
         if self.communication_network.config.enabled:
             for aid in self._agents:
                 if not self.communication_network.is_participant_registered(aid):
@@ -778,6 +792,7 @@ class WorldState:
                 if self.decision_manager.config.enabled
                 else None
             ),
+            incidents=self.incident_manager.get_snapshot().to_dict(),
             metadata=dict(self.metadata),
         )
 

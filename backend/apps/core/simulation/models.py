@@ -80,6 +80,7 @@ class WorldSnapshot:
     emergency_metrics: Optional[dict[str, Any]] = None
     decision_metrics: Optional[dict[str, Any]] = None
     decision_records: Optional[list[dict[str, Any]]] = None
+    incidents: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize world snapshot to a plain JSON-compatible dictionary."""
@@ -126,6 +127,7 @@ class WorldSnapshot:
             "emergency_metrics": (dict(self.emergency_metrics) if self.emergency_metrics else None),
             "decision_metrics": (dict(self.decision_metrics) if self.decision_metrics else None),
             "decision_records": (list(self.decision_records) if self.decision_records else None),
+            "incidents": (dict(self.incidents) if self.incidents else None),
             "metadata": dict(self.metadata),
         }
 
@@ -156,6 +158,7 @@ class TickResult:
     yield_decisions: Optional[dict[str, Any]] = None
     decision_metrics: Optional[dict[str, Any]] = None
     decision_records: Optional[list[dict[str, Any]]] = None
+    incidents: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize tick result to a plain JSON-compatible dictionary."""
@@ -192,6 +195,7 @@ class TickResult:
             "yield_decisions": (dict(self.yield_decisions) if self.yield_decisions else None),
             "decision_metrics": (dict(self.decision_metrics) if self.decision_metrics else None),
             "decision_records": (list(self.decision_records) if self.decision_records else None),
+            "incidents": (dict(self.incidents) if self.incidents else None),
             "arrived_agent_ids": list(self.arrived_agent_ids),
             "active_agent_ids": list(self.active_agent_ids),
         }

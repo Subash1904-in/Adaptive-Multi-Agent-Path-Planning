@@ -837,7 +837,21 @@ Phase 28 builds an interactive Three.js 3D route visualization and explanation l
 - **Accessible HUD Toggles & Legend**: Dedicated HUD overlay buttons (`🛣️ Active`, `🗺️ Planned`, `🔀 Candidates`, `📍 Markers`, `Reset Routes`, `📖 Route Legend`) with WCAG-compliant `aria-pressed` states and a collapsible Route Visual Legend panel.
 - **Historical Playback Synchronization**: Extended `SimulationFrameSnapshot` with deep-cloned routing state, allowing operators to scrub through timeline history and inspect past route configurations and reroute events.
 
-### 6.31 Troubleshooting
+### 6.31 Interactive Traffic Incident Injection and Scenario Controls (Phase 29)
+Phase 29 establishes an interactive, operator-facing, backend-authoritative incident management workflow for simulation runs:
+- **Simulation-Only Safety Boundary**: Incident controls and physical parameter overrides are strictly simulation-only; never connected to physical or safety-critical traffic hardware.
+- **Authoritative Supported Incident Types**:
+  - **Road Closure (`road_closure`)**: Complete blockage of a target road edge, dynamically elevating traversal cost to $\infty$ in vehicle A* routing graphs and disseminating closure beliefs via coordination stores to trigger adaptive dynamic rerouting. Removal restores original edge traversability and baseline cost.
+  - **Localized Congestion (`congestion`)**: Dynamic application of delay and travel-time multipliers ($1.0\times$ to $5.0\times$) onto specified edges, evaluated by the backend adaptive routing engine during vehicle stepping.
+  - **Obstacle / Blocked Segment (`obstacle`)**: Physical hazard placements (`CONSTRUCTION`, `DEBRIS`, `STALLED_VEHICLE`, `STATIC_BARRIER`) localized at road segments, impeding traffic flow.
+  - **Traffic Signal Phase Override (`signal_override`)**: Direct operator override of physical intersection traffic signals (forcing `RED`, `YELLOW`, or `GREEN` phases) until deactivated, restoring normal cyclic signal progression.
+- **Backend-Authoritative Lifecycle**: REST endpoints (`GET /api/v1/runs/{run_id}/incidents/`, `POST /api/v1/runs/{run_id}/incidents/`, `DELETE /api/v1/runs/{run_id}/incidents/{incident_id}/`) validate edge/signal existence and reject mutations on terminal runs with RFC 7807 400 Bad Request problem details.
+- **Live Real-Time Synchronization**: Django Channels WebSocket protocol broadcasts `incident.created` and `incident.removed` events across the simulation run channel group, updating live frontends without polling.
+- **Three.js Overlays at Elevation $y = 0.10\,\text{m}$**: Dedicated incident visualization layer situated cleanly between V2V discs ($y = 0.08\,\text{m}$) and vehicle route lines ($y = 0.12\,\text{m}$), eliminating z-fighting. Features crimson road closure barriers, pulsating amber congestion glow, yellow obstacle warning beacons, and signal override phase rings.
+- **Operator Control Panel UI (`IncidentControlPanel.tsx`)**: Accessible, collapsible glassmorphism panel allowing operators to inject validated incidents, monitor active incident counts, and remove active incidents with instant visual feedback.
+- **Historical Playback Synchronization**: Extended `SimulationFrameSnapshot` with deep-cloned incident state, ensuring historical timeline scrubbing displays authentic historical incident state without mutating active runner state.
+
+### 6.32 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -878,6 +892,7 @@ Phase 28 builds an interactive Three.js 3D route visualization and explanation l
 - [docs/progress/PHASE_26.md](docs/progress/PHASE_26.md): Phase 26 interactive simulation playback, timeline, and step controls report.
 - [docs/progress/PHASE_27.md](docs/progress/PHASE_27.md): Phase 27 V2V communication links, message animations, and network-state overlays report.
 - [docs/progress/PHASE_28.md](docs/progress/PHASE_28.md): Phase 28 adaptive routing visualization, route alternatives, and rerouting explanations report.
+- [docs/progress/PHASE_29.md](docs/progress/PHASE_29.md): Phase 29 interactive traffic incident injection and scenario controls report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

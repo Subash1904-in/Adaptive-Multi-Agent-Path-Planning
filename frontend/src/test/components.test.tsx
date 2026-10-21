@@ -7,10 +7,12 @@ import { MetricsPanel } from "../features/telemetry/MetricsPanel";
 import { EntityInspector } from "../features/simulation/EntityInspector";
 import { SimulationViewer3D } from "../features/scene3d/SimulationViewer3D";
 import { PlaybackBar } from "../features/playback/PlaybackBar";
-import type { RunMetrics, RunStatus, ScenarioSummary, VehicleState } from "../types/simulation";
+import { IncidentControlPanel } from "../features/simulation/IncidentControlPanel";
+import type { RunMetrics, RunStatus, ScenarioDefinition, ScenarioSummary, VehicleState } from "../types/simulation";
 import type { WebSocketEventEnvelope } from "../types/websocket";
 import type { TimelineRange } from "../types/playback";
 import type { RouteSubsystemSnapshot } from "../types/routing";
+import type { IncidentRecord } from "../types/incidents";
 
 describe("Component Unit Tests", () => {
   describe("Header", () => {
@@ -928,5 +930,132 @@ describe("Component Unit Tests", () => {
       expect(screen.getByText("COMPLETED")).toBeInTheDocument();
     });
   });
+
+  describe("IncidentControlPanel", () => {
+    const mockRun: RunStatus = {
+      run_id: "run_inc_test",
+      scenario_id: "scn_test",
+      scenario_name: "Test Scenario",
+      lifecycle_state: "RUNNING",
+      current_tick: 5,
+      elapsed_time_s: 0.5,
+      is_terminal: false,
+      arrived_count: 0,
+      active_count: 2,
+      total_vehicles: 2,
+      scenario_fingerprint: "fp",
+      initial_world_state_fingerprint: "wfp",
+      commit_sha: null,
+      disclaimer: "Research & Educational Simulation",
+    };
+
+    const mockScenario: ScenarioDefinition = {
+      metadata: { id: "scn_test", name: "Test", description: "desc", version: "1.0", author: "tester" },
+      road_network: {
+        source_type: "synthetic_grid",
+        grid_config: { rows: 2, cols: 2, spacing_m: 50 },
+      },
+      vehicles: [],
+      signals: [
+        { signal_id: "sig_0", node_id: "node_0_0" },
+      ],
+      time_step_s: 0.1,
+    };
+
+    const mockIncidents: IncidentRecord[] = [
+      {
+        id: "inc_01",
+        incident_type: "road_closure",
+        status: "active",
+        severity: "critical",
+        affected_edge_id: "edge_0_0_to_0_1",
+        reported_timestamp_s: 0.2,
+        reported_tick: 2,
+        description: "Flooded road surface",
+      },
+    ];
+
+    it("renders panel with active incident count and expands/collapses", () => {
+      render(
+        <IncidentControlPanel
+          currentRun={mockRun}
+          scenario={mockScenario}
+          activeIncidents={mockIncidents}
+          onInjectIncident={vi.fn()}
+          onRemoveIncident={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText("Incident Controls")).toBeInTheDocument();
+      expect(screen.getByText("1")).toBeInTheDocument();
+      expect(screen.getByText("Flooded road surface")).toBeInTheDocument();
+
+      const toggleBtn = screen.getByRole("button", { name: /collapse incident panel/i });
+      fireEvent.click(toggleBtn);
+      expect(screen.queryByText("Flooded road surface")).not.toBeInTheDocument();
+    });
+
+    it("disables injection submit button when run is terminal", () => {
+      render(
+        <IncidentControlPanel
+          currentRun={{ ...mockRun, is_terminal: true, lifecycle_state: "COMPLETED" }}
+          scenario={mockScenario}
+          activeIncidents={[]}
+          onInjectIncident={vi.fn()}
+          onRemoveIncident={vi.fn()}
+        />
+      );
+
+      const injectBtn = screen.getByRole("button", { name: /inject incident/i });
+      expect(injectBtn).toBeDisabled();
+    });
+
+    it("submits incident injection and triggers callback", async () => {
+      const handleInject = vi.fn().mockResolvedValue(undefined);
+      render(
+        <IncidentControlPanel
+          currentRun={mockRun}
+          scenario={mockScenario}
+          activeIncidents={[]}
+          onInjectIncident={handleInject}
+          onRemoveIncident={vi.fn()}
+        />
+      );
+
+      const injectBtn = screen.getByRole("button", { name: /inject incident/i });
+      fireEvent.click(injectBtn);
+
+      await waitFor(() => {
+        expect(handleInject).toHaveBeenCalledTimes(1);
+        expect(handleInject).toHaveBeenCalledWith(
+          expect.objectContaining({
+            incident_type: "road_closure",
+            severity: "high",
+          })
+        );
+      });
+    });
+
+    it("triggers removal callback when remove button is clicked", async () => {
+      const handleRemove = vi.fn().mockResolvedValue(undefined);
+      render(
+        <IncidentControlPanel
+          currentRun={mockRun}
+          scenario={mockScenario}
+          activeIncidents={mockIncidents}
+          onInjectIncident={vi.fn()}
+          onRemoveIncident={handleRemove}
+        />
+      );
+
+      const removeBtn = screen.getByRole("button", { name: /remove incident inc_01/i });
+      fireEvent.click(removeBtn);
+
+      await waitFor(() => {
+        expect(handleRemove).toHaveBeenCalledWith("inc_01");
+      });
+    });
+  });
 });
+
 

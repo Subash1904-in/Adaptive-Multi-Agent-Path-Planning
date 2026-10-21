@@ -443,3 +443,60 @@ class ExportQuerySerializer(serializers.Serializer):
     max_telemetry_records = serializers.IntegerField(
         required=False, min_value=1, max_value=100_000, default=None
     )
+
+
+class CreateIncidentRequestSerializer(serializers.Serializer):
+    """Validates parameters for dynamic roadway incident injection."""
+
+    incident_type = serializers.CharField(required=True)
+    affected_edge_id = serializers.CharField(required=False, allow_null=True, default=None)
+    affected_node_id = serializers.CharField(required=False, allow_null=True, default=None)
+    severity = serializers.CharField(required=False, default="medium")
+    duration_s = serializers.FloatField(
+        required=False, allow_null=True, default=None, min_value=0.01
+    )
+    description = serializers.CharField(
+        required=False, allow_null=True, allow_blank=True, default=None, max_length=512
+    )
+    congestion_factor = serializers.FloatField(
+        required=False, allow_null=True, default=None, min_value=1.0
+    )
+    target_signal_phase = serializers.CharField(required=False, allow_null=True, default=None)
+    obstacle_type = serializers.CharField(required=False, allow_null=True, default=None)
+    incident_id = serializers.CharField(
+        required=False, allow_null=True, default=None, max_length=64
+    )
+    metadata = serializers.DictField(required=False, default=dict)
+
+
+class IncidentSerializer(serializers.Serializer):
+    """Serializes an IncidentRecord domain model."""
+
+    id = serializers.CharField()
+    incident_type = serializers.CharField()
+    severity = serializers.CharField()
+    status = serializers.CharField()
+    affected_edge_id = serializers.CharField(allow_null=True)
+    affected_node_id = serializers.CharField(allow_null=True)
+    position = serializers.DictField()
+    reported_timestamp_s = serializers.FloatField()
+    duration_s = serializers.FloatField(allow_null=True)
+    description = serializers.CharField(allow_null=True)
+    congestion_factor = serializers.FloatField(allow_null=True)
+    target_signal_phase = serializers.CharField(allow_null=True)
+    obstacle_type = serializers.CharField(allow_null=True)
+    resolved_timestamp_s = serializers.FloatField(allow_null=True)
+    created_tick = serializers.IntegerField()
+    resolved_tick = serializers.IntegerField(allow_null=True)
+    metadata = serializers.DictField()
+
+
+class IncidentListResponseSerializer(serializers.Serializer):
+    """Serializes the response for enumerating incidents on a run."""
+
+    run_id = serializers.CharField()
+    total_count = serializers.IntegerField()
+    active_count = serializers.IntegerField()
+    resolved_count = serializers.IntegerField()
+    incidents = IncidentSerializer(many=True)
+    disclaimer = serializers.CharField(default=EDUCATIONAL_DISCLAIMER)

@@ -44,6 +44,9 @@ class SimulationEventType(str, Enum):
     EMERGENCY_UPDATED = "emergency.updated"
     CORRIDOR_UPDATED = "corridor.updated"
     DECISION_UPDATED = "decision.updated"
+    INCIDENT_CREATED = "incident.created"
+    INCIDENT_UPDATED = "incident.updated"
+    INCIDENT_REMOVED = "incident.removed"
     METRICS_SNAPSHOT = "metrics.snapshot"
     TELEMETRY_GAP = "telemetry.gap"
     SERVER_HEARTBEAT = "server.heartbeat"
@@ -70,6 +73,8 @@ CRITICAL_WS_EVENT_TYPES = frozenset(
         SimulationEventType.RUN_FAILED.value,
         SimulationEventType.SAFETY_EVENT.value,
         SimulationEventType.COLLISION_DETECTED.value,
+        SimulationEventType.INCIDENT_CREATED.value,
+        SimulationEventType.INCIDENT_REMOVED.value,
         SimulationEventType.ERROR.value,
     }
 )

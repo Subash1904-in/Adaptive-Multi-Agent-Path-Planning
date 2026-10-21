@@ -17,7 +17,9 @@ from apps.core.telemetry.models import TelemetryConfig
 
 from .permissions import SimulationApiPermission
 from .serializers import (
+    CreateIncidentRequestSerializer,
     ExportQuerySerializer,
+    IncidentListResponseSerializer,
     RunCancelRequestSerializer,
     RunCreateRequestSerializer,
     RunStatusResponseSerializer,
@@ -236,3 +238,46 @@ class RunExportView(BaseSimulationView):
             max_telemetry_records=data.get("max_telemetry_records"),
         )
         return HttpResponse(json_str, content_type="application/json")
+
+
+# ==============================================================================
+# Simulation Incident Injection and Management Endpoints
+# ==============================================================================
+
+
+class RunIncidentListCreateView(BaseSimulationView):
+    """GET: List all active or resolved incidents for a simulation run.
+
+    POST: Inject a dynamic roadway incident (closure, congestion, obstacle, signal override).
+    """
+
+    def get(self, request: Request, run_id: str) -> Response:
+        """List incidents for a simulation run with optional status filter."""
+        status_filter = request.query_params.get("status")
+        result = self.service.list_incidents(run_id, status_filter=status_filter)
+        serializer = IncidentListResponseSerializer(result)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request: Request, run_id: str) -> Response:
+        """Validate and inject a roadway incident into an active simulation run."""
+        serializer = CreateIncidentRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = self.service.create_incident(run_id, serializer.validated_data)
+        return Response(result, status=status.HTTP_201_CREATED)
+
+
+class RunIncidentDetailView(BaseSimulationView):
+    """GET: Retrieve single incident details.
+
+    DELETE: Resolve and remove an active incident, restoring baseline road and signal conditions.
+    """
+
+    def get(self, request: Request, run_id: str, incident_id: str) -> Response:
+        """Retrieve details of an incident."""
+        result = self.service.get_incident(run_id, incident_id)
+        return Response(result, status=status.HTTP_200_OK)
+
+    def delete(self, request: Request, run_id: str, incident_id: str) -> Response:
+        """Resolve and remove an active incident."""
+        result = self.service.remove_incident(run_id, incident_id)
+        return Response(result, status=status.HTTP_200_OK)

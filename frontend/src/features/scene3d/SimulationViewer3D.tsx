@@ -49,6 +49,9 @@ import { DEFAULT_V2V_OVERLAY_OPTIONS } from "../../types/v2v";
 import { RouteOverlayManager } from "./routeOverlay";
 import type { RouteOverlayOptions, RouteSubsystemSnapshot } from "../../types/routing";
 import { DEFAULT_ROUTE_OVERLAY_OPTIONS } from "../../types/routing";
+import { IncidentOverlayManager, DEFAULT_INCIDENT_OVERLAY_OPTIONS } from "./incidentOverlay";
+import type { IncidentOverlayOptions } from "./incidentOverlay";
+import type { IncidentRecord, IncidentSubsystemSnapshot } from "../../types/incidents";
 import type { PlaybackSpeed } from "../../types/playback";
 
 export interface SimulationViewer3DProps {
@@ -69,6 +72,8 @@ export interface SimulationViewer3DProps {
   onSelectCandidate?: (candidateId: string | null) => void;
   playbackSpeed?: PlaybackSpeed;
   isPaused?: boolean;
+  incidents?: IncidentRecord[] | null;
+  incidentSnapshot?: IncidentSubsystemSnapshot | null;
 }
 
 export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
@@ -89,6 +94,8 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
   onSelectCandidate: _onSelectCandidate,
   playbackSpeed = 1,
   isPaused = false,
+  incidents = null,
+  incidentSnapshot = null,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -106,6 +113,10 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
   // Route Overlay Settings & Legend State
   const [routeOptions, setRouteOptions] = useState<RouteOverlayOptions>(DEFAULT_ROUTE_OVERLAY_OPTIONS);
   const [showRouteLegend, setShowRouteLegend] = useState<boolean>(false);
+
+  // Incident Overlay Settings & Legend State
+  const [incidentOptions, setIncidentOptions] = useState<IncidentOverlayOptions>(DEFAULT_INCIDENT_OVERLAY_OPTIONS);
+  const [showIncidentLegend, setShowIncidentLegend] = useState<boolean>(false);
 
   // Three.js internal references
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -165,6 +176,15 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
   useEffect(() => {
     selectedCandidateIdRef.current = selectedCandidateId;
   }, [selectedCandidateId]);
+
+  // Incident Overlay Reference
+  const incidentOverlayRef = useRef<IncidentOverlayManager | null>(null);
+  const incidentOptionsRef = useRef<IncidentOverlayOptions>(incidentOptions);
+
+  useEffect(() => {
+    incidentOptionsRef.current = incidentOptions;
+    incidentOverlayRef.current?.setOptions(incidentOptions);
+  }, [incidentOptions]);
 
   // Lighting references
   const ambientLightRef = useRef<THREE.AmbientLight | null>(null);
@@ -228,6 +248,11 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     const geom = extractRoadNetworkFromScenario(scenario);
     setActiveGeometry(geom);
   }, [scenario]);
+
+  useEffect(() => {
+    const list = incidents || incidentSnapshot?.active_incidents || [];
+    incidentOverlayRef.current?.update(list, activeGeometry);
+  }, [incidents, incidentSnapshot, activeGeometry]);
 
   // 2. Camera position updater helper (synchronizes both Perspective and Orthographic cameras)
   const updateCameraPosition = useCallback(() => {
@@ -367,6 +392,12 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     routeOverlayRef.current = routeOverlay;
     scene.add(routeOverlay.rootGroup);
 
+    // Incident Visualization Overlay Group
+    const incidentOverlay = new IncidentOverlayManager();
+    incidentOverlay.setOptions(incidentOptionsRef.current);
+    incidentOverlayRef.current = incidentOverlay;
+    scene.add(incidentOverlay.rootGroup);
+
     // Initial camera placement
     handleResetCamera();
 
@@ -465,6 +496,11 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         );
       }
 
+      // 5. Update Incident visualization overlay pulsation
+      if (incidentOverlayRef.current) {
+        incidentOverlayRef.current.animate(delta);
+      }
+
       if (rendererRef.current && sceneRef.current) {
         const activeCam =
           projectionMode === "perspective"
@@ -532,6 +568,12 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         scene.remove(routeOverlayRef.current.rootGroup);
         routeOverlayRef.current.dispose();
         routeOverlayRef.current = null;
+      }
+
+      if (incidentOverlayRef.current) {
+        scene.remove(incidentOverlayRef.current.rootGroup);
+        incidentOverlayRef.current.dispose();
+        incidentOverlayRef.current = null;
       }
 
       if (rendererRef.current) {
@@ -1823,6 +1865,63 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         >
           📖 Route Legend
         </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const next = !incidentOptions.showRoadClosures;
+            const updated = {
+              showRoadClosures: next,
+              showCongestion: next,
+              showObstacles: next,
+              showSignalOverrides: next,
+            };
+            setIncidentOptions(updated);
+            incidentOverlayRef.current?.setOptions(updated);
+          }}
+          className={`hud-button hud-incident-toggle ${incidentOptions.showRoadClosures ? "active" : ""}`}
+          aria-pressed={incidentOptions.showRoadClosures}
+          aria-label={incidentOptions.showRoadClosures ? "Hide Incident Overlays" : "Show Incident Overlays"}
+          title={incidentOptions.showRoadClosures ? "Hide Incident Overlays" : "Show Incident Overlays"}
+          style={{
+            backgroundColor: incidentOptions.showRoadClosures ? "#991b1b" : "#1e293b",
+            color: "#f8fafc",
+            border: "1px solid #ef4444",
+            borderRadius: "6px",
+            padding: "5px 10px",
+            fontSize: "0.8rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          🛑 Incidents {incidentOptions.showRoadClosures ? "ON" : "OFF"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setShowIncidentLegend((s) => !s)}
+          className={`hud-button ${showIncidentLegend ? "active" : ""}`}
+          aria-expanded={showIncidentLegend}
+          aria-controls="incident-legend-panel"
+          aria-label={showIncidentLegend ? "Close Incident Legend" : "Open Incident Legend"}
+          title={showIncidentLegend ? "Close Incident Legend" : "Open Incident Legend"}
+          style={{
+            backgroundColor: showIncidentLegend ? "#b91c1c" : "#1e293b",
+            color: "#f8fafc",
+            border: "1px solid #ef4444",
+            borderRadius: "6px",
+            padding: "5px 10px",
+            fontSize: "0.8rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          ⚠️ Incident Legend
+        </button>
       </div>
 
       {/* Collapsible Route Visual Legend */}
@@ -1893,6 +1992,71 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <span style={{ width: "10px", height: "10px", transform: "rotate(45deg)", backgroundColor: "#f59e0b", display: "inline-block" }} />
               <span>Rejected / Insufficient Benefit</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Collapsible Incident Visual Legend */}
+      {showIncidentLegend && (
+        <div
+          id="incident-legend-panel"
+          className="viewport-incident-legend-panel"
+          role="region"
+          aria-label="Traffic Incident Visual Legend"
+          style={{
+            position: "absolute",
+            top: "150px",
+            right: showRouteLegend ? "350px" : "16px",
+            backgroundColor: "rgba(15, 23, 42, 0.95)",
+            backdropFilter: "blur(8px)",
+            border: "1px solid #ef4444",
+            borderRadius: "8px",
+            padding: "12px 16px",
+            fontSize: "0.78rem",
+            color: "#e2e8f0",
+            fontFamily: "Space Grotesk, sans-serif",
+            zIndex: 6,
+            maxWidth: "300px",
+            boxShadow: "0 6px 16px rgba(0,0,0,0.6)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+            <span style={{ fontWeight: 700, color: "#f87171", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Incident Visual Legend
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowIncidentLegend(false)}
+              aria-label="Dismiss Incident Legend Panel"
+              style={{
+                background: "none",
+                border: "none",
+                color: "#94a3b8",
+                cursor: "pointer",
+                fontWeight: "bold",
+                fontSize: "0.9rem",
+              }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "20px", height: "4px", backgroundColor: "#ef4444", display: "inline-block" }} />
+              <span>Road Closure (Impassable Edge)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "20px", height: "4px", backgroundColor: "#f97316", display: "inline-block" }} />
+              <span>Congestion (Travel Time Delay)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "#f59e0b", display: "inline-block" }} />
+              <span>Obstacle / Segment Hazard</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #ef4444", display: "inline-block" }} />
+              <span>Signal Phase Override</span>
             </div>
           </div>
         </div>

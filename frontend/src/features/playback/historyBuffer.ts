@@ -151,6 +151,21 @@ export class SimulationHistoryBuffer {
       };
     }
 
+    let clonedIncidents: import("../../types/incidents").IncidentSubsystemSnapshot | null = null;
+    if (raw.incidents) {
+      clonedIncidents = {
+        active_incidents: raw.incidents.active_incidents.map((inc) => ({
+          ...inc,
+          position: inc.position ? { ...inc.position } : null,
+          metadata: inc.metadata ? { ...inc.metadata } : undefined,
+        })),
+        closed_edges: [...raw.incidents.closed_edges],
+        congested_edges: { ...raw.incidents.congested_edges },
+        hazard_edges: { ...raw.incidents.hazard_edges },
+        active_count: raw.incidents.active_count,
+      };
+    }
+
     const immutableSnapshot: SimulationFrameSnapshot = {
       tick: raw.tick,
       simulation_time_s: raw.simulation_time_s,
@@ -161,6 +176,7 @@ export class SimulationHistoryBuffer {
       metrics: raw.metrics ? { ...raw.metrics } : null,
       communication: clonedComm,
       routing: clonedRouting,
+      incidents: clonedIncidents,
     };
 
     // 2. Check if tick already exists (deduplication)

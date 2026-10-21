@@ -526,5 +526,108 @@ class SimulationService:
             max_telemetry_records=max_telemetry_records,
         )
 
+    def create_incident(self, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Validate and inject a dynamic roadway incident into an active simulation run."""
+        from apps.core.incidents.exceptions import TerminalRunIncidentError
+        from apps.core.realtime.broadcaster import SimulationEventBroadcaster
+        from apps.core.realtime.protocol import SimulationEventType, build_event_envelope
+
+        runner = self.run_registry.get(run_id)
+        if runner.is_terminal:
+            raise TerminalRunIncidentError(run_id, runner.lifecycle_state.value)
+
+        record = runner.world.incident_manager.create_incident(
+            incident_type=payload.get("incident_type"),
+            affected_edge_id=payload.get("affected_edge_id"),
+            affected_node_id=payload.get("affected_node_id"),
+            severity=payload.get("severity", "medium"),
+            duration_s=payload.get("duration_s"),
+            description=payload.get("description"),
+            congestion_factor=payload.get("congestion_factor"),
+            target_signal_phase=payload.get("target_signal_phase"),
+            obstacle_type=payload.get("obstacle_type"),
+            incident_id=payload.get("incident_id"),
+            current_time_s=runner.elapsed_time_s,
+            current_tick=runner.current_tick,
+            metadata=payload.get("metadata", {}),
+        )
+
+        broadcaster = SimulationEventBroadcaster.get_instance()
+        envelope = build_event_envelope(
+            event_type=SimulationEventType.INCIDENT_CREATED,
+            run_id=run_id,
+            tick=runner.current_tick,
+            simulation_time_s=runner.elapsed_time_s,
+            payload=record.to_dict(),
+        )
+        broadcaster.broadcast_custom_event(run_id=run_id, event_envelope=envelope)
+
+        res = record.to_dict()
+        res["disclaimer"] = EDUCATIONAL_DISCLAIMER
+        return res
+
+    def list_incidents(self, run_id: str, status_filter: Optional[str] = None) -> dict[str, Any]:
+        """Enumerate incidents registered on a simulation run."""
+        runner = self.run_registry.get(run_id)
+        mgr = runner.world.incident_manager
+        if status_filter == "active":
+            records = mgr.list_active()
+        elif status_filter == "resolved":
+            records = mgr.list_resolved()
+        else:
+            records = mgr.list_all()
+
+        return {
+            "run_id": run_id,
+            "total_count": len(records),
+            "active_count": mgr.active_count,
+            "resolved_count": mgr.resolved_count,
+            "incidents": [r.to_dict() for r in records],
+            "disclaimer": EDUCATIONAL_DISCLAIMER,
+        }
+
+    def get_incident(self, run_id: str, incident_id: str) -> dict[str, Any]:
+        """Retrieve details of a single incident on a simulation run."""
+        from apps.core.incidents.exceptions import IncidentNotFoundError
+
+        runner = self.run_registry.get(run_id)
+        record = runner.world.incident_manager.get_incident(incident_id)
+        if record is None:
+            raise IncidentNotFoundError(incident_id)
+
+        res = record.to_dict()
+        res["disclaimer"] = EDUCATIONAL_DISCLAIMER
+        return res
+
+    def remove_incident(self, run_id: str, incident_id: str) -> dict[str, Any]:
+        """Resolve and remove an active incident on a simulation run."""
+        from apps.core.incidents.exceptions import TerminalRunIncidentError
+        from apps.core.realtime.broadcaster import SimulationEventBroadcaster
+        from apps.core.realtime.protocol import SimulationEventType, build_event_envelope
+
+        runner = self.run_registry.get(run_id)
+        if runner.is_terminal:
+            raise TerminalRunIncidentError(run_id, runner.lifecycle_state.value)
+
+        record = runner.world.incident_manager.remove_incident(
+            incident_id=incident_id,
+            current_time_s=runner.elapsed_time_s,
+            current_tick=runner.current_tick,
+        )
+
+        broadcaster = SimulationEventBroadcaster.get_instance()
+        envelope = build_event_envelope(
+            event_type=SimulationEventType.INCIDENT_REMOVED,
+            run_id=run_id,
+            tick=runner.current_tick,
+            simulation_time_s=runner.elapsed_time_s,
+            payload=record.to_dict(),
+        )
+        broadcaster.broadcast_custom_event(run_id=run_id, event_envelope=envelope)
+
+        res = record.to_dict()
+        res["disclaimer"] = EDUCATIONAL_DISCLAIMER
+        return res
+
 
 default_simulation_service = SimulationService()

@@ -127,6 +127,24 @@ class CoordinationManager:
                 self.metrics.beliefs_updated += 1
         return success
 
+    def ingest_report(self, report: TrafficReport, current_time_s: float = 0.0) -> int:
+        """Broadcast and ingest an authoritative traffic report into all registered vehicle stores.
+
+        Args:
+            report: The authoritative traffic report (e.g. from incident injection).
+            current_time_s: Current authoritative simulation time.
+
+        Returns:
+            int: Number of vehicle knowledge stores that accepted and fused the report.
+        """
+        if not self.config.enabled:
+            return 0
+        accepted_count = 0
+        for store in self._stores.values():
+            if store.ingest_report(report, current_time_s=current_time_s):
+                accepted_count += 1
+        return accepted_count
+
     def process_inbox_messages(
         self,
         vehicle_id: str,

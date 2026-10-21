@@ -177,6 +177,64 @@ def api_exception_handler(exc: Exception, context: dict[str, Any]) -> Optional[R
             status_code=exc.status_code,
         )
 
+    # 1a. Incident Subsystem Exceptions
+    from apps.core.incidents.exceptions import (
+        DuplicateIncidentIdError,
+        IncidentError,
+        IncidentNotFoundError,
+        IncidentValidationError,
+        InvalidIncidentTargetError,
+        TerminalRunIncidentError,
+    )
+
+    if isinstance(exc, IncidentNotFoundError):
+        return format_error_response(
+            code="INCIDENT_NOT_FOUND",
+            message=exc.message,
+            details=exc.details,
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    if isinstance(exc, TerminalRunIncidentError):
+        return format_error_response(
+            code="TERMINAL_RUN_CONFLICT",
+            message=exc.message,
+            details=exc.details,
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+    if isinstance(exc, DuplicateIncidentIdError):
+        return format_error_response(
+            code="DUPLICATE_INCIDENT_ID",
+            message=exc.message,
+            details=exc.details,
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+    if isinstance(exc, InvalidIncidentTargetError):
+        return format_error_response(
+            code="INVALID_INCIDENT_TARGET",
+            message=exc.message,
+            details=exc.details,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if isinstance(exc, IncidentValidationError):
+        return format_error_response(
+            code="INCIDENT_VALIDATION_ERROR",
+            message=exc.message,
+            details={"field": exc.field, **(exc.details or {})},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if isinstance(exc, IncidentError):
+        return format_error_response(
+            code="INCIDENT_ERROR",
+            message=exc.message,
+            details=exc.details,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
     # 2. Lifecycle State Transition Conflicts (HTTP 409)
     if isinstance(exc, RunStateTransitionError):
         return format_error_response(

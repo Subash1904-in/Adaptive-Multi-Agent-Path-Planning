@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles (AMAPP)  
 **Testing Frameworks:** `pytest`, `pytest-cov`, `pytest-django`, `pytest-asyncio`  
-**Current Status:** Active Test Strategy Enforced (Phase 26 — 1,097 Backend Tests Passing at 95.67% Coverage; 126 Frontend Tests Passing across 7 test files)
+**Current Status:** Active Test Strategy Enforced (Phase 29 — 1,112 Backend Tests Passing at 95.61% Coverage; 183 Frontend Tests Passing across 10 test files)
 
 ---
 
@@ -422,11 +422,22 @@ python backend/manage.py check
 - **Domain Models & Invariants (`test_domain_models.py`, 55 passed)**
 - **Serialization & Codecs (`test_domain_serialization.py`, 17 passed)**
 - **Core Health Endpoint (`test_health.py`, 5 passed)**
+- **Incident Management & Invariants (`test_incident_management.py`, 14 passed)**
+  - Authoritative incident creation, validation, activation, expiry, and removal on `WorldState`.
+  - Road closures dynamically blocking edges, setting traversal cost to $\infty$, and triggering adaptive vehicle rerouting.
+  - Congestion events applying delay multipliers and travel time penalties.
+  - Obstacle placements localized on road segments.
+  - Traffic signal phase overrides locking cycle states (`RED`, `YELLOW`, `GREEN`).
+  - Edge and signal restoration upon incident removal or scenario reset.
+- **Incident REST APIs & Lifecycle (`test_api_incidents.py`, 12 passed)**
+  - REST endpoint verification for `GET`, `POST`, and `DELETE` on `/api/v1/runs/{run_id}/incidents/`.
+  - RFC 7807 problem details for invalid types, non-existent edges, unknown signals, and terminal runs (409 Conflict).
+  - WebSocket event broadcasts (`incident.created`, `incident.removed`).
 
 ---
 
-### 4.3 Frontend Test Suites & Commands (Phases 23–28)
-The frontend application includes 9 comprehensive Vitest test suites executing in headless `jsdom` (166 tests passing):
+### 4.3 Frontend Test Suites & Commands (Phases 23–29)
+The frontend application includes 10 comprehensive Vitest test suites executing in headless `jsdom` (183 tests passing):
 
 ```bash
 # Run all frontend tests
@@ -443,9 +454,10 @@ npm run lint
 npm run build
 ```
 
-#### Frontend Test Breakdown (166 tests across 9 suites):
+#### Frontend Test Breakdown (183 tests across 10 suites):
+- **`src/test/incidents.test.ts` (13 passed):** Unit tests for incident management data models, snapshot extraction, API client methods, 3D overlay creation/disposal, and historical buffer scrubbing. Validates typed payload creation (`CreateIncidentPayload`), snapshot extraction (`createIncidentSubsystemSnapshot`), API client methods (`listIncidents`, `createIncident`, `removeIncident`), Three.js overlay rendering at elevation $y = 0.10\,\text{m}$ (road closure barriers, congestion pulsating glow, obstacle hazard beacons, signal override rings), full geometry and material disposal on removal or unmount, and `SimulationHistoryBuffer` incident snapshot deep-cloned immutability.
 - **`src/test/routing.test.ts` (16 passed):** Unit tests for adaptive routing visualization, candidate alternative paths, and Three.js route overlay management. Validates pure adapter functions (`resolveRouteWorldPoints` placing paths at $y = 0.12\,\text{m}$, `computeRouteDistance` calculating cumulative edge lengths, `extractActiveRoute` reading remaining distance without fabricating defaults, `extractPlannedRoute` extracting baseline routes, `extractRerouteEvent` parsing authoritative reasons and costs, `extractCandidateRoutes` extracting candidate paths only when supplied by backend, `deduplicateRerouteEvents`, and `createRouteSubsystemSnapshot`). Tests `RouteOverlayManager` Three.js lifecycle, active cyan route line rendering, planned dashed line rendering, evaluated candidate dashed purple line rendering, inspected candidate solid magenta line rendering, rotating 3D octahedron/diamond reroute markers (emerald for accepted, amber for rejected), layer toggles, animation freeze when paused, speed multiplier scaling, complete GPU resource disposal on teardown, and `SimulationHistoryBuffer` route snapshot deep-cloned immutability.
-- **`src/test/components.test.tsx` (23 passed):** Component tests for Header branding, connection badge, scenario selection, run creation, run stats rendering and stepping (+1, +10, Run to End, Cancel), TelemetryFeed stream and gap alert banner, MetricsPanel grid rendering, EntityInspector vehicle and pedestrian inspection, vehicle route telemetry rendering (active route ID, total distance, remaining distance with authoritative badge, progress bar calculation, ETA unprovided disclaimer, route node sequence, reroute card with reason and cost comparison, candidate path inspection button, and unprovided fallbacks), SimulationViewer3D viewport controls (Day/Night lighting mode toggle, Perspective/Orthographic camera projection toggle, Procedural Buildings ON/OFF toggle, Reset View interaction, scene legend, loading state overlay, and historical review banner), `PlaybackBar` controls (Play/Pause/Resume, Step +1, Step +10, speed selector buttons, Live vs. Review badges, timeline range slider scrubber, and Return to Live button), V2V viewport controls (Links toggle, Range toggle, Pulses toggle, Degradation toggle, Reset V2V settings button, and collapsible V2V Visual Legend panel rendering and dismissal), and Route viewport controls (Active Route toggle, Planned Route toggle, Candidate Paths toggle, Reroute Markers toggle, Reset Routes button, and collapsible Route Visual Legend panel rendering and dismissal).
+- **`src/test/components.test.tsx` (27 passed):** Component tests for Header branding, connection badge, scenario selection, run creation, run stats rendering and stepping (+1, +10, Run to End, Cancel), TelemetryFeed stream and gap alert banner, MetricsPanel grid rendering, EntityInspector vehicle and pedestrian inspection, vehicle route telemetry rendering (active route ID, total distance, remaining distance with authoritative badge, progress bar calculation, ETA unprovided disclaimer, route node sequence, reroute card with reason and cost comparison, candidate path inspection button, and unprovided fallbacks), SimulationViewer3D viewport controls (Day/Night lighting mode toggle, Perspective/Orthographic camera projection toggle, Procedural Buildings ON/OFF toggle, Reset View interaction, scene legend, loading state overlay, and historical review banner), `PlaybackBar` controls (Play/Pause/Resume, Step +1, Step +10, speed selector buttons, Live vs. Review badges, timeline range slider scrubber, and Return to Live button), V2V viewport controls (Links toggle, Range toggle, Pulses toggle, Degradation toggle, Reset V2V settings button, and collapsible V2V Visual Legend panel rendering and dismissal), Route viewport controls (Active Route toggle, Planned Route toggle, Candidate Paths toggle, Reroute Markers toggle, Reset Routes button, and collapsible Route Visual Legend panel rendering and dismissal), and Incident viewport controls (`IncidentControlPanel` rendering, collapsible drawer toggle, incident form validation, edge and signal selection, submission callback dispatch, removal callback dispatch, and terminal run state disabling).
 - **`src/test/v2v.test.ts` (20 passed):** Unit tests for V2V communication data extraction and Three.js overlay management. Validates pure adapter functions (`extractV2VRange` returning configured meters or `null` without fabricating defaults, `extractV2VLinks` canonicalizing unordered vehicle pairs $\min(A, B) \leftrightarrow \max(A, B)$, mapping active vs stale links, `extractV2VDropMetrics`, `extractV2VNetworkState`, and `createV2VSubsystemSnapshot`). Tests `V2VOverlayManager` Three.js lifecycle, dynamic `LineSegments` buffer updates, ground-level range disc and perimeter ring visibility, bounded message pulse queue capacity ($\le 20$), bounded drop indicator capacity ($\le 10$), animation pause-freezing ($\Delta t = 0$), dynamic speed multiplier scaling ($0.5\times, 1\times, 2\times, 5\times$), clean GPU resource disposal on scene unmount, and `SimulationHistoryBuffer` V2V snapshot deep-cloned immutability.
 - **`src/test/playback.test.ts` (14 passed):** Unit tests for simulation playback scheduling and historical buffering. Validates `PlaybackScheduler` state transitions (`idle`, `ready`, `playing`, `paused`), step request dispatching via fake timers, dynamic speed interval scaling ($0.5\times, 1\times, 2\times, 5\times$), strict prevention of overlapping step calls, halting upon terminal states (`COMPLETED`, `CANCELLED`, `FAILED`, `LIMIT_REACHED`), manual step sequencing, and error resilience. Tests `SimulationHistoryBuffer` snapshot addition, deep-cloned immutability preventing reference mutations, deduplication of matching ticks across REST and WebSocket streams, monotonic binary-search sorted insertion, bounded FIFO eviction, and clearing on run switch.
 - **`src/test/interpolation.test.ts` (25 passed):** Unit tests for pure temporal interpolation engine (`EntityInterpolationBuffer`). Validates angle positive normalization (`normalizeAnglePositive`), shortest angular difference calculation (`shortestAngularDiff`), smooth heading lerp across the $0 \leftrightarrow 2\pi$ wraparound boundary (`interpolateHeading`), linear planar position lerp (`interpolatePosition`), simulation heading to Three.js rotation around Y (`simHeadingToWorldRotationY`), rejection of out-of-order samples, duplicate timestamp handling, bounded history pruning ($\le 10$ samples), bounded forward extrapolation clamping ($\le 0.15\text{s}$), and stale state detection ($> 1.0\text{s}$).
@@ -459,8 +471,8 @@ npm run build
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`, `node`, `npm`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 28: **95.67%** coverage across 1,097 passing backend tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_28.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 29: **95.61%** coverage across 1,112 passing backend tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_29.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend CI Gate:** `frontend-quality` executes `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` inside `frontend/`. No skipping or conditional deferral.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.

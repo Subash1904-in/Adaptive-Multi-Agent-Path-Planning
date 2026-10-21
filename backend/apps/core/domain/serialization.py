@@ -272,6 +272,22 @@ def from_dict(cls: Type[T], data: dict[str, Any]) -> T:
                 "status",
             )
 
+            sig_phase = None
+            if data.get("target_signal_phase") is not None:
+                sig_phase = _parse_enum(
+                    TrafficSignalState,
+                    data.get("target_signal_phase"),
+                    "target_signal_phase",
+                )
+
+            obs_type = None
+            if data.get("obstacle_type") is not None:
+                obs_type = _parse_enum(
+                    ObstacleType,
+                    data.get("obstacle_type"),
+                    "obstacle_type",
+                )
+
             return Incident(  # type: ignore[return-value]
                 id=data.get("id"),  # type: ignore[arg-type]
                 position=pos,
@@ -282,6 +298,11 @@ def from_dict(cls: Type[T], data: dict[str, Any]) -> T:
                 affected_node_id=data.get("affected_node_id"),
                 reported_timestamp_s=data.get("reported_timestamp_s", 0.0),
                 description=data.get("description"),
+                duration_s=data.get("duration_s"),
+                target_signal_phase=sig_phase,
+                congestion_factor=data.get("congestion_factor"),
+                obstacle_type=obs_type,
+                metadata=data.get("metadata", {}),
             )
 
         if cls is V2VMessage:

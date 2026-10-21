@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 28 (Adaptive Routing Visualization, Route Alternatives, and Rerouting Explanations)  
+**Current Phase:** Phase 29 (Traffic Incidents and Scenario Controls)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 28 (Adaptive Routing Visualization, Route Alternatives, and Rerouting Explanations):* Phase 28 delivers an interactive Three.js 3D routing visualization layer grounded in authoritative backend telemetry. It renders active routes ($y=0.12\text{m}$) and baseline planned paths, evaluates and highlights alternative candidate paths, displays 3D rotating rerouting diamond markers with recorded reasons and cost comparisons, adds comprehensive routing telemetry and candidate inspection to `EntityInspector`, integrates with deep-cloned historical playback buffers, and provides accessible HUD toggles and a collapsible Route Legend. 166 frontend tests, 1,097 backend tests passing (95.67% coverage).
+> *Note on Phase 29 (Traffic Incidents and Scenario Controls):* Phase 29 delivers an interactive, operator-facing, backend-authoritative incident injection and scenario control system for simulation runs. It enables live injection, lifecycle tracking, and graceful removal of dynamic traffic incidents (road closures, localized congestion, physical obstacles, traffic signal phase overrides), validates all inputs atomically, broadcasts real-time WebSocket events (`incident.created`, `incident.removed`), renders distinct Three.js overlays at elevation $y = 0.10\,\text{m}$, seamlessly integrates with deep-cloned historical playback buffers, and provides an accessible, collapsible `IncidentControlPanel` UI. 183 frontend tests, 1,112 backend tests passing (95.61% line coverage).
 
 ---
 
@@ -21,7 +21,7 @@
 | **FR-01** | Vehicle-to-Vehicle (V2V) Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/`, `frontend/src/features/scene3d/` | Phase 11, 12, 13, 14, 27 | `TESTED` | Phase 11–14 Backend Protocol & Phase 27 Three.js Link/Message Overlays Tested (`test_communication_*.py`, `test_coordination_*.py`, `v2v.test.ts`) |
 | **FR-02** | Multi-Agent Autonomous Vehicle Environment | `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 07, 08, 10, 20, 25 | `TESTED` | Phase 07, 08, 10, 20 Tested (`test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`, `test_runner_*.py`) |
 | **FR-03** | Real-World Map Integration | `backend/apps/core/graph/`, `frontend/src/features/scene3d/` | Phase 04, 05, 24 | `TESTED` | Phase 04 & 05 Foundation Tested (`test_osm_*.py`, `test_road_graph.py`); Phase 24 Frontend OSM Adapter Tested (`geometry.test.ts`) |
-| **FR-04** | Traffic and Pedestrian Simulation | `backend/apps/core/signals/`, `backend/apps/core/pedestrians/`, `backend/apps/core/safety/` | Phase 09, 17, 25, 29 | `TESTED` | Phase 09 Signals & Phase 17 Pedestrians Tested (`test_signals_*.py`, `test_pedestrian_*.py`) |
+| **FR-04** | Traffic and Pedestrian Simulation | `backend/apps/core/signals/`, `backend/apps/core/pedestrians/`, `backend/apps/core/safety/`, `backend/apps/core/incidents/` | Phase 09, 17, 25, 29 | `TESTED` | Phase 09 Signals, Phase 17 Pedestrians & Phase 29 Incidents Tested (`test_signals_*.py`, `test_pedestrian_*.py`, `test_incident_*.py`) |
 | **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/`, `backend/apps/core/telemetry/` | Phase 06, 07, 08, 10, 20, 30, 31 | `TESTED` | Phase 06–10 & Phase 20 Metrics Aggregation & Export Tested (`test_routing_*.py`, `test_runner_metrics_aggregation.py`, `test_runner_determinism_and_export.py`) |
 | **FR-06** | Decentralized Vehicle Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/` | Phase 11, 12, 13, 14 | `TESTED` | Phase 11–14 Protocol, Discovery, Neighbors, Knowledge & Outages Tested (`test_communication_*.py`, `test_coordination_*.py`) |
 | **FR-07** | Adaptive Path Planning | `backend/apps/core/routing/`, `frontend/src/features/scene3d/`, `frontend/src/features/simulation/` | Phase 06, 15, 28 | `TESTED` | Phase 06 & 15 Dynamic Rerouting & Phase 28 Three.js Route/Candidate Overlays Tested (`test_routing_*.py`, `routing.test.ts`, `components.test.tsx`) |
@@ -69,9 +69,9 @@
 ### FR-04: Traffic and Pedestrian Simulation
 - **Requirement Statement:** Simulate realistic traffic conditions and vehicle movements; include traffic signals, congestion, pedestrian crossings, and unexpected road conditions.
 - **Target Phases:** Phase 09 (Vehicle movement and traffic rules), Phase 17 (Pedestrians and traffic signals), Phase 25 (Vehicle and pedestrian visualization), Phase 29 (Traffic incidents and scenario controls).
-- **Components:** `backend/apps/core/signals/`, `backend/apps/core/pedestrians/`, `backend/apps/core/safety/`
-- **Verification Plan:** State machine tests for 4-phase traffic lights, pedestrian crosswalk corridor model, signalized and unsignalized pedestrian crossing logic, clearance policy, and vehicle yield/braking enforcement (`test_signals_*.py`, `test_pedestrian_*.py`: 109 tests passing).
-- **Current Status:** `TESTED (Phase 09 Traffic Signals & Phase 17 Pedestrian Agents, Crosswalks, and Signal Interaction Complete)`
+- **Components:** `backend/apps/core/signals/`, `backend/apps/core/pedestrians/`, `backend/apps/core/safety/`, `backend/apps/core/incidents/`
+- **Verification Plan:** State machine tests for 4-phase traffic lights, pedestrian crosswalk corridor model, signalized and unsignalized pedestrian crossing logic, clearance policy, and vehicle yield/braking enforcement; authoritative incident management verifying road closures, congestion reports, physical obstacles, and signal phase overrides (`test_signals_*.py`, `test_pedestrian_*.py`, `test_incident_*.py`: 124 tests passing).
+- **Current Status:** `TESTED (Phase 09 Traffic Signals, Phase 17 Pedestrians, and Phase 29 Traffic Incidents Complete)`
 
 ---
 
@@ -159,8 +159,8 @@
 ### FR-14: Real-Time 3D Visualization and Interactive Dashboard
 - **Requirement Statement:** Develop a web-based dashboard using Django and Three.js; visualize realistic roads, buildings, autonomous vehicles, pedestrians, and traffic conditions; display real-time vehicle movements, V2V communication, route changes, and AI decisions.
 - **Target Phases:** Phase 21 (Django REST API), Phase 22 (Real-time WebSocket streaming), Phase 23 (Frontend scaffold), Phase 24 (3D city and road rendering), Phase 25 (Vehicle and pedestrian visualization), Phase 26 (Live simulation controls), Phase 27 (V2V visualization), Phase 28 (Adaptive routing visualization), Phase 29 (Traffic incidents and scenario controls), Phase 30 (Operational metrics dashboard).
-- **Components:** `backend/apps/core/realtime/`, `backend/apps/core/api/`, `frontend/src/features/scene3d/` (`SimulationViewer3D.tsx`, `geometry.ts`, `models.ts`, `interpolation.ts`, `v2vOverlay.ts`, `v2vAdapter.ts`), `frontend/src/features/playback/` (`playbackScheduler.ts`, `historyBuffer.ts`, `PlaybackBar.tsx`), `frontend/src/features/simulation/EntityInspector.tsx`
-- **Verification Plan:** WebSocket frame serialization tests, client connection lifecycle tests, Three.js mesh rendering verification, temporal interpolation unit tests, playback scheduler tests (fake timers, cadence scaling, non-overlapping requests, terminal stopping), history buffer tests (deep-cloning, deduplication, binary search ordering, bounded retention), V2V overlay unit tests (range extraction, link deduplication, bounded animation queues, pause freezing, history buffer immutability), and component tests (`websocket-client.test.ts`, `api-client.test.ts`, `geometry.test.ts`, `interpolation.test.ts`, `models.test.ts`, `playback.test.ts`, `v2v.test.ts`, `components.test.tsx`: 147 tests passing).
-- **Current Status:** `IN PROGRESS (Phases 21–27 COMPLETED & TESTED; 147 frontend tests, 1,097 backend tests passing; Phase 28 Adaptive Routing Visualization Next)`
+- **Components:** `backend/apps/core/realtime/`, `backend/apps/core/api/`, `frontend/src/features/scene3d/` (`SimulationViewer3D.tsx`, `geometry.ts`, `models.ts`, `interpolation.ts`, `v2vOverlay.ts`, `v2vAdapter.ts`, `routeOverlay.ts`, `routeAdapter.ts`, `incidentOverlay.ts`, `incidentAdapter.ts`), `frontend/src/features/playback/` (`playbackScheduler.ts`, `historyBuffer.ts`, `PlaybackBar.tsx`), `frontend/src/features/simulation/` (`EntityInspector.tsx`, `IncidentControlPanel.tsx`)
+- **Verification Plan:** WebSocket frame serialization tests, client connection lifecycle tests, Three.js mesh rendering verification, temporal interpolation unit tests, playback scheduler tests, history buffer tests with deep cloning, V2V overlay unit tests, route overlay unit tests, incident overlay unit tests, and component tests (`websocket-client.test.ts`, `api-client.test.ts`, `geometry.test.ts`, `interpolation.test.ts`, `models.test.ts`, `playback.test.ts`, `v2v.test.ts`, `routing.test.ts`, `incidents.test.ts`, `components.test.tsx`: 183 frontend tests, 1,112 backend tests passing).
+- **Current Status:** `IN PROGRESS (Phases 21–29 COMPLETED & TESTED; 183 frontend tests, 1,112 backend tests passing; Phase 30 Operational Metrics Dashboard Next)`
 
 

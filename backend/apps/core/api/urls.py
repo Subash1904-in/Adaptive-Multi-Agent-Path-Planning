@@ -6,6 +6,8 @@ from .views import (
     RunCancelView,
     RunDetailView,
     RunExportView,
+    RunIncidentDetailView,
+    RunIncidentListCreateView,
     RunListCreateView,
     RunMetricsView,
     RunResultView,
@@ -34,4 +36,15 @@ urlpatterns = [
     path("runs/<str:run_id>/metrics/", RunMetricsView.as_view(), name="api_run_metrics"),
     path("runs/<str:run_id>/telemetry/", RunTelemetryView.as_view(), name="api_run_telemetry"),
     path("runs/<str:run_id>/export/", RunExportView.as_view(), name="api_run_export"),
+    # Incidents
+    path(
+        "runs/<str:run_id>/incidents/",
+        RunIncidentListCreateView.as_view(),
+        name="api_run_incidents",
+    ),
+    path(
+        "runs/<str:run_id>/incidents/<str:incident_id>/",
+        RunIncidentDetailView.as_view(),
+        name="api_run_incident_detail",
+    ),
 ]

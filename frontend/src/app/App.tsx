@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Header } from "../components/Header";
 import { EntityInspector } from "../features/simulation/EntityInspector";
+import { IncidentControlPanel } from "../features/simulation/IncidentControlPanel";
 import { ScenarioSelector } from "../features/scenarios/ScenarioSelector";
 import { SimulationViewer3D } from "../features/scene3d/SimulationViewer3D";
 import { PlaybackBar } from "../features/playback/PlaybackBar";
@@ -10,6 +11,11 @@ import { MetricsPanel } from "../features/telemetry/MetricsPanel";
 import { TelemetryFeed } from "../features/telemetry/TelemetryFeed";
 import { defaultApiClient } from "../lib/api/client";
 import { SimulationWebSocketClient } from "../lib/websocket/client";
+import {
+  createIncidentSubsystemSnapshot,
+  type CreateIncidentPayload,
+  type IncidentRecord,
+} from "../types/incidents";
 import type {
   PedestrianState,
   RunMetrics,
@@ -71,6 +77,8 @@ export const App: React.FC = () => {
   const [liveV2VSnapshot, setLiveV2VSnapshot] = useState<V2VSubsystemSnapshot | null>(null);
   const [liveRouteSnapshot, setLiveRouteSnapshot] = useState<RouteSubsystemSnapshot | null>(null);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const [activeIncidents, setActiveIncidents] = useState<Map<string, IncidentRecord>>(new Map());
+  const [isInjectingIncident, setIsInjectingIncident] = useState<boolean>(false);
 
   // Playback & Historical Review State
   const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
@@ -467,6 +475,31 @@ export const App: React.FC = () => {
           break;
         }
 
+        case "incident.created":
+        case "incident.updated": {
+          const inc = p as unknown as IncidentRecord;
+          if (inc && inc.id) {
+            setActiveIncidents((prev) => {
+              const next = new Map(prev);
+              next.set(inc.id, inc);
+              return next;
+            });
+          }
+          break;
+        }
+
+        case "incident.removed": {
+          const incId = String(p.incident_id || p.id);
+          if (incId) {
+            setActiveIncidents((prev) => {
+              const next = new Map(prev);
+              next.delete(incId);
+              return next;
+            });
+          }
+          break;
+        }
+
         case "metrics.summary": {
           setMetrics({
             run_id: event.run_id,
@@ -487,12 +520,24 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Connect WebSocket when currentRun changes
+  // Connect WebSocket and fetch incidents when currentRun changes
   useEffect(() => {
     if (currentRun?.run_id) {
       wsClientRef.current.connect(currentRun.run_id);
+      defaultApiClient.listIncidents(currentRun.run_id)
+        .then((res) => {
+          const map = new Map<string, IncidentRecord>();
+          for (const inc of res.incidents) {
+            map.set(inc.id, inc);
+          }
+          setActiveIncidents(map);
+        })
+        .catch(() => {
+          // Fallback empty
+        });
     } else {
       wsClientRef.current.disconnect();
+      setActiveIncidents(new Map());
     }
   }, [currentRun?.run_id]);
 
@@ -509,10 +554,11 @@ export const App: React.FC = () => {
         metrics,
         communication: liveV2VSnapshot,
         routing: liveRouteSnapshot,
+        incidents: createIncidentSubsystemSnapshot(Array.from(activeIncidents.values())),
       });
       setHistoryVersion((v) => v + 1);
     }
-  }, [currentRun, vehicles, pedestrians, signals, metrics, liveV2VSnapshot, liveRouteSnapshot]);
+  }, [currentRun, vehicles, pedestrians, signals, metrics, liveV2VSnapshot, liveRouteSnapshot, activeIncidents]);
 
   // 5. Playback Stepping Core Callback
   const executeStep = useCallback(
@@ -739,6 +785,7 @@ export const App: React.FC = () => {
         metrics: null,
         communication: null,
         routing: initRouteSnapshot,
+        incidents: createIncidentSubsystemSnapshot([]),
       });
       setHistoryVersion((v) => v + 1);
 
@@ -830,6 +877,49 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleInjectIncident = useCallback(
+    async (payload: CreateIncidentPayload) => {
+      if (!currentRun?.run_id) return;
+      setIsInjectingIncident(true);
+      setActionError(null);
+      try {
+        const inc = await defaultApiClient.createIncident(currentRun.run_id, payload);
+        setActiveIncidents((prev) => {
+          const next = new Map(prev);
+          next.set(inc.id, inc);
+          return next;
+        });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Failed to inject incident";
+        setActionError(msg);
+        throw err;
+      } finally {
+        setIsInjectingIncident(false);
+      }
+    },
+    [currentRun?.run_id]
+  );
+
+  const handleRemoveIncident = useCallback(
+    async (incidentId: string) => {
+      if (!currentRun?.run_id) return;
+      setActionError(null);
+      try {
+        await defaultApiClient.removeIncident(currentRun.run_id, incidentId);
+        setActiveIncidents((prev) => {
+          const next = new Map(prev);
+          next.delete(incidentId);
+          return next;
+        });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Failed to remove incident";
+        setActionError(msg);
+        throw err;
+      }
+    },
+    [currentRun?.run_id]
+  );
+
   // 8. Determine Entities to Render (Historical Review vs. Live)
   const renderedVehicles = useMemo(() => {
     if (activeReviewTick !== null) {
@@ -872,6 +962,15 @@ export const App: React.FC = () => {
     }
     return liveRouteSnapshot;
   }, [activeReviewTick, liveRouteSnapshot]);
+
+  // Determine Active Incidents (Historical Review vs. Live)
+  const renderedIncidents = useMemo(() => {
+    if (activeReviewTick !== null) {
+      const snap = historyBufferRef.current.getSnapshot(activeReviewTick);
+      if (snap && snap.incidents) return snap.incidents.active_incidents;
+    }
+    return Array.from(activeIncidents.values());
+  }, [activeReviewTick, activeIncidents]);
 
   // Find active route for selected vehicle
   const activeRoute = useMemo(() => {
@@ -929,6 +1028,7 @@ export const App: React.FC = () => {
               setLiveV2VSnapshot(null);
               setLiveRouteSnapshot(null);
               setSelectedCandidateId(null);
+              setActiveIncidents(new Map());
             }}
             onCreateRun={handleCreateRun}
             currentRun={currentRun}
@@ -936,6 +1036,15 @@ export const App: React.FC = () => {
             onCancelRun={handleCancelRun}
             isLoading={isLoadingScenarios}
             actionError={actionError}
+          />
+
+          <IncidentControlPanel
+            currentRun={currentRun}
+            scenario={selectedScenario}
+            activeIncidents={renderedIncidents}
+            onInjectIncident={handleInjectIncident}
+            onRemoveIncident={handleRemoveIncident}
+            isLoading={isInjectingIncident}
           />
 
           {selectedEntity && (
@@ -981,6 +1090,7 @@ export const App: React.FC = () => {
               routeSnapshot={renderedRouteSnapshot}
               selectedCandidateId={selectedCandidateId}
               onSelectCandidate={setSelectedCandidateId}
+              incidents={renderedIncidents}
               playbackSpeed={playbackSpeed}
               isPaused={playbackState === "paused" || playbackState === "reviewing"}
             />

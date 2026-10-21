@@ -225,6 +225,9 @@ class SimulationEngine:
             and self.world.decision_manager.config.enabled
         ):
             decision_rollback = self.world.decision_manager.capture_state()
+        incident_rollback = None
+        if hasattr(self.world, "incident_manager") and self.world.incident_manager:
+            incident_rollback = self.world.incident_manager.capture_state()
 
         # 2. Advance communication network tick (moves transit messages to inboxes)
         if self.world.communication_network.config.enabled:
@@ -335,6 +338,13 @@ class SimulationEngine:
         safety_events = []
         yield_decisions = {}
         try:
+            # Evaluate incident duration expirations
+            if hasattr(self.world, "incident_manager") and self.world.incident_manager:
+                self.world.incident_manager.step(
+                    current_time_s=self.clock.elapsed_time_s,
+                    current_tick=self.clock.tick_count,
+                )
+
             # Perform emergency priority manager maintenance (expirations, TTL cleanup)
             if hasattr(self.world, "emergency_manager") and self.world.emergency_manager:
                 self.world.emergency_manager.perform_maintenance(
@@ -542,6 +552,8 @@ class SimulationEngine:
                 self.world.emergency_manager.restore_state(emergency_rollback)
             if decision_rollback is not None and hasattr(self.world, "decision_manager"):
                 self.world.decision_manager.restore_state(decision_rollback)
+            if incident_rollback is not None and hasattr(self.world, "incident_manager"):
+                self.world.incident_manager.restore_state(incident_rollback)
 
             self.status = EngineStatus.FAILED
             raise TickExecutionError(
@@ -643,6 +655,11 @@ class SimulationEngine:
                     and self.world.decision_manager
                     and self.world.decision_manager.config.enabled
                 )
+                else None
+            ),
+            incidents=(
+                self.world.incident_manager.get_snapshot().to_dict()
+                if hasattr(self.world, "incident_manager") and self.world.incident_manager
                 else None
             ),
         )

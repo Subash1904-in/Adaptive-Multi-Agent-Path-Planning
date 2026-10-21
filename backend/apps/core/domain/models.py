@@ -462,6 +462,11 @@ class Incident:
     affected_node_id: Optional[str] = None
     reported_timestamp_s: float = 0.0
     description: Optional[str] = None
+    duration_s: Optional[float] = None
+    target_signal_phase: Optional[TrafficSignalState] = None
+    congestion_factor: Optional[float] = None
+    obstacle_type: Optional[ObstacleType] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.id = _validate_id(self.id, "id")
@@ -490,6 +495,24 @@ class Incident:
             raise DomainValidationError(
                 "description must be a string or None.", field="description"
             )
+        if self.duration_s is not None:
+            self.duration_s = _validate_positive(self.duration_s, "duration_s")
+        if self.target_signal_phase is not None and not isinstance(
+            self.target_signal_phase, TrafficSignalState
+        ):
+            raise DomainValidationError(
+                f"Invalid target_signal_phase: {self.target_signal_phase}.",
+                field="target_signal_phase",
+            )
+        if self.congestion_factor is not None:
+            self.congestion_factor = _validate_positive(self.congestion_factor, "congestion_factor")
+        if self.obstacle_type is not None and not isinstance(self.obstacle_type, ObstacleType):
+            raise DomainValidationError(
+                f"Invalid obstacle_type: {self.obstacle_type}.",
+                field="obstacle_type",
+            )
+        if not isinstance(self.metadata, dict):
+            raise DomainValidationError("metadata must be a dictionary.", field="metadata")
 
 
 # -----------------------------------------------------------------------------

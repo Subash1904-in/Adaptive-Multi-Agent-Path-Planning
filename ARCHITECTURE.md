@@ -75,6 +75,8 @@ flowchart TB
 - **Vehicle and Pedestrian Models, Animation & Temporal Interpolation (`frontend/src/features/scene3d/`):** **IMPLEMENTED & TESTED** in Phase 25 (Low-poly vehicle models, articulated walking pedestrian avatars, subtle emergency beacons, bounded temporal interpolation buffer with shortest-path heading lerp, 107 frontend tests).
 - **Interactive Simulation Playback, Timeline, and Step Controls (`frontend/src/features/playback/`, `apps.core.api`):** **IMPLEMENTED & TESTED** in Phase 26 (Play/Pause/Resume, single/multi-step forward, speed multipliers 0.5x-5x, bounded history buffer, timeline scrubber, live vs. review separation, concurrent step protection 409 Conflict, 126 frontend tests, 1,097 backend tests).
 - **V2V Communication Links, Message Animations, and Network-State Overlays (`frontend/src/features/scene3d/v2vOverlay.ts`, `v2vAdapter.ts`, `types/v2v.ts`):** **IMPLEMENTED & TESTED** in Phase 27 (Active/stale links from authoritative neighbor tables, canonical link deduplication, verified range disc around inspected vehicles, bounded message transit pulse queue with pause-freezing, network degradation overlays, accessible HUD toggles and collapsible legend, 147 frontend tests, 1,097 backend tests).
+- **Adaptive Routing Visualization, Route Alternatives & Explanations (`frontend/src/features/scene3d/routeOverlay.ts`, `routeAdapter.ts`, `types/routing.ts`):** **IMPLEMENTED & TESTED** in Phase 28 (Active routes at $y=0.12\text{m}$, baseline planned paths, candidate alternative paths, 3D reroute markers, decision reasons, cost comparisons, EntityInspector routing telemetry, HUD toggles, collapsible legend, 166 frontend tests, 1,097 backend tests).
+- **Interactive Traffic Incident Injection & Scenario Controls (`backend/apps/core/incidents/`, `frontend/src/features/simulation/IncidentControlPanel.tsx`, `scene3d/incidentOverlay.ts`):** **IMPLEMENTED & TESTED** in Phase 29 (Authoritative incident injection, road closures, congestion, obstacles, signal overrides, REST API `/runs/{id}/incidents/`, WebSocket events, 3D overlays at $y=0.10\text{m}$, historical playback immutability, 183 frontend tests, 1,112 backend tests).
 - **Reinforcement Learning (`rl_engine/*`):** **PLANNED** (Phases 32–34).
 
 ---
@@ -1646,3 +1648,49 @@ Phase 26 establishes interactive simulation steering, a visible timeline scrubbe
    - `SimulationFrameSnapshot` extended with `routing?: RouteSubsystemSnapshot | null`.
    - `SimulationHistoryBuffer.addSnapshot` deep-clones all Maps and arrays inside `RouteSubsystemSnapshot`.
    - Timeline scrubbing in historical review mode accurately renders past route paths, candidate evaluations, and reroute markers without mutating runner state.
+
+---
+
+## 25. Interactive Traffic Incident Injection & Scenario Controls (Phase 29)
+
+### 25.1 Operator-Facing Backend-Authoritative Incident Architecture
+1. **Authoritative State Ingestion (`backend/apps/core/incidents/`)**:
+   - `IncidentManager` coordinates the lifecycle of simulation incidents (injection, active tracking, dynamic physical effect propagation, atomic removal, and baseline restoration).
+   - Authoritative support for four core incident modalities:
+     - **Road Closure (`road_closure`)**: Broadcasts a `RoadClosureReport` (status `CLOSED`) to all vehicle knowledge stores, marking edge traversal cost as $\infty$ in `DynamicRouteAdapter`. Vehicles dynamically trigger A* rerouting around the affected corridor. Removal broadcasts `RoadClosureReport` (status `REOPENED`), restoring baseline edge cost.
+     - **Localized Congestion (`congestion`)**: Broadcasts a `CongestionReport` with severity level and delay multiplier (1.5x–5.0x) to all vehicle knowledge stores, updating adaptive edge traversal cost weights. Removal broadcasts normal baseline travel conditions.
+     - **Obstacle / Blocked Segment (`obstacle`)**: Positions concrete static physical obstacles (`CONSTRUCTION`, `DEBRIS`, `STALLED_VEHICLE`, `STATIC_BARRIER`) along an edge, causing downstream vehicles to evaluate avoidance or alternative routing.
+     - **Traffic Signal Phase Override (`signal_override`)**: Intercepts `TrafficSignalController` for a target intersection node, forcing cycle lock to a specified phase (`RED`, `YELLOW`, `GREEN`) until removed, which restores autonomous cyclic progression.
+2. **Terminal Run Protection & Validation**:
+   - Reject incident mutations on non-active simulation runs (`COMPLETED`, `CANCELLED`, `FAILED`) with RFC 7807 400 Bad Request problem details.
+   - Strict input validation: ensures valid edge IDs or signal node IDs exist in the active road graph.
+
+### 25.2 REST API & Realtime WebSocket Protocol
+1. **REST Endpoints**:
+   - `GET /api/v1/runs/{run_id}/incidents/`: Lists all active and historical incidents for a simulation run.
+   - `POST /api/v1/runs/{run_id}/incidents/`: Injects a new validated incident atomically.
+   - `DELETE /api/v1/runs/{run_id}/incidents/{incident_id}/`: Deactivates/removes an active incident and restores network baselines.
+2. **WebSocket Broadcast**:
+   - Server pushes `incident.created` and `incident.removed` envelopes across the simulation run channel group, updating live frontends without polling.
+
+### 25.3 Three.js Planar Elevation & Incident Overlays (`incidentOverlay.ts`)
+1. **Vertical Hierarchy ($y = 0.10\,\text{m}$)**:
+   - Placed above road surface markings ($y = 0.035\,\text{m}$) and V2V range discs ($y = 0.08\,\text{m}$), and below vehicle routes ($y = 0.12\,\text{m}$):
+     - **Road Closure**: High-visibility hazard crimson striping/barriers spanning the affected corridor.
+     - **Congestion**: Amber/orange glowing corridors with pulsating intensity proportional to congestion severity.
+     - **Obstacle**: Elevated 3D hazard warning markers and barriers positioned at the exact segment coordinates.
+     - **Signal Override**: Beacon rings highlighting the controlled intersection colored by overridden phase (`RED`/`YELLOW`/`GREEN`).
+2. **Resource Lifecycle**:
+   - Strict Three.js geometry and material disposal upon incident removal or simulation unmount to prevent WebGL memory leaks.
+
+### 25.4 Scenario Control Panel UI (`IncidentControlPanel.tsx`)
+1. **Interactive Incident Injector**:
+   - Responsive, accessible dashboard panel allowing live operators to select incident types, choose valid scenario edges/signals, customize parameters (severity, delay multiplier, obstacle type, signal phase), and submit injection requests with immediate visual feedback.
+   - Active incident table with individual removal buttons, status badges, and timestamp reporting.
+2. **Accessible Incident Legend & Viewport HUD**:
+   - `⚠️ Incidents` HUD toggle button and collapsible visual legend explaining color coding and symbology.
+
+### 25.5 Historical Playback & Immutability Integration
+1. **Deep Snapshot Cloning**:
+   - `SimulationFrameSnapshot` extended with `incidents?: IncidentSubsystemSnapshot | null`.
+   - `SimulationHistoryBuffer` deep-clones all incident objects and state dictionaries per snapshot, ensuring that scrubbing through playback faithfully reflects historical incident states without mutating the active runner.

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from apps.core.coordination.knowledge import VehicleKnowledgeStore
 from apps.core.coordination.models import (
@@ -30,10 +30,12 @@ class DynamicEdgeCostEvaluator:
         road_graph: RoadGraph,
         knowledge_store: Optional[VehicleKnowledgeStore],
         config: Optional[AdaptiveRoutingConfig] = None,
+        incident_manager: Optional[Any] = None,
     ) -> None:
         self.road_graph: RoadGraph = road_graph
         self.knowledge_store: Optional[VehicleKnowledgeStore] = knowledge_store
         self.config: AdaptiveRoutingConfig = config or AdaptiveRoutingConfig()
+        self.incident_manager: Optional[Any] = incident_manager
 
     def get_closed_edges(self, current_time_s: float = 0.0) -> set[str]:
         """Identify set of directed road edge IDs currently considered impassable.
@@ -42,12 +44,17 @@ class DynamicEdgeCostEvaluator:
             current_time_s: Current simulation timestamp.
 
         Returns:
-            Set of closed road edge IDs according to local high-confidence beliefs.
+            Set of closed road edge IDs according to local beliefs and active incidents.
         """
-        if self.knowledge_store is None:
-            return set()
-
         closed_edges: set[str] = set()
+
+        # Incorporate authoritative incident closures if incident manager is attached
+        if self.incident_manager is not None:
+            closed_edges.update(self.incident_manager.get_closed_edges(current_time_s))
+
+        if self.knowledge_store is None:
+            return closed_edges
+
         active_beliefs = self.knowledge_store.get_beliefs(
             active_only=True, current_time_s=current_time_s
         )
@@ -83,21 +90,27 @@ class DynamicEdgeCostEvaluator:
         Returns:
             float: Multiplier >= 1.0 (1.0 indicates free flow / no congestion).
         """
+        base_mult = 1.0
+        if self.incident_manager is not None:
+            base_mult = max(
+                base_mult, self.incident_manager.get_congestion_multiplier(edge_id, current_time_s)
+            )
+
         if self.knowledge_store is None:
-            return 1.0
+            return base_mult
 
         belief: Optional[BeliefRecord] = self.knowledge_store.get_belief(f"congestion:{edge_id}")
         if belief is None or belief.is_expired(current_time_s):
-            return 1.0
+            return base_mult
 
         if belief.confidence < self.config.min_confidence_threshold:
-            return 1.0
+            return base_mult
 
         if (
             belief.status == BeliefStatus.DISPUTED
             and self.config.disputed_closure_policy == "permissive"
         ):
-            return 1.0
+            return base_mult
 
         # Direct travel time factor from report takes precedence if > 1.0
         ttf = belief.attributes.get("travel_time_factor")
@@ -105,7 +118,7 @@ class DynamicEdgeCostEvaluator:
             try:
                 ttf_float = float(ttf)
                 if ttf_float >= 1.0 and math.isfinite(ttf_float):
-                    return ttf_float
+                    return max(base_mult, ttf_float)
             except (ValueError, TypeError):
                 pass
 
@@ -113,9 +126,9 @@ class DynamicEdgeCostEvaluator:
         level = belief.attributes.get("congestion_level")
         if level is not None:
             mult = self.config.congestion_multipliers.get(str(level).lower(), 1.0)
-            return max(1.0, float(mult))
+            return max(base_mult, float(mult))
 
-        return 1.0
+        return base_mult
 
     def get_hazard_penalty(self, edge_id: str, current_time_s: float = 0.0) -> float:
         """Derive additive penalty for localized hazards affecting a specific edge.
@@ -127,10 +140,13 @@ class DynamicEdgeCostEvaluator:
         Returns:
             float: Additive hazard penalty >= 0.0.
         """
-        if self.knowledge_store is None:
-            return 0.0
-
         total_penalty = 0.0
+        if self.incident_manager is not None:
+            total_penalty += self.incident_manager.get_hazard_penalty(edge_id, current_time_s)
+
+        if self.knowledge_store is None:
+            return total_penalty
+
         active_beliefs = self.knowledge_store.get_beliefs(
             active_only=True, current_time_s=current_time_s
         )

@@ -34,11 +34,13 @@ class DynamicRouteAdapter:
         config: Optional[AdaptiveRoutingConfig] = None,
         decision_manager: Optional[Any] = None,
         emergency_manager: Optional[Any] = None,
+        incident_manager: Optional[Any] = None,
     ) -> None:
         self.road_graph: RoadGraph = road_graph
         self.config: AdaptiveRoutingConfig = config or AdaptiveRoutingConfig()
         self.decision_manager: Optional[Any] = decision_manager
         self.emergency_manager: Optional[Any] = emergency_manager
+        self.incident_manager: Optional[Any] = incident_manager
         self.planner: RoutePlanner = RoutePlanner(road_graph)
         self.metrics: AdaptiveRoutingMetrics = AdaptiveRoutingMetrics()
 
@@ -54,6 +56,7 @@ class DynamicRouteAdapter:
             road_graph=self.road_graph,
             knowledge_store=knowledge_store,
             config=self.config,
+            incident_manager=self.incident_manager,
         )
 
     def _compute_belief_fingerprint(
@@ -62,23 +65,33 @@ class DynamicRouteAdapter:
         current_time_s: float,
     ) -> str:
         """Derive a deterministic fingerprint of active beliefs in a knowledge store."""
-        if knowledge_store is None:
-            return "no_store"
-
-        active_beliefs = knowledge_store.get_beliefs(
-            active_only=True, current_time_s=current_time_s
-        )
-        if not active_beliefs:
-            return "empty"
-
-        tokens = []
-        for bid in sorted(active_beliefs.keys()):
-            b = active_beliefs[bid]
-            attr_items = sorted(
-                (k, str(v)) for k, v in b.attributes.items() if k != "disputed_with"
+        base_fp = "no_store"
+        if knowledge_store is not None:
+            active_beliefs = knowledge_store.get_beliefs(
+                active_only=True, current_time_s=current_time_s
             )
-            tokens.append(f"{bid}:{b.status.value}:{b.confidence:.2f}:{attr_items}")
-        return "|".join(tokens)
+            if not active_beliefs:
+                base_fp = "empty"
+            else:
+                tokens = []
+                for bid in sorted(active_beliefs.keys()):
+                    b = active_beliefs[bid]
+                    attr_items = sorted(
+                        (k, str(v)) for k, v in b.attributes.items() if k != "disputed_with"
+                    )
+                    tokens.append(f"{bid}:{b.status.value}:{b.confidence:.2f}:{attr_items}")
+                base_fp = "|".join(tokens)
+
+        # Include active incidents in fingerprint so incident injection immediately
+        # invalidates suppression
+        if self.incident_manager is not None:
+            inc_tokens = [
+                f"{inc.id}:{inc.status.value}:{inc.affected_edge_id}:{inc.affected_node_id}"
+                for inc in self.incident_manager.list_active()
+            ]
+            return f"{base_fp};inc:{','.join(sorted(inc_tokens))}"
+
+        return base_fp
 
     def evaluate_agent(
         self,
@@ -129,13 +142,13 @@ class DynamicRouteAdapter:
             self._last_decisions[vid] = dec
             return dec
 
-        if knowledge_store is None:
+        if knowledge_store is None and self.incident_manager is None:
             dec = RerouteDecision(
                 decision_type=RerouteDecisionType.NO_CHANGE,
                 vehicle_id=vid,
                 timestamp_s=current_time_s,
                 current_cost=0.0,
-                reason="No vehicle knowledge store available.",
+                reason="No vehicle knowledge store or incident manager available.",
             )
             self._last_decisions[vid] = dec
             return dec
@@ -163,7 +176,12 @@ class DynamicRouteAdapter:
             return dec
 
         # Dynamic evaluator
-        evaluator = DynamicEdgeCostEvaluator(self.road_graph, knowledge_store, self.config)
+        evaluator = DynamicEdgeCostEvaluator(
+            self.road_graph,
+            knowledge_store,
+            self.config,
+            incident_manager=self.incident_manager,
+        )
         current_cost = evaluator.evaluate_remaining_route_cost(
             agent, self.config.cost_mode, current_time_s
         )

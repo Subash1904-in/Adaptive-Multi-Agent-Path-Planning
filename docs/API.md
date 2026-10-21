@@ -221,21 +221,72 @@ Endpoints for initializing, stepping, cancelling, and inspecting scenario simula
 
 ---
 
-### 1.6 Traffic Incident Injection (Target Phase: Phase 29)
-- **`POST /api/v1/incidents/`**
-  - **Purpose:** Dynamically introduces road closures, accidents, or obstacles to trigger adaptive vehicle rerouting.
+### 1.5 Interactive Traffic Incident Management (Status: IMPLEMENTED & TESTED in Phase 29)
+
+Endpoints for querying, creating, and removing dynamic traffic incidents (road closures, congestion, obstacles, signal phase overrides) on active simulation runs.
+
+- **`GET /api/v1/runs/{run_id}/incidents/`**
+  - **Purpose:** Enumerates active and resolved incidents for the specified simulation run.
+  - **Success Response (`200 OK`):**
+    ```json
+    {
+      "run_id": "run_01",
+      "count": 1,
+      "incidents": [
+        {
+          "id": "inc_9f2a1b",
+          "incident_type": "road_closure",
+          "severity": "high",
+          "status": "active",
+          "affected_edge_id": "edge_north",
+          "affected_node_id": null,
+          "position": {"x": 10.0, "y": 20.0},
+          "reported_timestamp_s": 5.2,
+          "description": "Emergency road closure due to maintenance",
+          "delay_multiplier": 1.0,
+          "obstacle_type": null,
+          "override_phase": null
+        }
+      ],
+      "disclaimer": "AMAPP is an educational simulation framework..."
+    }
+    ```
+
+- **`POST /api/v1/runs/{run_id}/incidents/`**
+  - **Purpose:** Dynamically injects an authoritative traffic incident into the running simulation world.
   - **Request Payload:**
     ```json
     {
-      "type": "ROAD_CLOSURE", // "ROAD_CLOSURE", "ACCIDENT", "OBSTACLE"
-      "edge_id": "edge_01_02",
-      "severity": 1.0,
-      "duration_sec": 60.0
+      "incident_type": "road_closure",
+      "severity": "high",
+      "affected_edge_id": "edge_north",
+      "description": "Emergency utility maintenance"
     }
     ```
-  - **Validation Expectations:** `edge_id` must exist in the active graph; `severity` must be $\in (0.0, 1.0]$.
-  - **Success Response (`201 Created`):** Incident ID, affected edge, and timestamp.
-  - **Error Handling:** `404 Not Found` if `edge_id` does not exist.
+    *Additional parameters per incident type:*
+    - **`road_closure`**: Requires valid `affected_edge_id`. Disseminates `RoadClosureReport` (status `CLOSED`), setting edge traversal cost to $\infty$ in `DynamicRouteAdapter`.
+    - **`congestion`**: Requires valid `affected_edge_id`. Optional `delay_multiplier` (float $\ge 1.0$, default 2.0). Disseminates `CongestionReport`.
+    - **`obstacle`**: Requires valid `affected_edge_id`. Optional `obstacle_type` (`CONSTRUCTION`, `DEBRIS`, `STALLED_VEHICLE`, `STATIC_BARRIER`).
+    - **`signal_override`**: Requires valid `affected_node_id` (or `signal_id`). Requires `override_phase` (`RED`, `YELLOW`, `GREEN`). Intercepts `TrafficSignalController` cycle.
+  - **Success Response (`201 Created`):** Returns complete serialized incident representation.
+  - **Error Handling:**
+    - `400 Bad Request` (`VALIDATION_ERROR`): Missing required fields, invalid edge ID, invalid signal node ID, or terminal run state (`COMPLETED`, `CANCELLED`, `FAILED`).
+    - `404 Not Found` (`RUN_NOT_FOUND`): Run ID does not exist in the active runner registry.
+
+- **`DELETE /api/v1/runs/{run_id}/incidents/{incident_id}/`**
+  - **Purpose:** Deactivates/removes an active incident, restoring road traversability and baseline signal controller progression.
+  - **Success Response (`200 OK`):**
+    ```json
+    {
+      "run_id": "run_01",
+      "incident_id": "inc_9f2a1b",
+      "status": "resolved",
+      "disclaimer": "AMAPP is an educational simulation framework..."
+    }
+    ```
+  - **Error Handling:**
+    - `400 Bad Request` (`TERMINAL_RUN`): Run is in a terminal state.
+    - `404 Not Found` (`INCIDENT_NOT_FOUND`): Incident ID not found on this run.
 
 ---
 
@@ -306,7 +357,7 @@ All server-to-client broadcasts conform strictly to a standardized envelope form
 
 ---
 
-### 2.3 Catalog of 21 Server Broadcast Event Types
+### 2.3 Catalog of 23 Server Broadcast Event Types
 
 #### 1. Lifecycle Events (Critical — Zero-Drop)
 - **`run.state_change`**: Lifecycle transition (e.g., `READY` $\rightarrow$ `RUNNING`). Payload: `{"from_state": "READY", "to_state": "RUNNING", "current_tick": 0}`.
@@ -322,6 +373,8 @@ All server-to-client broadcasts conform strictly to a standardized envelope form
 - **`traffic_signals.update`**: Phase change for signals. Payload: `{"signal_id": "sig_01", "node_id": "int_01", "state": "GREEN", "time_to_green_s": 0.0, "time_to_red_s": 25.0}`.
 
 #### 3. Subsystem Domain Events (Event-Driven)
+- **`incident.created`**: Real-time notification of newly injected incident (road closure, congestion, obstacle, or signal override). Payload: serialized `Incident` object.
+- **`incident.removed`**: Real-time notification of removed/resolved incident. Payload: `{"incident_id": "inc_01"}`.
 - **`safety.event`**: Conflict detection, near-miss, or emergency deceleration override. Payload: `{"event_type": "near_miss", "vehicle_id": "veh_01", "other_id": "veh_02", "ttc_s": 1.4, "action": "emergency_brake"}`.
 - **`routing.reroute`**: Dynamic reroute decision evaluated. Payload: `{"vehicle_id": "veh_01", "decision": "accept", "reason": "avoid_closure", "new_route": [...]}`.
 - **`route.changed`**: Dynamic route update notification with explanation telemetry. Payload: `{"vehicle_id": "veh_01", "old_route_id": "r_old", "new_route_id": "r_new", "route": ["n0", "n_detour", "n2"], "decision_type": "reroute_accepted", "reason": "High traffic congestion detected on edge E1", "current_cost": 120.0, "candidate_cost": 95.0, "cost_improvement": 25.0, "candidate_node_ids": ["n0", "n_detour", "n2"]}`.

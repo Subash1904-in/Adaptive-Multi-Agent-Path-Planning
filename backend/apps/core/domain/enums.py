@@ -42,6 +42,7 @@ class IncidentType(str, Enum):
     CONGESTION = "congestion"
     HAZARD = "hazard"
     OBSTACLE = "obstacle"
+    SIGNAL_OVERRIDE = "signal_override"
 
 
 class IncidentSeverity(str, Enum):
