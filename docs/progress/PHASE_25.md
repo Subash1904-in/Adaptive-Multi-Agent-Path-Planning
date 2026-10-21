@@ -190,14 +190,14 @@ $$\text{rotationY} = \text{atan2}(\cos\theta, -\sin\theta)$$
 
 ## 9. CI Pipeline Execution & Evidence
 
-- **Authoritative CI Run URL:** *(Updated upon push & verification in GitHub Actions)*
-- **Commit SHA:** *(Updated upon commit)*
+- **Authoritative CI Run URL:** [https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39618350885](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39618350885)
+- **Commit SHA:** `6c131a12e2cf6f7902b78995a56ee77665471d2b` (Short: `6c131a1`)
 - **Workflow:** `CI Pipeline` (`.github/workflows/ci.yml`)
 - **Trigger:** `push` on branch `main`
-- **Expected Job Statuses:**
-  - `repo-hygiene`: Verifies mandatory documentation and phase reports from `PHASE_01.md` through `PHASE_25.md`; scans for secret leaks and prohibited binary files.
-  - `backend-quality`: Executes Ruff linting, Django system checks, and full pytest regression suite (1,095 passed, $\ge 80\%$ coverage).
-  - `frontend-quality`: Executes `npm ci`, `npm run lint`, `npm run typecheck`, 107 Vitest tests, and Vite production bundle build.
+- **Job Statuses:**
+  - `repo-hygiene` (ID `119284928080`): **SUCCESS** (4s) — Verified all mandatory documentation and phase reports from `PHASE_01.md` through `PHASE_25.md`; zero secret leaks or prohibited files detected.
+  - `backend-quality` (ID `119284928389`): **SUCCESS** (56s) — Ruff linting clean, Django system checks clean (0 silenced), full test suite executed: **1,095 passed in 25.51s**, **95.64% line coverage** (exceeds 80% threshold).
+  - `frontend-quality` (ID `119284928465`): **SUCCESS** (22s) — Reproducible `npm ci`, ESLint clean (0 errors, 0 warnings), strict TypeScript typecheck clean (`tsc --noEmit`), **107 Vitest unit tests passed across 6 test suites**, Vite production bundle build clean in 1.60s (`dist/index.html`, `dist/assets/index-CrQojOHx.css`, `dist/assets/index-BEVr-Qoj.js`).
 
 ---
 
