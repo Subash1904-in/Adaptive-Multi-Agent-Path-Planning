@@ -20,6 +20,7 @@ from .serializers import (
     CreateIncidentRequestSerializer,
     ExportQuerySerializer,
     IncidentListResponseSerializer,
+    MetricsQuerySerializer,
     RunCancelRequestSerializer,
     RunCreateRequestSerializer,
     RunStatusResponseSerializer,
@@ -194,11 +195,20 @@ class RunResultView(BaseSimulationView):
 
 
 class RunMetricsView(BaseSimulationView):
-    """GET: Retrieve aggregated metrics for a simulation run."""
+    """GET: Retrieve aggregated metrics and operational analytics for a simulation run."""
 
     def get(self, request: Request, run_id: str) -> Response:
-        """Retrieve run aggregated metrics."""
-        metrics = self.service.get_run_metrics(run_id)
+        """Retrieve run aggregated metrics with optional time window filtering."""
+        serializer = MetricsQuerySerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        metrics = self.service.get_run_metrics(
+            run_id=run_id,
+            time_window_start_s=data.get("time_window_start_s"),
+            time_window_end_s=data.get("time_window_end_s"),
+            limit_samples=data.get("limit_samples", 500),
+        )
         return Response(metrics, status=status.HTTP_200_OK)
 
 

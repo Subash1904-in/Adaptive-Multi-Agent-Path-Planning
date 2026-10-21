@@ -15,6 +15,7 @@ import type {
   IncidentListResponse,
   IncidentRecord,
 } from "../../types/incidents";
+import type { MetricsQueryParams } from "../../types/analytics";
 
 export class ApiClientError extends Error {
   public readonly statusCode: number;
@@ -221,14 +222,32 @@ export class SimulationApiClient {
   }
 
   /**
-   * Retrieve cross-subsystem aggregated metrics for a run.
+   * Retrieve cross-subsystem aggregated metrics and operational analytics for a run.
    */
   public async getRunMetrics(
     runId: string,
+    query?: MetricsQueryParams,
     signal?: AbortSignal
   ): Promise<RunMetrics> {
+    const params = new URLSearchParams();
+    if (query?.tick_start !== undefined && query?.tick_start !== null) {
+      params.set("tick_start", String(query.tick_start));
+    }
+    if (query?.tick_end !== undefined && query?.tick_end !== null) {
+      params.set("tick_end", String(query.tick_end));
+    }
+    if (query?.time_window_start_s !== undefined && query?.time_window_start_s !== null) {
+      params.set("time_window_start_s", String(query.time_window_start_s));
+    }
+    if (query?.time_window_end_s !== undefined && query?.time_window_end_s !== null) {
+      params.set("time_window_end_s", String(query.time_window_end_s));
+    }
+    if (query?.limit_samples !== undefined && query?.limit_samples !== null) {
+      params.set("limit_samples", String(query.limit_samples));
+    }
+    const qStr = params.toString() ? `?${params.toString()}` : "";
     return this.request<RunMetrics>(
-      `/runs/${encodeURIComponent(runId)}/metrics/`,
+      `/runs/${encodeURIComponent(runId)}/metrics/${qStr}`,
       { method: "GET", signal }
     );
   }

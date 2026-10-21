@@ -20,6 +20,7 @@ The **Adaptive Multi-Agent Path Planning (AMAPP)** platform is a comprehensive s
 - **Real-World Road Networks:** Ingestion and parsing of OpenStreetMap (OSM) geometries alongside a deterministic offline fallback grid.
 - **Dynamic Traffic & Pedestrian Elements:** Signalized intersections, pedestrian crosswalks, jaywalking events, and emergency vehicle priority corridors.
 - **Real-Time 3D Visualization Dashboard:** Interactive web dashboard powered by Django Channels (WebSockets) and Three.js for real-time telemetry rendering and simulation steering.
+- **Operational Metrics Dashboard & Live KPIs:** Live KPI summary cards, pure SVG travel time distribution histogram and discrete step time-series charts, category filters, time-window query filters, and honest unavailable metric labels without data fabrication.
 
 ---
 
@@ -893,6 +894,7 @@ Phase 29 establishes an interactive, operator-facing, backend-authoritative inci
 - [docs/progress/PHASE_27.md](docs/progress/PHASE_27.md): Phase 27 V2V communication links, message animations, and network-state overlays report.
 - [docs/progress/PHASE_28.md](docs/progress/PHASE_28.md): Phase 28 adaptive routing visualization, route alternatives, and rerouting explanations report.
 - [docs/progress/PHASE_29.md](docs/progress/PHASE_29.md): Phase 29 interactive traffic incident injection and scenario controls report.
+- [docs/progress/PHASE_30.md](docs/progress/PHASE_30.md): Phase 30 operational metrics dashboard, live KPIs, and simulation analytics report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

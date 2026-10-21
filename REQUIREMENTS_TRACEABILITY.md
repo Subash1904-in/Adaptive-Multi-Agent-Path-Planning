@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 29 (Traffic Incidents and Scenario Controls)  
+**Current Phase:** Phase 30 (Operational Metrics Dashboard, Live KPIs, and Simulation Analytics)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 29 (Traffic Incidents and Scenario Controls):* Phase 29 delivers an interactive, operator-facing, backend-authoritative incident injection and scenario control system for simulation runs. It enables live injection, lifecycle tracking, and graceful removal of dynamic traffic incidents (road closures, localized congestion, physical obstacles, traffic signal phase overrides), validates all inputs atomically, broadcasts real-time WebSocket events (`incident.created`, `incident.removed`), renders distinct Three.js overlays at elevation $y = 0.10\,\text{m}$, seamlessly integrates with deep-cloned historical playback buffers, and provides an accessible, collapsible `IncidentControlPanel` UI. 183 frontend tests, 1,112 backend tests passing (95.61% line coverage).
+> *Note on Phase 30 (Operational Metrics Dashboard, Live KPIs, and Simulation Analytics):* Phase 30 delivers a comprehensive operational metrics dashboard and deterministic analytics engine for simulation runs. Grounded strictly in authoritative backend simulation records without synthetic fabrication, it computes trip completion rates, travel-time distributions (sample count, mean, median, p90, p95, min, max, dynamic histogram bins), intersection throughput, collision and near-miss event frequencies, V2V packet delivery ratios (PDR) with loss breakdown, dynamic rerouting activity, active incident breakdowns by type, and discrete time-series points. Visualized via 8 summary KPI cards, category tab filters, time-window boundary filters, pure SVG travel-time distribution histograms, and pure SVG discrete step time-series charts, with deep historical playback review isolation and honest "Unavailable" labels for unobserved stats. 192 frontend tests, 1,118 backend tests passing (95.60% line coverage).
 
 ---
 
@@ -31,7 +31,7 @@
 | **FR-11** | Communication Range Detection | `backend/apps/core/communication/discovery.py`, `backend/apps/core/communication/neighbors.py`, `frontend/src/features/scene3d/` | Phase 11, 12, 14, 27 | `TESTED` | Phase 11, 12, 14 Spatial Discovery & Phase 27 3D Range Disc Visualization Tested (`test_communication_discovery.py`, `v2v.test.ts`) |
 | **FR-12** | Communication Failure Handling | `backend/apps/core/communication/network.py`, `backend/apps/core/communication/neighbors.py`, `frontend/src/features/scene3d/` | Phase 11, 12, 14, 27 | `TESTED` | Phase 11, 12, 14 Degradation & Phase 27 Channel State / Drop Indicators Tested (`test_communication_impairment.py`, `v2v.test.ts`) |
 | **FR-13** | AI Model Training Using Reinforcement Learning | `rl_engine/` | Phase 32, 33, 34 | `NOT STARTED` | Pending Phase 32 |
-| **FR-14** | Real-Time 3D Visualization and Interactive Dashboard | `backend/apps/core/api/`, `backend/apps/core/realtime/`, `frontend/` | Phase 21–30 | `IN PROGRESS` | Phases 21–28 Complete (166 frontend tests, 1,097 backend tests passing; Playback controls, timeline scrubber, 3D city/models, Three.js V2V layer, and Adaptive Routing Overlays fully integrated; Phase 29 Traffic Incidents Next) |
+| **FR-14** | Real-Time 3D Visualization and Interactive Dashboard | `backend/apps/core/api/`, `backend/apps/core/realtime/`, `backend/apps/core/telemetry/`, `frontend/` | Phase 21–30 | `TESTED` | Phases 21–30 Complete (192 frontend tests, 1,118 backend tests passing; Playback controls, timeline scrubber, 3D city/models, Three.js V2V layer, Adaptive Routing Overlays, Incident Controls, and Operational Metrics Dashboard fully tested) |
 
 
 
@@ -159,8 +159,9 @@
 ### FR-14: Real-Time 3D Visualization and Interactive Dashboard
 - **Requirement Statement:** Develop a web-based dashboard using Django and Three.js; visualize realistic roads, buildings, autonomous vehicles, pedestrians, and traffic conditions; display real-time vehicle movements, V2V communication, route changes, and AI decisions.
 - **Target Phases:** Phase 21 (Django REST API), Phase 22 (Real-time WebSocket streaming), Phase 23 (Frontend scaffold), Phase 24 (3D city and road rendering), Phase 25 (Vehicle and pedestrian visualization), Phase 26 (Live simulation controls), Phase 27 (V2V visualization), Phase 28 (Adaptive routing visualization), Phase 29 (Traffic incidents and scenario controls), Phase 30 (Operational metrics dashboard).
-- **Components:** `backend/apps/core/realtime/`, `backend/apps/core/api/`, `frontend/src/features/scene3d/` (`SimulationViewer3D.tsx`, `geometry.ts`, `models.ts`, `interpolation.ts`, `v2vOverlay.ts`, `v2vAdapter.ts`, `routeOverlay.ts`, `routeAdapter.ts`, `incidentOverlay.ts`, `incidentAdapter.ts`), `frontend/src/features/playback/` (`playbackScheduler.ts`, `historyBuffer.ts`, `PlaybackBar.tsx`), `frontend/src/features/simulation/` (`EntityInspector.tsx`, `IncidentControlPanel.tsx`)
-- **Verification Plan:** WebSocket frame serialization tests, client connection lifecycle tests, Three.js mesh rendering verification, temporal interpolation unit tests, playback scheduler tests, history buffer tests with deep cloning, V2V overlay unit tests, route overlay unit tests, incident overlay unit tests, and component tests (`websocket-client.test.ts`, `api-client.test.ts`, `geometry.test.ts`, `interpolation.test.ts`, `models.test.ts`, `playback.test.ts`, `v2v.test.ts`, `routing.test.ts`, `incidents.test.ts`, `components.test.tsx`: 183 frontend tests, 1,112 backend tests passing).
-- **Current Status:** `IN PROGRESS (Phases 21–29 COMPLETED & TESTED; 183 frontend tests, 1,112 backend tests passing; Phase 30 Operational Metrics Dashboard Next)`
+- **Components:** `backend/apps/core/realtime/`, `backend/apps/core/api/`, `backend/apps/core/telemetry/analytics.py`, `frontend/src/features/scene3d/` (`SimulationViewer3D.tsx`, `geometry.ts`, `models.ts`, `interpolation.ts`, `v2vOverlay.ts`, `v2vAdapter.ts`, `routeOverlay.ts`, `routeAdapter.ts`, `incidentOverlay.ts`, `incidentAdapter.ts`), `frontend/src/features/playback/` (`playbackScheduler.ts`, `historyBuffer.ts`, `PlaybackBar.tsx`), `frontend/src/features/simulation/` (`EntityInspector.tsx`, `IncidentControlPanel.tsx`), `frontend/src/features/analytics/` (`OperationalDashboard.tsx`)
+- **Verification Plan:** WebSocket frame serialization tests, client connection lifecycle tests, Three.js mesh rendering verification, temporal interpolation unit tests, playback scheduler tests, history buffer tests with deep cloning, V2V overlay unit tests, route overlay unit tests, incident overlay unit tests, operational analytics engine aggregation tests, and component tests (`websocket-client.test.ts`, `api-client.test.ts`, `geometry.test.ts`, `interpolation.test.ts`, `models.test.ts`, `playback.test.ts`, `v2v.test.ts`, `routing.test.ts`, `incidents.test.ts`, `components.test.tsx`, `analytics.test.tsx`: 192 frontend tests, 1,118 backend tests passing).
+- **Current Status:** `TESTED (Phases 21–30 COMPLETED & TESTED; 192 frontend tests across 11 test suites, 1,118 backend tests passing with 95.60% coverage; Phase 31 Benchmarking Framework Next)`
+
 
 

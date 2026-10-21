@@ -1694,3 +1694,42 @@ Phase 26 establishes interactive simulation steering, a visible timeline scrubbe
 1. **Deep Snapshot Cloning**:
    - `SimulationFrameSnapshot` extended with `incidents?: IncidentSubsystemSnapshot | null`.
    - `SimulationHistoryBuffer` deep-clones all incident objects and state dictionaries per snapshot, ensuring that scrubbing through playback faithfully reflects historical incident states without mutating the active runner.
+
+---
+
+## 26. Operational Metrics Dashboard, Live KPIs, and Simulation Analytics (Phase 30)
+
+### 26.1 Authoritative Analytics Engine & Metric Provenance (`apps.core.telemetry.analytics`)
+1. **Deterministic Aggregation Architecture**:
+   - `OperationalAnalyticsAggregator.compute(tick_history, world, elapsed_time_s, time_step_s, tick_start, tick_end, limit_samples)` computes point-in-time and windowed analytics strictly from authoritative simulation records.
+   - Sourced directly from `WorldState.get_agents()`, `TickResult`, `WorldState.incident_manager`, and registered subsystem metric objects.
+2. **Strict Non-Fabrication & Honest "Unavailable" Policy**:
+   - Travel-time statistics (mean, median, p90, p95, min, max, histogram bins) are derived strictly from completed vehicle trips (`agent.is_arrived == True` and `agent.elapsed_time_s`). When sample count is 0, these values are returned as `None` and rendered as "Unavailable", rather than fabricating `0.0s`.
+   - Continuous V2V packet latency is labeled "Unavailable (Discrete)" because the communication subsystem simulates packet delivery in discrete simulation tick intervals without continuous sub-tick latency clocks.
+   - Division by zero safeguards ensure that $0 / 0$ produces `None` or explicit unavailable states instead of software crashes or fabricated ratios.
+3. **Intersection Throughput Tracking**:
+   - Throughput is calculated from verified vehicle road edge transitions (`from_edge` $\to$ `to_edge`), resolving the connecting intermediate junction node `from_edge.end_node_id`.
+   - Rates are expressed in crossings per simulation minute: $\text{rate} = \frac{\text{crossings}}{t_{\text{sim}} / 60}$.
+
+### 26.2 REST Metrics API & Query Constraints (`/api/v1/runs/{run_id}/metrics/`)
+1. **Request Query Validation (`MetricsQuerySerializer`)**:
+   - Parameters: `tick_start` ($\ge 0$), `tick_end` ($\ge 0$, must be $\ge \text{tick\_start}$), `time_window_start_s` ($\ge 0.0$), `time_window_end_s` ($\ge 0.0$, must be $\ge \text{time\_window\_start\_s}$), and `limit_samples` ($1 \le n \le 5000$, default 500).
+   - Validates bounded history requests and prevents unbounded memory consumption on large simulation runs.
+2. **Payload Structure**:
+   - Returns `{ "run_id": "...", "lifecycle_state": "...", "current_tick": N, "metrics": { ... }, "analytics": { "trips": {...}, "travel_time_distribution": {...}, "throughput": {...}, "safety": {...}, "communication": {...}, "routing": {...}, "incidents": {...}, "time_series": [...] } }`.
+
+### 26.3 Zero-Dependency SVG Visualization Architecture (`OperationalDashboard.tsx`)
+1. **Lightweight Pure SVG Components**:
+   - Built with pure React SVG elements, completely avoiding heavy third-party charting libraries (Chart.js, Recharts, D3).
+   - `TravelTimeHistogramSvg`: Renders proportional vertical column bars, frequency percentage badges, baseline axes, sample counts, and range bounds.
+   - `TimeSeriesStepChartSvg`: Discrete step line rendering (`L x prevY L x y`) strictly preventing smooth curves that misrepresent discrete tick observations. Metric series selector supports `PDR (%)`, `Completed Trips`, `Collisions`, `Near Misses`, `Active Incidents`, and `Reroutes Accepted`.
+2. **Accessibility & Responsive Layout**:
+   - WCAG-compliant contrast, descriptive `aria-label` attributes on chart SVGs, interactive category tab switches, and explicit time-window boundary filter controls.
+
+### 26.4 Historical Playback Integration & Immutability Isolation
+1. **Live vs. Historical Metrics Isolation**:
+   - In live mode (`activeReviewTick === null`), the dashboard displays live metrics streamed via WebSocket or refreshed via REST.
+   - When scrubbing playback (`activeReviewTick !== null`), the dashboard renders metrics stored in `SimulationFrameSnapshot.metrics`.
+   - Current live totals are never back-projected onto past historical ticks.
+   - Displays an prominent amber banner: `"Historical Review Mode — Displaying recorded metrics at tick N"` with a one-click `"Return to Live"` action.
+

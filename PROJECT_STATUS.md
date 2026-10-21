@@ -1,10 +1,10 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 29 (Traffic Incidents and Scenario Controls)
+- **Current Phase:** Phase 30 (Operational Metrics Dashboard, Live KPIs, and Simulation Analytics)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 30 (Operational Metrics Dashboard) — **PENDING** (Awaiting user prompt)
-- **Last Updated:** 2026-10-21
+- **Next Phase:** Phase 31 (Benchmarking Framework) — **PENDING** (Awaiting user prompt)
+- **Last Updated:** 2026-10-22
 
 
 ---
@@ -45,7 +45,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 27** | **V2V visualization** | **COMPLETED** | Three.js V2V communication layer: active/stale links from neighbor tables, message transit pulses, verified range disc, degradation overlays (channel state, packet loss, partitions), HUD toggles, collapsible legend, 147 frontend tests, 1,097 backend tests. |
 | **Phase 28** | **Adaptive routing visualization** | **COMPLETED** | Interactive Three.js routing layer: active routes at $y=0.12\text{m}$, baseline planned paths, candidate alternative paths, rotating 3D reroute markers, decision reasons, cost comparisons, EntityInspector routing telemetry, HUD toggles, collapsible legend, 166 frontend tests, 1,097 backend tests. |
 | **Phase 29** | **Traffic incidents and scenario controls** | **COMPLETED** | Interactive Three.js incident overlays (road closure, congestion, obstacle, signal override) at $y=0.10\text{m}$, backend-authoritative REST APIs (`/runs/{id}/incidents/`), WebSocket live events, IncidentControlPanel UI, 183 frontend tests, 1,112 backend tests (95.61% coverage). |
-| **Phase 30** | **Operational metrics dashboard** | **Pending** | Live metric cards & charts (trips, travel time, throughput, collisions, near misses, PDR). |
+| **Phase 30** | **Operational metrics dashboard** | **COMPLETED** | Live & historical operational metrics dashboard, pure SVG travel time histogram & step time-series charts, 8 KPI cards, time-window filtering, deterministic trip/throughput/PDR analytics, 192 frontend tests, 1,118 backend tests (95.60% coverage). |
 | **Phase 31** | Benchmarking framework | Pending | Repeatable experiments comparing A*, static baseline, adaptive policy; CSV & JSON export. |
 | **Phase 32** | Reinforcement-learning environment | Pending | Gymnasium-compatible route-selection environment, bounded observation/action spaces, reward balancing. |
 | **Phase 33** | Train and save an RL baseline | Pending | Stable-Baselines3 PPO training with fixed seed, bounded budget, artifact persistence, baseline fallback. |
@@ -258,16 +258,17 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **OSM Acquisition & Graph Normalization (`test_osm_*.py`):** 60 passed.
 - **Road Graph & City Generator (`test_road_graph.py`, `test_city_generator.py`):** 41 passed.
 - **Domain Models, Values & Codecs (`test_domain_*.py`):** 105 passed.
+- **Operational Analytics & Metrics Tests (`test_operational_analytics.py`):** 6 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total Backend:** **1,112 passed, 0 failed**, **95.61% line coverage** (exceeds 80% threshold).
-- **Frontend Unit & Component Suites:** **183 passed across 10 test suites** (`incidents.test.ts`: 13 passed; `components.test.tsx`: 27 passed; `routing.test.ts`: 16 passed; `v2v.test.ts`: 20 passed; `playback.test.ts`: 14 passed; `interpolation.test.ts`: 25 passed; `models.test.ts`: 18 passed; `geometry.test.ts`: 34 passed; `api-client.test.ts`: 8 passed; `websocket-client.test.ts`: 8 passed).
+- **Total Backend:** **1,118 passed, 0 failed**, **95.60% line coverage** (exceeds 80% threshold).
+- **Frontend Unit & Component Suites:** **192 passed across 11 test suites** (`analytics.test.tsx`: 8 passed; `incidents.test.ts`: 13 passed; `components.test.tsx`: 27 passed; `routing.test.ts`: 16 passed; `v2v.test.ts`: 20 passed; `playback.test.ts`: 14 passed; `interpolation.test.ts`: 25 passed; `models.test.ts`: 18 passed; `geometry.test.ts`: 34 passed; `api-client.test.ts`: 9 passed; `websocket-client.test.ts`: 8 passed).
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Full Django REST API layer operational under `/api/v1/`. Scenario execution stepping protected by non-blocking lock returning 409 Conflict on overlapping calls. Frontend playback controller drives simulation progression via bounded, non-overlapping step scheduling. Interactive Three.js route visualization layer renders active dynamic paths at $y = 0.12\text{m}$, baseline planned routes, candidate alternative paths, 3D rotating rerouting diamond markers, authoritative decision reasons, cost comparisons, EntityInspector routing telemetry, and historical playback scrubbing. Dynamic incident injection and scenario controls allow operators to introduce road closures, congestion, obstacles, and signal overrides with full baseline restoration and Three.js overlays at $y = 0.10\text{m}$.
+- **Notes:** Full Django REST API layer operational under `/api/v1/`. Scenario execution stepping protected by non-blocking lock returning 409 Conflict on overlapping calls. Frontend playback controller drives simulation progression via bounded, non-overlapping step scheduling. Interactive Three.js route visualization layer renders active dynamic paths at $y = 0.12\text{m}$, baseline planned routes, candidate alternative paths, 3D rotating rerouting diamond markers, authoritative decision reasons, cost comparisons, EntityInspector routing telemetry, and historical playback scrubbing. Dynamic incident injection and scenario controls allow operators to introduce road closures, congestion, obstacles, and signal overrides with full baseline restoration and Three.js overlays at $y = 0.10\text{m}$. Operational metrics dashboard renders live and historical summary KPI cards, category filtering, pure SVG travel time distribution histogram and step time-series charts with zero external charting bloat, and strict honest "Unavailable" labels for unobserved stats.
 - **Educational Disclaimer:** This simulation is developed solely for educational and research purposes and is NOT certified for physical vehicle deployment.
 
 ---
@@ -298,10 +299,13 @@ This roadmap is strictly aligned with our agreed master development plan, divide
    - Health: `http://127.0.0.1:8000/api/v1/health/`
    - Scenarios: `http://127.0.0.1:8000/api/v1/scenarios/`
    - Runs: `http://127.0.0.1:8000/api/v1/runs/`
+   - Metrics: `http://127.0.0.1:8000/api/v1/runs/{run_id}/metrics/`
    - Incidents: `http://127.0.0.1:8000/api/v1/runs/{run_id}/incidents/`
 
 ---
 
 ## 9. Exact Next Steps
-1. Await user prompt for **Phase 30: Operational Metrics Dashboard**.
-2. Implement live metric cards and charts (trips completed, travel time distributions, intersection throughput, collision and near-miss metrics, packet delivery ratios).
+1. Await user prompt for **Phase 31: Benchmarking Framework**.
+2. Build repeatable benchmarking framework comparing path-planning algorithms (A*, Dijkstra, static baseline, and future learned policies) across standard scenario test suites.
+3. Generate automated CSV and JSON benchmark reports.
+

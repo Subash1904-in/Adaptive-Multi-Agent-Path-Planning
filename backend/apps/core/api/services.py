@@ -29,6 +29,7 @@ from apps.core.scenarios.models import (
 from apps.core.scenarios.runner import ScenarioRunner
 from apps.core.scenarios.validation import validate_scenario
 from apps.core.telemetry.aggregation import MetricsAggregator
+from apps.core.telemetry.analytics import OperationalAnalyticsAggregator
 from apps.core.telemetry.exceptions import DuplicateRunIdError, RunStateTransitionError
 from apps.core.telemetry.models import TelemetryConfig
 
@@ -446,8 +447,14 @@ class SimulationService:
         result_dict["disclaimer"] = EDUCATIONAL_DISCLAIMER
         return result_dict
 
-    def get_run_metrics(self, run_id: str) -> dict[str, Any]:
-        """Retrieve computed metrics summary for a run."""
+    def get_run_metrics(
+        self,
+        run_id: str,
+        time_window_start_s: Optional[float] = None,
+        time_window_end_s: Optional[float] = None,
+        limit_samples: int = 500,
+    ) -> dict[str, Any]:
+        """Retrieve computed metrics summary and operational analytics for a run."""
         runner = self.run_registry.get(run_id)
         if runner._last_result and runner._last_result.metrics_summary:
             metrics = runner._last_result.metrics_summary
@@ -473,11 +480,22 @@ class SimulationService:
             )
             metrics = agg.to_dict()
 
+        analytics = OperationalAnalyticsAggregator.compute(
+            tick_history=runner.tick_history,
+            world=runner.world,
+            elapsed_time_s=runner.engine.elapsed_time_s,
+            time_step_s=runner.engine.time_step_s,
+            max_time_series_points=limit_samples,
+            time_window_start_s=time_window_start_s,
+            time_window_end_s=time_window_end_s,
+        )
+
         return {
             "run_id": runner.run_id,
             "lifecycle_state": runner.lifecycle_state.value,
             "current_tick": runner.current_tick,
             "metrics": metrics,
+            "analytics": analytics,
             "disclaimer": EDUCATIONAL_DISCLAIMER,
         }
 

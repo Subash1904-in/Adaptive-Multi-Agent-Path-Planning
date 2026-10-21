@@ -2,6 +2,8 @@
  * Domain types matching the AMAPP simulation REST API and domain models.
  */
 
+import type { OperationalAnalytics } from "./analytics";
+
 export interface Position2D {
   x: number;
   y: number;
@@ -195,6 +197,7 @@ export interface RunMetrics {
       decisions_accepted?: number;
     };
   };
+  analytics?: OperationalAnalytics;
   disclaimer: string;
 }
 

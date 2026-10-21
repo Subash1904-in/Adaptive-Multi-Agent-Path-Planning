@@ -8,9 +8,11 @@ import { PlaybackBar } from "../features/playback/PlaybackBar";
 import { PlaybackScheduler } from "../features/playback/playbackScheduler";
 import { SimulationHistoryBuffer } from "../features/playback/historyBuffer";
 import { MetricsPanel } from "../features/telemetry/MetricsPanel";
+import { OperationalDashboard } from "../features/analytics/OperationalDashboard";
 import { TelemetryFeed } from "../features/telemetry/TelemetryFeed";
 import { defaultApiClient } from "../lib/api/client";
 import { SimulationWebSocketClient } from "../lib/websocket/client";
+import type { MetricsQueryParams } from "../types/analytics";
 import {
   createIncidentSubsystemSnapshot,
   type CreateIncidentPayload,
@@ -79,6 +81,8 @@ export const App: React.FC = () => {
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [activeIncidents, setActiveIncidents] = useState<Map<string, IncidentRecord>>(new Map());
   const [isInjectingIncident, setIsInjectingIncident] = useState<boolean>(false);
+  const [activeBottomTab, setActiveBottomTab] = useState<"analytics" | "telemetry">("analytics");
+  const [isRefreshingMetrics, setIsRefreshingMetrics] = useState<boolean>(false);
 
   // Playback & Historical Review State
   const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
@@ -920,6 +924,22 @@ export const App: React.FC = () => {
     [currentRun?.run_id]
   );
 
+  const handleRefreshMetrics = useCallback(
+    async (params?: MetricsQueryParams) => {
+      if (!currentRun?.run_id) return;
+      setIsRefreshingMetrics(true);
+      try {
+        const m = await defaultApiClient.getRunMetrics(currentRun.run_id, params);
+        setMetrics(m);
+      } catch (err) {
+        console.warn("Failed to refresh metrics:", err);
+      } finally {
+        setIsRefreshingMetrics(false);
+      }
+    },
+    [currentRun?.run_id]
+  );
+
   // 8. Determine Entities to Render (Historical Review vs. Live)
   const renderedVehicles = useMemo(() => {
     if (activeReviewTick !== null) {
@@ -971,6 +991,15 @@ export const App: React.FC = () => {
     }
     return Array.from(activeIncidents.values());
   }, [activeReviewTick, activeIncidents]);
+
+  // Determine Operational Metrics (Historical Review vs. Live)
+  const renderedMetrics = useMemo(() => {
+    if (activeReviewTick !== null) {
+      const snap = historyBufferRef.current.getSnapshot(activeReviewTick);
+      if (snap) return snap.metrics ?? null;
+    }
+    return metrics;
+  }, [activeReviewTick, metrics]);
 
   // Find active route for selected vehicle
   const activeRoute = useMemo(() => {
@@ -1068,7 +1097,7 @@ export const App: React.FC = () => {
             />
           )}
 
-          <MetricsPanel metrics={metrics} />
+          <MetricsPanel metrics={renderedMetrics} />
         </section>
 
         {/* Center Main: 3D Simulation Viewport & Playback Bar */}
@@ -1115,13 +1144,64 @@ export const App: React.FC = () => {
             />
           </div>
 
-          {/* Bottom Row inside Viewport Column: Telemetry Feed */}
-          <div className="telemetry-wrapper">
-            <TelemetryFeed
-              events={telemetryEvents}
-              latestGap={latestGap}
-              onClearGap={() => setLatestGap(null)}
-            />
+          {/* Bottom Row inside Viewport Column: Operational Dashboard / Telemetry Feed Tabs */}
+          <div className="bottom-tabs-container">
+            <div className="bottom-tab-bar" role="tablist" aria-label="Simulation Views">
+              <button
+                type="button"
+                role="tab"
+                id="tab-analytics"
+                aria-selected={activeBottomTab === "analytics"}
+                aria-controls="panel-analytics"
+                className={`bottom-tab-btn ${activeBottomTab === "analytics" ? "active" : ""}`}
+                onClick={() => setActiveBottomTab("analytics")}
+              >
+                📊 Operational Dashboard &amp; Analytics
+              </button>
+              <button
+                type="button"
+                role="tab"
+                id="tab-telemetry"
+                aria-selected={activeBottomTab === "telemetry"}
+                aria-controls="panel-telemetry"
+                className={`bottom-tab-btn ${activeBottomTab === "telemetry" ? "active" : ""}`}
+                onClick={() => setActiveBottomTab("telemetry")}
+              >
+                📡 Telemetry Stream ({telemetryEvents.length})
+              </button>
+            </div>
+
+            <div
+              id="panel-analytics"
+              role="tabpanel"
+              aria-labelledby="tab-analytics"
+              hidden={activeBottomTab !== "analytics"}
+            >
+              <OperationalDashboard
+                metrics={renderedMetrics}
+                currentRun={currentRun}
+                isReviewing={activeReviewTick !== null}
+                reviewTick={activeReviewTick}
+                onReturnToLive={handleReturnToLive}
+                onRefreshMetrics={handleRefreshMetrics}
+                isLoading={isRefreshingMetrics}
+              />
+            </div>
+
+            <div
+              id="panel-telemetry"
+              role="tabpanel"
+              aria-labelledby="tab-telemetry"
+              hidden={activeBottomTab !== "telemetry"}
+            >
+              <div className="telemetry-wrapper">
+                <TelemetryFeed
+                  events={telemetryEvents}
+                  latestGap={latestGap}
+                  onClearGap={() => setLatestGap(null)}
+                />
+              </div>
+            </div>
           </div>
         </section>
       </main>

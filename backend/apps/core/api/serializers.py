@@ -433,6 +433,39 @@ class TelemetryQuerySerializer(serializers.Serializer):
     limit = serializers.IntegerField(required=False, min_value=1, max_value=50000, default=None)
 
 
+class MetricsQuerySerializer(serializers.Serializer):
+    """Validates query parameters for filtering run metrics and analytics."""
+
+    tick_start = serializers.IntegerField(required=False, min_value=0, default=None)
+    tick_end = serializers.IntegerField(required=False, min_value=0, default=None)
+    time_window_start_s = serializers.FloatField(required=False, min_value=0.0, default=None)
+    time_window_end_s = serializers.FloatField(required=False, min_value=0.0, default=None)
+    limit_samples = serializers.IntegerField(
+        required=False, min_value=1, max_value=500, default=100
+    )
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """Validate range bounds."""
+        tick_start = attrs.get("tick_start")
+        tick_end = attrs.get("tick_end")
+        if tick_start is not None and tick_end is not None and tick_start > tick_end:
+            raise serializers.ValidationError(
+                {"tick_start": "tick_start cannot be greater than tick_end."}
+            )
+
+        start_s = attrs.get("time_window_start_s")
+        end_s = attrs.get("time_window_end_s")
+        if start_s is not None and end_s is not None and start_s > end_s:
+            raise serializers.ValidationError(
+                {
+                    "time_window_start_s": (
+                        "time_window_start_s cannot be greater than time_window_end_s."
+                    )
+                }
+            )
+        return attrs
+
+
 class ExportQuerySerializer(serializers.Serializer):
     """Validates query parameters for simulation result export."""
 

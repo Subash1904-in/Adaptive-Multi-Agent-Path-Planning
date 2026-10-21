@@ -167,7 +167,13 @@ Endpoints for initializing, stepping, cancelling, and inspecting scenario simula
   - **Success Response (`200 OK`):** Full execution result dictionary with final world snapshot and reproducibility fingerprints.
 
 - **`GET /api/v1/runs/{run_id}/metrics/`**
-  - **Purpose:** Retrieves cross-subsystem aggregated metrics compiled by `MetricsAggregator`.
+  - **Purpose:** Retrieves cross-subsystem aggregated metrics and deterministic operational analytics.
+  - **Query Parameters (Optional):**
+    - `tick_start`: Minimum inclusive tick index (int $\ge 0$).
+    - `tick_end`: Maximum inclusive tick index (int $\ge 0$, must be $\ge \text{tick\_start}$).
+    - `time_window_start_s`: Minimum simulated time window boundary (float $\ge 0.0$).
+    - `time_window_end_s`: Maximum simulated time window boundary (float $\ge 0.0$, must be $\ge \text{time\_window\_start\_s}$).
+    - `limit_samples`: Maximum time-series sample points returned (int $\in [1, 5000]$, default 500).
   - **Success Response (`200 OK`):**
     ```json
     {
@@ -185,9 +191,77 @@ Endpoints for initializing, stepping, cancelling, and inspecting scenario simula
         "emergency": {"corridors_created": 0, "corridors_active_final": 0},
         "decision": {"evaluations_total": 0, "decisions_accepted": 0}
       },
+      "analytics": {
+        "trips": {
+          "completed_trips": 0,
+          "total_trips": 1,
+          "active_trips": 1,
+          "completion_rate_pct": 0.0
+        },
+        "travel_time_distribution": {
+          "sample_count": 0,
+          "mean_s": null,
+          "median_s": null,
+          "p90_s": null,
+          "p95_s": null,
+          "min_s": null,
+          "max_s": null,
+          "bins": []
+        },
+        "throughput": {
+          "total_crossings": 0,
+          "crossings_per_minute": 0.0,
+          "top_intersections": []
+        },
+        "safety": {
+          "actual_collisions": 0,
+          "near_misses": 0,
+          "min_separation_observed_m": null,
+          "min_ttc_observed_s": null
+        },
+        "communication": {
+          "messages_sent": 10,
+          "messages_delivered": 10,
+          "pdr": 1.0,
+          "loss_rate": 0.0,
+          "latency_ms_available": false,
+          "loss_breakdown": {
+            "distance_attenuation": 0,
+            "snr_fading": 0,
+            "hidden_terminal": 0
+          }
+        },
+        "routing": {
+          "reroutes_evaluated": 0,
+          "reroutes_accepted": 0,
+          "acceptance_rate_pct": null
+        },
+        "incidents": {
+          "total_active": 0,
+          "active_by_type": {
+            "road_closure": 0,
+            "congestion": 0,
+            "obstacle": 0,
+            "signal_override": 0
+          }
+        },
+        "time_series": [
+          {
+            "tick": 10,
+            "sim_time_s": 1.0,
+            "completed_trips": 0,
+            "pdr": 1.0,
+            "collisions": 0,
+            "near_misses": 0,
+            "active_incidents": 0,
+            "reroutes_accepted": 0
+          }
+        ]
+      },
       "disclaimer": "AMAPP is an educational simulation framework..."
     }
     ```
+
 
 - **`GET /api/v1/runs/{run_id}/telemetry/`**
   - **Purpose:** Queries bounded in-memory telemetry records with optional multi-attribute filters.

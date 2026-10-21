@@ -181,4 +181,41 @@ describe("SimulationApiClient", () => {
       })
     );
   });
+
+  it("fetches run metrics with optional time-window query parameters", async () => {
+    const mockMetrics = {
+      run_id: "run_metrics_01",
+      lifecycle_state: "RUNNING",
+      current_tick: 50,
+      metrics: {},
+    };
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => mockMetrics,
+    } as Response);
+
+    // Call without query params
+    const res1 = await client.getRunMetrics("run_metrics_01");
+    expect(res1).toEqual(mockMetrics);
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "http://test-server/api/v1/runs/run_metrics_01/metrics/",
+      expect.objectContaining({ method: "GET" })
+    );
+
+    // Call with query params
+    const res2 = await client.getRunMetrics("run_metrics_01", {
+      tick_start: 10,
+      tick_end: 40,
+      time_window_start_s: 1.0,
+      time_window_end_s: 4.0,
+    });
+    expect(res2).toEqual(mockMetrics);
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "http://test-server/api/v1/runs/run_metrics_01/metrics/?tick_start=10&tick_end=40&time_window_start_s=1&time_window_end_s=4",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
 });
+
