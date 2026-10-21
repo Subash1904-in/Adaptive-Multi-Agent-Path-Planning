@@ -1,18 +1,36 @@
 /**
  * Interactive 3D Simulation Viewport for AMAPP.
- * Built with Three.js rendering road networks, vehicles, pedestrians, traffic signals, and routes.
+ * Built with Three.js rendering realistic road networks, multi-lane markings,
+ * clean intersection pads, zebra-style crosswalks, curbs/sidewalks,
+ * deterministic procedural urban buildings, day/night lighting modes, and
+ * perspective/orthographic camera projection modes.
  */
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
-import type { RoadNetworkGeometry, RoadNodeGeometry } from "../../types/graph";
+import type {
+  CameraProjectionMode,
+  LightingMode,
+  RoadNetworkGeometry,
+  RoadNodeGeometry,
+} from "../../types/graph";
 import type {
   PedestrianState,
   ScenarioDefinition,
   TrafficSignalState,
   VehicleState,
 } from "../../types/simulation";
-import { computeNetworkBounds, extractRoadNetworkFromScenario, simToWorldCoordinates } from "./geometry";
+import {
+  computeNetworkBounds,
+  computeRoadEdgeWidth,
+  extractRoadNetworkFromScenario,
+  generateCurbsAndSidewalks,
+  generateInferredCrosswalks,
+  generateMultiLaneMarkings,
+  generateProceduralBuildings,
+  generateZebraStripes,
+  simToWorldCoordinates,
+} from "./geometry";
 
 export interface SimulationViewer3DProps {
   scenario: ScenarioDefinition | null;
@@ -38,18 +56,42 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Viewport Settings State
+  const [lightingMode, setLightingMode] = useState<LightingMode>("day");
+  const [projectionMode, setProjectionMode] = useState<CameraProjectionMode>("perspective");
+  const [showBuildings, setShowBuildings] = useState<boolean>(true);
+  const [webglError, setWebglError] = useState<string | null>(null);
+
   // Three.js internal references
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const perspectiveCameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const orthographicCameraRef = useRef<THREE.OrthographicCamera | null>(null);
   const animFrameIdRef = useRef<number | null>(null);
 
-  // Rendering object pools
+  // Lighting references
+  const ambientLightRef = useRef<THREE.AmbientLight | null>(null);
+  const dirLightRef = useRef<THREE.DirectionalLight | null>(null);
+  const gridHelperRef = useRef<THREE.GridHelper | null>(null);
+
+  // Rendering object groups
   const roadGroupRef = useRef<THREE.Group>(new THREE.Group());
+  const buildingsGroupRef = useRef<THREE.Group>(new THREE.Group());
   const vehicleMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
   const pedestrianMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
   const signalMeshesRef = useRef<Map<string, THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>>>(new Map());
   const routeLineRef = useRef<THREE.Line | null>(null);
+
+  // Material Cache for resource reuse
+  const materialsRef = useRef<{
+    roadMat?: THREE.MeshLambertMaterial;
+    junctionMat?: THREE.MeshLambertMaterial;
+    sidewalkMat?: THREE.MeshLambertMaterial;
+    curbMat?: THREE.MeshLambertMaterial;
+    markingWhiteMat?: THREE.MeshBasicMaterial;
+    markingYellowMat?: THREE.MeshBasicMaterial;
+    crosswalkMat?: THREE.MeshBasicMaterial;
+  }>({});
 
   // Mouse interaction state for camera orbit / pan / zoom
   const isDraggingRef = useRef(false);
@@ -59,7 +101,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
   const cameraDistanceRef = useRef<number>(200);
   const cameraAngleRef = useRef<{ theta: number; phi: number }>({
     theta: Math.PI / 4,
-    phi: Math.PI / 3,
+    phi: Math.PI / 3.5,
   });
 
   const [activeGeometry, setActiveGeometry] = useState<RoadNetworkGeometry>(() =>
@@ -72,19 +114,37 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     setActiveGeometry(geom);
   }, [scenario]);
 
-  // 2. Camera position updater helper
+  // 2. Camera position updater helper (synchronizes both Perspective and Orthographic cameras)
   const updateCameraPosition = useCallback(() => {
-    if (!cameraRef.current) return;
     const { theta, phi } = cameraAngleRef.current;
     const r = cameraDistanceRef.current;
     const target = cameraTargetRef.current;
 
-    cameraRef.current.position.set(
-      target.x + r * Math.sin(phi) * Math.sin(theta),
-      target.y + r * Math.cos(phi),
-      target.z + r * Math.sin(phi) * Math.cos(theta)
-    );
-    cameraRef.current.lookAt(target);
+    const posX = target.x + r * Math.sin(phi) * Math.sin(theta);
+    const posY = target.y + r * Math.cos(phi);
+    const posZ = target.z + r * Math.sin(phi) * Math.cos(theta);
+
+    if (perspectiveCameraRef.current) {
+      perspectiveCameraRef.current.position.set(posX, posY, posZ);
+      perspectiveCameraRef.current.lookAt(target);
+    }
+
+    if (orthographicCameraRef.current) {
+      const container = containerRef.current;
+      const w = container?.clientWidth || 800;
+      const h = container?.clientHeight || 500;
+      const aspect = w / h;
+      const frustumSize = r * 0.85;
+
+      orthographicCameraRef.current.left = (-frustumSize * aspect) / 2;
+      orthographicCameraRef.current.right = (frustumSize * aspect) / 2;
+      orthographicCameraRef.current.top = frustumSize / 2;
+      orthographicCameraRef.current.bottom = -frustumSize / 2;
+      orthographicCameraRef.current.updateProjectionMatrix();
+
+      orthographicCameraRef.current.position.set(posX, posY, posZ);
+      orthographicCameraRef.current.lookAt(target);
+    }
   }, []);
 
   // 3. Reset Camera View
@@ -104,15 +164,27 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
 
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 500;
+    const aspect = width / height;
 
     // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0f1d);
     sceneRef.current = scene;
 
-    // Camera
-    const camera = new THREE.PerspectiveCamera(45, width / height, 1, 3000);
-    cameraRef.current = camera;
+    // Perspective Camera
+    const perspCamera = new THREE.PerspectiveCamera(45, aspect, 1, 3000);
+    perspectiveCameraRef.current = perspCamera;
+
+    // Orthographic Camera
+    const orthoFrustum = 200;
+    const orthoCamera = new THREE.OrthographicCamera(
+      (-orthoFrustum * aspect) / 2,
+      (orthoFrustum * aspect) / 2,
+      orthoFrustum / 2,
+      -orthoFrustum / 2,
+      1,
+      3000
+    );
+    orthographicCameraRef.current = orthoCamera;
 
     // Renderer
     let renderer: THREE.WebGLRenderer;
@@ -126,26 +198,47 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
       renderer.setSize(width, height);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       rendererRef.current = renderer;
+      setWebglError(null);
     } catch (err) {
-      console.warn("WebGL initialization note:", err);
+      const isTestEnv =
+        (globalThis as unknown as { process?: { env?: { NODE_ENV?: string } } }).process?.env?.NODE_ENV === "test";
+      if (!isTestEnv) {
+        console.warn("WebGL initialization note:", err);
+      }
+      setWebglError("Unable to initialize WebGL context on this device/display.");
       return;
     }
 
+    // Shared Materials Initialization
+    materialsRef.current = {
+      roadMat: new THREE.MeshLambertMaterial({ color: 0x1e293b }),
+      junctionMat: new THREE.MeshLambertMaterial({ color: 0x334155 }),
+      sidewalkMat: new THREE.MeshLambertMaterial({ color: 0x64748b }),
+      curbMat: new THREE.MeshLambertMaterial({ color: 0x94a3b8 }),
+      markingWhiteMat: new THREE.MeshBasicMaterial({ color: 0xf8fafc }),
+      markingYellowMat: new THREE.MeshBasicMaterial({ color: 0xfacc15 }),
+      crosswalkMat: new THREE.MeshBasicMaterial({ color: 0xffffff }),
+    };
+
     // Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    ambientLightRef.current = ambientLight;
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
     dirLight.position.set(150, 300, 150);
+    dirLightRef.current = dirLight;
     scene.add(dirLight);
 
     // Ground Grid Helper
-    const grid = new THREE.GridHelper(1000, 50, 0x1e293b, 0x0f172a);
+    const grid = new THREE.GridHelper(1200, 60, 0x1e293b, 0x0f172a);
     grid.position.y = -0.1;
+    gridHelperRef.current = grid;
     scene.add(grid);
 
-    // Road network group
+    // Groups
     scene.add(roadGroupRef.current);
+    scene.add(buildingsGroupRef.current);
 
     // Initial camera placement
     handleResetCamera();
@@ -153,20 +246,38 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     // Render loop
     const animate = () => {
       animFrameIdRef.current = requestAnimationFrame(animate);
-      if (rendererRef.current && sceneRef.current && cameraRef.current) {
-        rendererRef.current.render(sceneRef.current, cameraRef.current);
+      if (rendererRef.current && sceneRef.current) {
+        const activeCam =
+          projectionMode === "perspective"
+            ? perspectiveCameraRef.current
+            : orthographicCameraRef.current;
+        if (activeCam) {
+          rendererRef.current.render(sceneRef.current, activeCam);
+        }
       }
     };
     animate();
 
     // Resize observer
     const handleResize = () => {
-      if (!container || !rendererRef.current || !cameraRef.current) return;
+      if (!container || !rendererRef.current) return;
       const w = container.clientWidth;
       const h = container.clientHeight;
       if (w === 0 || h === 0) return;
-      cameraRef.current.aspect = w / h;
-      cameraRef.current.updateProjectionMatrix();
+      const newAspect = w / h;
+
+      if (perspectiveCameraRef.current) {
+        perspectiveCameraRef.current.aspect = newAspect;
+        perspectiveCameraRef.current.updateProjectionMatrix();
+      }
+      if (orthographicCameraRef.current) {
+        const frustumSize = cameraDistanceRef.current * 0.85;
+        orthographicCameraRef.current.left = (-frustumSize * newAspect) / 2;
+        orthographicCameraRef.current.right = (frustumSize * newAspect) / 2;
+        orthographicCameraRef.current.top = frustumSize / 2;
+        orthographicCameraRef.current.bottom = -frustumSize / 2;
+        orthographicCameraRef.current.updateProjectionMatrix();
+      }
       rendererRef.current.setSize(w, h);
     };
 
@@ -177,36 +288,106 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
       if (animFrameIdRef.current) {
         cancelAnimationFrame(animFrameIdRef.current);
       }
-      renderer.dispose();
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
+        rendererRef.current = null;
+      }
     };
-  }, [handleResetCamera]);
+  }, [handleResetCamera, projectionMode]);
 
-  // 5. Rebuild Road Network Meshes when activeGeometry changes
+  // 5. Update Lighting & Day/Night Mode colors
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const amb = ambientLightRef.current;
+    const dir = dirLightRef.current;
+    const mats = materialsRef.current;
+    if (!scene || !amb || !dir || !mats) return;
+
+    if (lightingMode === "day") {
+      scene.background = new THREE.Color(0x0f172a);
+      amb.color.setHex(0xffffff);
+      amb.intensity = 0.85;
+      dir.color.setHex(0xffffff);
+      dir.intensity = 1.1;
+      dir.position.set(150, 300, 150);
+
+      mats.roadMat?.color.setHex(0x1e293b);
+      mats.junctionMat?.color.setHex(0x334155);
+      mats.sidewalkMat?.color.setHex(0x64748b);
+      mats.curbMat?.color.setHex(0x94a3b8);
+    } else {
+      // Night Mode
+      scene.background = new THREE.Color(0x020617);
+      amb.color.setHex(0x1e1b4b);
+      amb.intensity = 0.35;
+      dir.color.setHex(0x93c5fd);
+      dir.intensity = 0.5;
+      dir.position.set(80, 200, 80);
+
+      mats.roadMat?.color.setHex(0x090d16);
+      mats.junctionMat?.color.setHex(0x111827);
+      mats.sidewalkMat?.color.setHex(0x1e293b);
+      mats.curbMat?.color.setHex(0x334155);
+    }
+  }, [lightingMode]);
+
+  // 6. Update Building Visibility
+  useEffect(() => {
+    buildingsGroupRef.current.visible = showBuildings;
+  }, [showBuildings]);
+
+  // 7. Rebuild Road Network Meshes, Markings, Crosswalks, and Procedural Buildings
   useEffect(() => {
     const roadGroup = roadGroupRef.current;
-    // Clear old children
-    while (roadGroup.children.length > 0) {
-      const child = roadGroup.children.pop();
-      if (child) roadGroup.remove(child);
-    }
+    const buildingsGroup = buildingsGroupRef.current;
+    const mats = materialsRef.current;
+
+    // Helper for recursive disposal
+    const disposeGroup = (group: THREE.Group) => {
+      while (group.children.length > 0) {
+        const child = group.children.pop();
+        if (child) {
+          if (child instanceof THREE.Mesh) {
+            child.geometry?.dispose();
+          }
+          group.remove(child);
+        }
+      }
+    };
+
+    disposeGroup(roadGroup);
+    disposeGroup(buildingsGroup);
+
+    if (activeGeometry.nodes.length === 0) return;
 
     const nodeMap = new Map<string, RoadNodeGeometry>();
     for (const node of activeGeometry.nodes) {
       nodeMap.set(node.id, node);
+    }
 
-      // Node junction pad
-      const nodePos = simToWorldCoordinates(node.x, node.y, 0.05);
-      const junctionGeo = new THREE.CylinderGeometry(6, 6, 0.1, 16);
-      const junctionMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
-      const junctionMesh = new THREE.Mesh(junctionGeo, junctionMat);
+    // Determine max connected road width per node to size junction pads correctly
+    const nodeMaxWidth = new Map<string, number>();
+    for (const edge of activeGeometry.edges) {
+      const width = computeRoadEdgeWidth(edge);
+      const curU = nodeMaxWidth.get(edge.start_node_id) || 8.0;
+      nodeMaxWidth.set(edge.start_node_id, Math.max(curU, width));
+      const curV = nodeMaxWidth.get(edge.end_node_id) || 8.0;
+      nodeMaxWidth.set(edge.end_node_id, Math.max(curV, width));
+    }
+
+    // A. Node junction pads (smooth disc/cylinder connecting adjoining roads without holes)
+    for (const node of activeGeometry.nodes) {
+      const nodePos = simToWorldCoordinates(node.x, node.y, 0.022);
+      const maxWidth = nodeMaxWidth.get(node.id) || 8.0;
+      const padRadius = Math.max(5.5, maxWidth / 2 + 0.5);
+
+      const junctionGeo = new THREE.CylinderGeometry(padRadius, padRadius, 0.04, 24);
+      const junctionMesh = new THREE.Mesh(junctionGeo, mats.junctionMat);
       junctionMesh.position.set(nodePos.x, nodePos.y, nodePos.z);
       roadGroup.add(junctionMesh);
     }
 
-    // Edges
-    const roadMat = new THREE.MeshLambertMaterial({ color: 0x111827 });
-    const lineMat = new THREE.LineBasicMaterial({ color: 0x475569 });
-
+    // B. Road Edges, Surfaces, Multi-Lane Markings, Curbs and Sidewalks
     const processedSegments = new Set<string>();
 
     for (const edge of activeGeometry.edges) {
@@ -223,67 +404,155 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
 
       const dx = p2.x - p1.x;
       const dz = p2.z - p1.z;
-      const len = Math.sqrt(dx * dx + dz * dz);
+      const len = Math.hypot(dx, dz);
+      if (len < 0.5) continue;
+
       const midX = (p1.x + p2.x) / 2;
       const midZ = (p1.z + p2.z) / 2;
       const angle = Math.atan2(dx, dz);
 
-      const roadGeo = new THREE.PlaneGeometry(8, len);
-      const roadMesh = new THREE.Mesh(roadGeo, roadMat);
+      const roadWidth = computeRoadEdgeWidth(edge);
+
+      // B1. Drivable Asphalt Surface
+      const roadGeo = new THREE.PlaneGeometry(roadWidth, len);
+      const roadMesh = new THREE.Mesh(roadGeo, mats.roadMat);
       roadMesh.position.set(midX, 0.02, midZ);
       roadMesh.rotation.x = -Math.PI / 2;
       roadMesh.rotation.z = angle;
       roadGroup.add(roadMesh);
 
-      // Centerline
-      const lineGeo = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(p1.x, 0.03, p1.z),
-        new THREE.Vector3(p2.x, 0.03, p2.z),
-      ]);
-      const lineMesh = new THREE.Line(lineGeo, lineMat);
-      roadGroup.add(lineMesh);
+      // B2. Multi-lane Markings (Edge borders, dashed dividers, solid centerlines)
+      const isOneWay = Boolean(edge.attributes?.one_way);
+      const markings = generateMultiLaneMarkings(edge, u, v, !isOneWay);
+
+      for (const m of markings) {
+        const mx = (m.start.x + m.end.x) / 2;
+        const mz = (m.start.z + m.end.z) / 2;
+        const mlen = Math.hypot(m.end.x - m.start.x, m.end.z - m.start.z);
+
+        const markMat =
+          m.colorHex === 0xfacc15 ? mats.markingYellowMat : mats.markingWhiteMat;
+
+        if (m.type === "dashed") {
+          // Render dashed strip via multiple small segments
+          const dashLen = 3.0;
+          const gapLen = 3.0;
+          const pitch = dashLen + gapLen;
+          const numDashes = Math.max(1, Math.floor(mlen / pitch));
+          const udx = (m.end.x - m.start.x) / mlen;
+          const udz = (m.end.z - m.start.z) / mlen;
+
+          for (let d = 0; d < numDashes; d++) {
+            const centerDist = (d + 0.5) * pitch;
+            if (centerDist > mlen - dashLen * 0.5) break;
+
+            const dashGeo = new THREE.PlaneGeometry(m.width, dashLen);
+            const dashMesh = new THREE.Mesh(dashGeo, markMat);
+            dashMesh.position.set(
+              m.start.x + udx * centerDist,
+              0.035,
+              m.start.z + udz * centerDist
+            );
+            dashMesh.rotation.x = -Math.PI / 2;
+            dashMesh.rotation.z = angle;
+            roadGroup.add(dashMesh);
+          }
+        } else {
+          // Solid line (centerline or outer border)
+          const lineGeo = new THREE.PlaneGeometry(m.width, mlen);
+          const lineMesh = new THREE.Mesh(lineGeo, markMat);
+          lineMesh.position.set(mx, 0.035, mz);
+          lineMesh.rotation.x = -Math.PI / 2;
+          lineMesh.rotation.z = angle;
+          roadGroup.add(lineMesh);
+        }
+      }
+
+      // B3. Curbs and Sidewalks
+      const sidewalks = generateCurbsAndSidewalks(edge, u, v, 2.2, 0.12, 5.5);
+      for (const sw of sidewalks) {
+        const swLen = Math.hypot(sw.end.x - sw.start.x, sw.end.z - sw.start.z);
+        if (swLen <= 1.0) continue;
+
+        const swMidX = (sw.start.x + sw.end.x) / 2;
+        const swMidZ = (sw.start.z + sw.end.z) / 2;
+
+        const swGeo = new THREE.BoxGeometry(sw.width, sw.curbHeight, swLen);
+        const swMesh = new THREE.Mesh(swGeo, mats.sidewalkMat);
+        swMesh.position.set(swMidX, 0.06, swMidZ);
+        swMesh.rotation.y = angle;
+        roadGroup.add(swMesh);
+      }
     }
 
-    // Signals from scenario if defined
+    // C. Crosswalks (Explicit from scenario or Inferred at intersections)
+    if (scenario?.crosswalks && scenario.crosswalks.length > 0) {
+      for (const cw of scenario.crosswalks) {
+        const stripes = generateZebraStripes(
+          cw.entry_point as [number, number],
+          cw.exit_point as [number, number],
+          cw.width_m || 3.0,
+          0.6,
+          0.6
+        );
+        for (const s of stripes) {
+          const sGeo = new THREE.PlaneGeometry(s.width, s.length);
+          const sMesh = new THREE.Mesh(sGeo, mats.crosswalkMat);
+          sMesh.position.set(s.position.x, 0.04, s.position.z);
+          sMesh.rotation.x = -Math.PI / 2;
+          sMesh.rotation.z = s.rotationY;
+          roadGroup.add(sMesh);
+        }
+      }
+    } else {
+      // Inferred zebra crosswalks at intersection approaches
+      const inferredStripes = generateInferredCrosswalks(activeGeometry, 3.2, 7.5);
+      for (const s of inferredStripes) {
+        const sGeo = new THREE.PlaneGeometry(s.width, s.length);
+        const sMesh = new THREE.Mesh(sGeo, mats.crosswalkMat);
+        sMesh.position.set(s.position.x, 0.04, s.position.z);
+        sMesh.rotation.x = -Math.PI / 2;
+        sMesh.rotation.z = s.rotationY;
+        roadGroup.add(sMesh);
+      }
+    }
+
+    // D. Traffic Signals
     if (scenario?.signals) {
       for (const sig of scenario.signals) {
         const node = nodeMap.get(sig.node_id);
         if (!node) continue;
         const pos = simToWorldCoordinates(node.x, node.y, 0);
 
-        const poleGeo = new THREE.CylinderGeometry(0.3, 0.3, 8, 8);
+        const poleGeo = new THREE.CylinderGeometry(0.35, 0.35, 8.5, 12);
         const poleMat = new THREE.MeshLambertMaterial({ color: 0x334155 });
         const pole = new THREE.Mesh(poleGeo, poleMat);
-        pole.position.set(pos.x + 5, 4, pos.z + 5);
+        pole.position.set(pos.x + 6, 4.25, pos.z + 6);
         roadGroup.add(pole);
       }
     }
 
-    // Crosswalks from scenario if defined
-    if (scenario?.crosswalks) {
-      const cwMat = new THREE.MeshBasicMaterial({ color: 0xe2e8f0 });
-      for (const cw of scenario.crosswalks) {
-        const p1 = simToWorldCoordinates(cw.entry_point[0], cw.entry_point[1], 0.04);
-        const p2 = simToWorldCoordinates(cw.exit_point[0], cw.exit_point[1], 0.04);
+    // E. Procedural Urban Buildings (Deterministic layout with strict exclusion zones)
+    const buildings = generateProceduralBuildings(activeGeometry, {
+      seed: scenario?.seed ?? 42,
+      minHeight: 16,
+      maxHeight: 65,
+      minFootprint: 14,
+      maxFootprint: 26,
+      roadClearanceM: 5.0,
+    });
 
-        const dx = p2.x - p1.x;
-        const dz = p2.z - p1.z;
-        const len = Math.sqrt(dx * dx + dz * dz);
-        const midX = (p1.x + p2.x) / 2;
-        const midZ = (p1.z + p2.z) / 2;
-        const angle = Math.atan2(dx, dz);
-
-        const cwGeo = new THREE.PlaneGeometry(cw.width_m || 3.0, Math.max(len, 2));
-        const cwMesh = new THREE.Mesh(cwGeo, cwMat);
-        cwMesh.position.set(midX, 0.04, midZ);
-        cwMesh.rotation.x = -Math.PI / 2;
-        cwMesh.rotation.z = angle;
-        roadGroup.add(cwMesh);
-      }
+    for (const b of buildings) {
+      const bGeo = new THREE.BoxGeometry(b.width, b.height, b.depth);
+      const bMat = new THREE.MeshLambertMaterial({ color: b.colorHex });
+      const bMesh = new THREE.Mesh(bGeo, bMat);
+      bMesh.position.set(b.position.x, b.position.y, b.position.z);
+      bMesh.rotation.y = b.rotationY;
+      buildingsGroup.add(bMesh);
     }
   }, [activeGeometry, scenario]);
 
-  // 6. Update Vehicle Meshes
+  // 8. Update Vehicle Meshes
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
@@ -322,15 +591,15 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
 
         // Emergency beacon
         if (isEmergency) {
-          const beaconGeo = new THREE.SphereGeometry(0.3, 8, 8);
+          const beaconGeo = new THREE.SphereGeometry(0.35, 8, 8);
           const beaconMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
           const beaconMesh = new THREE.Mesh(beaconGeo, beaconMat);
-          beaconMesh.position.set(0, 1.9, 0);
+          beaconMesh.position.set(0, 1.95, 0);
           vGroup.add(beaconMesh);
         }
 
         // Headlights indicator
-        const lightGeo = new THREE.BoxGeometry(2.0, 0.2, 0.1);
+        const lightGeo = new THREE.BoxGeometry(2.0, 0.22, 0.1);
         const lightMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
         const lightMesh = new THREE.Mesh(lightGeo, lightMat);
         lightMesh.position.set(0, 0.5, 2.31);
@@ -343,10 +612,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
       // Update position & heading
       const worldPos = simToWorldCoordinates(vState.position.x, vState.position.y, 0.5);
       vGroup.position.set(worldPos.x, worldPos.y, worldPos.z);
-      // In Three.js, rotation.y rotates around vertical axis
       vGroup.rotation.y = vState.heading_rad;
-
-      // Selection indicator scale
       vGroup.scale.setScalar(isSelected ? 1.25 : 1.0);
     }
 
@@ -359,7 +625,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     }
   }, [vehicles, selectedEntityId]);
 
-  // 7. Update Pedestrian Meshes
+  // 9. Update Pedestrian Meshes
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
@@ -375,7 +641,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
       if (!pGroup) {
         pGroup = new THREE.Group();
 
-        // Pedestrian body (capsule/cylinder)
+        // Pedestrian body (cylinder)
         const bodyGeo = new THREE.CylinderGeometry(0.4, 0.4, 1.6, 8);
         const bodyMat = new THREE.MeshLambertMaterial({ color: 0x06b6d4 });
         const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
@@ -383,10 +649,10 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         pGroup.add(bodyMesh);
 
         // Head
-        const headGeo = new THREE.SphereGeometry(0.3, 8, 8);
+        const headGeo = new THREE.SphereGeometry(0.32, 8, 8);
         const headMat = new THREE.MeshLambertMaterial({ color: 0xfed7aa });
         const headMesh = new THREE.Mesh(headGeo, headMat);
-        headMesh.position.y = 1.8;
+        headMesh.position.y = 1.85;
         pGroup.add(headMesh);
 
         scene.add(pGroup);
@@ -406,7 +672,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     }
   }, [pedestrians, selectedEntityId]);
 
-  // 8. Update Traffic Signals
+  // 10. Update Traffic Signals
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
@@ -426,22 +692,20 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         const headMat = new THREE.MeshBasicMaterial({ color });
         const mesh = new THREE.Mesh(headGeo, headMat);
 
-        // Position near node
         const node = activeGeometry.nodes.find((n) => n.id === sigState.node_id);
         if (node) {
           const pos = simToWorldCoordinates(node.x, node.y, 8.5);
-          mesh.position.set(pos.x + 5, 8.5, pos.z + 5);
+          mesh.position.set(pos.x + 6, 8.5, pos.z + 6);
           scene.add(mesh);
           currentMeshes.set(sigId, mesh);
         }
       } else {
         sigMesh.material.color.setHex(color);
       }
-
     }
   }, [signals, activeGeometry]);
 
-  // 9. Update Active Route Line
+  // 11. Update Active Route Line
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
@@ -462,7 +726,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     for (const nodeId of activeRoute) {
       const node = nodeMap.get(nodeId);
       if (node) {
-        const p = simToWorldCoordinates(node.x, node.y, 0.4);
+        const p = simToWorldCoordinates(node.x, node.y, 0.45);
         points.push(new THREE.Vector3(p.x, p.y, p.z));
       }
     }
@@ -479,7 +743,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     }
   }, [activeRoute, activeGeometry]);
 
-  // 10. Mouse Drag & Orbit Controls
+  // 12. Mouse Drag & Orbit Controls
   const handleMouseDown = (e: React.MouseEvent) => {
     isDraggingRef.current = true;
     dragButtonRef.current = e.button;
@@ -524,13 +788,16 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     updateCameraPosition();
   };
 
-  // 11. Click to select vehicle/pedestrian
+  // 13. Click to select vehicle/pedestrian
   const handleClick = (e: React.MouseEvent) => {
     if (!onSelectEntity) return;
     const container = containerRef.current;
-    const camera = cameraRef.current;
     const scene = sceneRef.current;
-    if (!container || !camera || !scene) return;
+    const activeCam =
+      projectionMode === "perspective"
+        ? perspectiveCameraRef.current
+        : orthographicCameraRef.current;
+    if (!container || !activeCam || !scene) return;
 
     const rect = container.getBoundingClientRect();
     const mouse = new THREE.Vector2(
@@ -539,7 +806,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     );
 
     const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(mouse, camera);
+    raycaster.setFromCamera(mouse, activeCam);
 
     // Test vehicles
     for (const [vId, vGroup] of vehicleMeshesRef.current.entries()) {
@@ -580,7 +847,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         height: "100%",
         minHeight: "450px",
         overflow: "hidden",
-        backgroundColor: "#0a0f1d",
+        backgroundColor: lightingMode === "day" ? "#0f172a" : "#020617",
         cursor: "grab",
       }}
     >
@@ -588,6 +855,29 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         ref={canvasRef}
         style={{ display: "block", width: "100%", height: "100%" }}
       />
+
+      {/* WebGL Error Banner */}
+      {webglError && (
+        <div
+          role="alert"
+          style={{
+            position: "absolute",
+            top: "16px",
+            left: "16px",
+            right: "16px",
+            backgroundColor: "#7f1d1d",
+            color: "#fecaca",
+            padding: "12px 16px",
+            borderRadius: "6px",
+            fontSize: "0.85rem",
+            fontWeight: 500,
+            zIndex: 20,
+            border: "1px solid #b91c1c",
+          }}
+        >
+          {webglError}
+        </div>
+      )}
 
       {/* Loading Overlay */}
       {isLoading && (
@@ -614,7 +904,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         </div>
       )}
 
-      {/* Floating HUD: Controls & Legend */}
+      {/* Floating HUD: Controls (Projection, Lighting, Buildings, Reset) */}
       <div
         className="viewport-hud-top-right"
         style={{
@@ -626,6 +916,78 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           zIndex: 5,
         }}
       >
+        {/* Day / Night Mode Toggle */}
+        <button
+          type="button"
+          onClick={() => setLightingMode((m) => (m === "day" ? "night" : "day"))}
+          className="hud-button"
+          title={`Switch to ${lightingMode === "day" ? "Night" : "Day"} Mode`}
+          aria-label={`Switch to ${lightingMode === "day" ? "Night" : "Day"} Mode`}
+          style={{
+            backgroundColor: "#1e293b",
+            color: "#f8fafc",
+            border: "1px solid #334155",
+            borderRadius: "6px",
+            padding: "6px 12px",
+            fontSize: "0.85rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          {lightingMode === "day" ? "☀️ Day" : "🌙 Night"}
+        </button>
+
+        {/* Perspective / Orthographic Camera Toggle */}
+        <button
+          type="button"
+          onClick={() =>
+            setProjectionMode((p) => (p === "perspective" ? "orthographic" : "perspective"))
+          }
+          className="hud-button"
+          title={`Switch to ${projectionMode === "perspective" ? "Orthographic" : "Perspective"} Projection`}
+          aria-label={`Switch to ${projectionMode === "perspective" ? "Orthographic" : "Perspective"} Projection`}
+          style={{
+            backgroundColor: "#1e293b",
+            color: "#f8fafc",
+            border: "1px solid #334155",
+            borderRadius: "6px",
+            padding: "6px 12px",
+            fontSize: "0.85rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          {projectionMode === "perspective" ? "📷 3D Persp" : "📐 2D Ortho"}
+        </button>
+
+        {/* Buildings ON / OFF Toggle */}
+        <button
+          type="button"
+          onClick={() => setShowBuildings((b) => !b)}
+          className="hud-button"
+          title={`${showBuildings ? "Hide" : "Show"} Procedural Buildings`}
+          aria-label={`${showBuildings ? "Hide" : "Show"} Procedural Buildings`}
+          style={{
+            backgroundColor: showBuildings ? "#1e293b" : "#0f172a",
+            color: showBuildings ? "#f8fafc" : "#94a3b8",
+            border: "1px solid #334155",
+            borderRadius: "6px",
+            padding: "6px 12px",
+            fontSize: "0.85rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          🏢 {showBuildings ? "Buildings ON" : "Buildings OFF"}
+        </button>
+
+        {/* Reset View Button */}
         <button
           type="button"
           onClick={handleResetCamera}
@@ -685,6 +1047,10 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <span style={{ width: "10px", height: "10px", backgroundColor: "#10b981", borderRadius: "50%" }} />
           <span>Signal</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <span style={{ width: "10px", height: "10px", backgroundColor: "#facc15", borderRadius: "2px" }} />
+          <span>Lane Marking</span>
         </div>
       </div>
     </div>

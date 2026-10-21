@@ -1336,6 +1336,87 @@ All inputs are validated for finiteness (`Number.isFinite`), safely falling back
 - **`TelemetryFeed`**: Bounded, scrollable live event feed displaying sequence numbers, tick timestamps, event category tags, payload summaries, and prominent gap alerts.
 - **`EntityInspector`**: Contextual inspection card for selected vehicle or pedestrian displaying velocity, heading angle, coordinates, and active route node chain.
 
+---
+
+## 20. 3D City, Road Network, and Urban Environment Rendering Pipeline (`frontend/src/features/scene3d/`)
+
+Phase 24 enriches the 3D visualization with realistic road surfaces, multi-lane markings, junction fillets, zebra-style crosswalks, sidewalks with raised curbs, deterministic procedural urban buildings, day/night lighting modes, and dual camera projections.
+
+### 20.1 Layered Geometry Hierarchy and Z-Fighting Elimination
+To eliminate z-fighting across co-planar meshes, the viewport enforces a strict vertical elevation hierarchy:
+- **Base Ground Grid**: $Y = -0.10\,\text{m}$ (60-grid coordinate reference)
+- **Drivable Asphalt Roadway**: $Y = 0.020\,\text{m}$ (Lambert material, dark slate/charcoal)
+- **Intersection Junction Pads**: $Y = 0.022\,\text{m}$ (smooth cylinder pads matching maximum connected road width)
+- **Multi-Lane Road Markings**: $Y = 0.035\,\text{m}$ (solid white edge borders, solid yellow centerlines, dashed white lane dividers)
+- **Zebra Crosswalk Stripes**: $Y = 0.040\,\text{m}$ (elevated white rectangular stripes with consistent pitch)
+- **Sidewalks and Curbs**: $Y = 0.060\,\text{m} \text{ to } 0.120\,\text{m}$ (concrete slate boxes running parallel to roadways outside drivable boundaries)
+- **Active Navigation Route**: $Y = 0.450\,\text{m}$ (elevated green polyline)
+- **Dynamic Entities (Vehicles/Pedestrians)**: $Y \ge 0.500\,\text{m}$
+
+### 20.2 Road Surfaces, Intersections, and Multi-Lane Markings
+1. **Dynamic Road Width Calculation (`computeRoadEdgeWidth`)**:
+   - Resolves width from explicit `edge.attributes.width_m` if present.
+   - For multi-lane edges without explicit widths, computes $W = \max(8.0, \text{lanes} \times 3.75)\,\text{m}$.
+   - Defaults to standard $8.0\,\text{m}$ two-lane equivalent.
+2. **Intersection Junction Pads**:
+   - For each node, calculates $R_{\text{pad}} = \max(5.5, W_{\max} / 2 + 0.5)\,\text{m}$.
+   - Renders 24-segment cylinder pads that bridge adjoining road surfaces with zero holes and smooth transitions.
+3. **Multi-Lane Road Markings (`generateMultiLaneMarkings`)**:
+   - **Outer Borders**: Solid white lines ($W = 0.15\,\text{m}$) offset by $\pm (W/2 - 0.25)\,\text{m}$.
+   - **Centerlines**: Solid yellow lines ($W = 0.20\,\text{m}$, `#facc15`) dividing opposing traffic on two-way roads.
+   - **Lane Dividers**: Dashed white lines ($3.0\,\text{m}$ dash, $3.0\,\text{m}$ gap) separating lanes in the same direction on multi-lane and one-way roadways.
+
+### 20.3 Zebra Crosswalks and Sidewalk Curbs
+1. **Zebra Crosswalk Stripes (`generateZebraStripes`, `generateInferredCrosswalks`)**:
+   - Formed as series of parallel rectangular pads ($W = 3.0\,\text{m}$, length $0.5\,\text{m}$, pitch $1.0\,\text{m}$) across crossing corridors.
+   - Supported from explicit `scenario.crosswalks` metadata or inferred at intersection approaches with $\ge 2$ intersecting edges set back $7.5\,\text{m}$ from intersection centers.
+2. **Sidewalks and Curbs (`generateCurbsAndSidewalks`)**:
+   - Extruded concrete boxes ($W = 2.2\,\text{m}$, $H = 0.12\,\text{m}$) offset by $\pm (W_{\text{road}}/2 + 1.1)\,\text{m}$ from the road centerline.
+   - Set back by $5.5\,\text{m}$ from intersection nodes to ensure pedestrian sidewalks never obstruct drivable junction surfaces or vehicle trajectories.
+
+### 20.4 Deterministic Procedural Urban Buildings (`generateProceduralBuildings`)
+1. **Mulberry32 Deterministic PRNG**:
+   - Uses 32-bit integer arithmetic with seed (default 42 or `scenario.seed`) ensuring 100% reproducible building placement across all reloads and test environments.
+2. **Strict Geometric Exclusion Zones**:
+   - Computes minimum Euclidean distance from candidate building center to every road segment using `pointToSegmentDistance(px, pz, ax, az, bx, bz)`.
+   - Requires distance $d \ge W_{\text{road}}/2 + W_{\text{sidewalk}} + \text{roadClearance} + R_{\text{building}}$.
+   - Enforces minimum $12.0\,\text{m} + R_{\text{building}}$ clearance from all intersection nodes.
+   - Prevents building-building overlap ($d \ge R_1 + R_2 + 2.0\,\text{m}$).
+3. **Architectural Palette**:
+   - Restrained heights ($16\,\text{m} \text{ to } 65\,\text{m}$) and footprints ($14\,\text{m} \text{ to } 26\,\text{m}$).
+   - Sleek modern urban materials (`#1e293b`, `#334155`, `#475569`, `#1e3a5f`, `#243c5a`, `#0f2744`, `#374151`).
+   - Grouped into `buildingsGroupRef` with an instant ON/OFF HUD toggle for performance benchmarking and debugging.
+
+### 20.5 Day and Night Lighting Visual Modes
+- **HUD Toggle**: Seamlessly switches between Day and Night lighting configurations without rebuilding geometries or reloading textures.
+- **Day Mode**:
+  - Sky background: `#0f172a` (navy slate)
+  - Ambient light: `#ffffff` at intensity 0.85
+  - Directional sun: `#ffffff` at intensity 1.1 at $(150, 300, 150)$
+  - Asphalt roadway: `#1e293b`, junctions: `#334155`, sidewalks: `#64748b`, curbs: `#94a3b8`
+- **Night Mode**:
+  - Sky background: `#020617` (deep dark night sky)
+  - Ambient moonlight: `#1e1b4b` at intensity 0.35 (cool deep indigo)
+  - Directional moon: `#93c5fd` at intensity 0.50 at $(80, 200, 80)$
+  - Asphalt roadway: `#090d16`, junctions: `#111827`, sidewalks: `#1e293b`, curbs: `#334155`
+  - High-contrast glowing headlights and vivid traffic signal lights.
+- **Material Caching**: Centralized `materialsRef` caches all Lambert and Basic materials, updating color values dynamically to eliminate WebGL buffer reallocation.
+
+### 20.6 Camera Projection Modes
+- **Dual Camera Architecture**:
+  - **Perspective Camera**: Standard $45^\circ$ FOV with distance-based perspective foreshortening.
+  - **Orthographic Camera**: True parallel projection ($W = \text{frustum} \times \text{aspect}$, $H = \text{frustum}$), enabling geometric and architectural alignment inspection without perspective distortion.
+- **State Synchronization**:
+  - Orbit, pan, zoom, and `handleResetCamera` update shared spherical coordinates $(\theta, \phi, r)$ and target vector $\vec{T}$, synchronizing both cameras so toggling modes maintains exact focal point and scale.
+
+### 20.7 OpenStreetMap Road Geometry Integration
+- **Frontend Data Adapter (`adaptOsmRoadNetwork`)**:
+  - Adapts raw OSM graph payloads, node/edge dictionaries, or GeoJSON features into standard `RoadNetworkGeometry`.
+  - Supports metric planar $(x, y)$ coordinates directly.
+  - Provides deterministic Equirectangular projection (`projectGeoCoordinatesToLocalMeters`) for geographic $(\text{lon}, \text{lat})$ degrees centered around the network centroid:
+    $$x = (\text{lon} - \text{lon}_0) \times \frac{\pi}{180} \times R \times \cos(\text{lat}_0), \quad y = (\text{lat} - \text{lat}_0) \times \frac{\pi}{180} \times R$$
+  - Gracefully falls back to default synthetic grid when OSM graph geometry is not serialized in public REST payloads, clearly documenting the missing contract without inventing arbitrary endpoints.
+
 
 
 

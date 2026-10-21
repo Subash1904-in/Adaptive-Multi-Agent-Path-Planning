@@ -5,6 +5,7 @@ import { ScenarioSelector } from "../features/scenarios/ScenarioSelector";
 import { TelemetryFeed } from "../features/telemetry/TelemetryFeed";
 import { MetricsPanel } from "../features/telemetry/MetricsPanel";
 import { EntityInspector } from "../features/simulation/EntityInspector";
+import { SimulationViewer3D } from "../features/scene3d/SimulationViewer3D";
 import type { RunMetrics, RunStatus, ScenarioSummary, VehicleState } from "../types/simulation";
 import type { WebSocketEventEnvelope } from "../types/websocket";
 
@@ -285,6 +286,71 @@ describe("Component Unit Tests", () => {
       const closeBtn = screen.getByRole("button", { name: /close entity inspector/i });
       fireEvent.click(closeBtn);
       expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("SimulationViewer3D", () => {
+    it("renders viewport with HUD controls and toggles lighting mode, camera projection, and buildings", () => {
+      render(
+        <SimulationViewer3D
+          scenario={null}
+          vehicles={new Map()}
+          pedestrians={new Map()}
+          signals={new Map()}
+        />
+      );
+
+      // Verify viewport container is present
+      expect(screen.getByLabelText("3D Simulation Viewport")).toBeInTheDocument();
+
+      // Verify HUD Buttons
+      const dayNightBtn = screen.getByRole("button", { name: /switch to night mode/i });
+      expect(dayNightBtn).toHaveTextContent("☀️ Day");
+
+      const projBtn = screen.getByRole("button", { name: /switch to orthographic projection/i });
+      expect(projBtn).toHaveTextContent("📷 3D Persp");
+
+      const bldBtn = screen.getByRole("button", { name: /hide procedural buildings/i });
+      expect(bldBtn).toHaveTextContent("🏢 Buildings ON");
+
+      const resetBtn = screen.getByRole("button", { name: /reset camera view/i });
+      expect(resetBtn).toBeInTheDocument();
+
+      // Test Day / Night Toggle
+      fireEvent.click(dayNightBtn);
+      expect(screen.getByRole("button", { name: /switch to day mode/i })).toHaveTextContent("🌙 Night");
+
+      // Test Camera Projection Toggle
+      fireEvent.click(projBtn);
+      expect(screen.getByRole("button", { name: /switch to perspective projection/i })).toHaveTextContent("📐 2D Ortho");
+
+      // Test Buildings Toggle
+      fireEvent.click(bldBtn);
+      expect(screen.getByRole("button", { name: /show procedural buildings/i })).toHaveTextContent("🏢 Buildings OFF");
+
+      // Test Reset View Click
+      fireEvent.click(resetBtn);
+
+      // Verify Scene Legend
+      expect(screen.getByText("Vehicle")).toBeInTheDocument();
+      expect(screen.getByText("Emergency")).toBeInTheDocument();
+      expect(screen.getByText("Pedestrian")).toBeInTheDocument();
+      expect(screen.getByText("Signal")).toBeInTheDocument();
+      expect(screen.getByText("Lane Marking")).toBeInTheDocument();
+    });
+
+    it("displays loading state overlay when isLoading is true", () => {
+      render(
+        <SimulationViewer3D
+          scenario={null}
+          vehicles={new Map()}
+          pedestrians={new Map()}
+          signals={new Map()}
+          isLoading={true}
+        />
+      );
+
+      expect(screen.getByText("Loading 3D Simulation Environment...")).toBeInTheDocument();
     });
   });
 });

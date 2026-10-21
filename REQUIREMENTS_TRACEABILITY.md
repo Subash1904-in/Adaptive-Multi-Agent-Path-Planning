@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 23 (Build Frontend Foundation and Interactive 3D Simulation Viewer)  
+**Current Phase:** Phase 24 (Enhance 3D City, Road Network, and Urban Environment Rendering)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 23 (Build Frontend Foundation & 3D Simulation Viewer):* Phase 23 implements the production-grade React 18, TypeScript, Three.js, and Vite frontend in `frontend/`. Connects to Phase 21 REST API and Phase 22 WebSockets, provides an interactive 3D road network scene, renders live vehicle/pedestrian agents, signals, routes, cross-subsystem metrics, and telemetry gap handling. 35 frontend tests passing, 1,095 backend tests passing (95.66% coverage).
+> *Note on Phase 24 (Enhance 3D City, Road Network, and Urban Environment Rendering):* Phase 24 delivers realistic 3D road visualization with multi-lane markings (outer borders, centerlines, dashed dividers), smooth intersection pads, zebra crosswalks (explicit and inferred), raised curbs/sidewalks, deterministic procedural urban buildings with strict exclusion zones (Mulberry32 PRNG), day/night lighting modes, dual perspective/orthographic camera projection, and OpenStreetMap data adaptation. 62 frontend tests passing, 1,095 backend tests passing (95.66% coverage).
 
 ---
 
@@ -20,7 +20,7 @@
 |---|---|---|---|---|---|
 | **FR-01** | Vehicle-to-Vehicle (V2V) Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/` | Phase 11, 12, 13, 14, 27 | `NOT STARTED` | Phase 11–14 Protocol, Neighbors, Coordination & Degradation Tested (`test_communication_*.py`, `test_coordination_*.py`) |
 | **FR-02** | Multi-Agent Autonomous Vehicle Environment | `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 07, 08, 10, 20, 25 | `TESTED` | Phase 07, 08, 10, 20 Tested (`test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`, `test_runner_*.py`) |
-| **FR-03** | Real-World Map Integration | `backend/apps/core/graph/` | Phase 04, 05, 24 | `NOT STARTED` | Phase 04 & 05 Foundation Tested (`test_osm_*.py`, `test_road_graph.py`) |
+| **FR-03** | Real-World Map Integration | `backend/apps/core/graph/`, `frontend/src/features/scene3d/` | Phase 04, 05, 24 | `TESTED` | Phase 04 & 05 Foundation Tested (`test_osm_*.py`, `test_road_graph.py`); Phase 24 Frontend OSM Adapter Tested (`geometry.test.ts`) |
 | **FR-04** | Traffic and Pedestrian Simulation | `backend/apps/core/signals/`, `backend/apps/core/pedestrians/`, `backend/apps/core/safety/` | Phase 09, 17, 25, 29 | `TESTED` | Phase 09 Signals & Phase 17 Pedestrians Tested (`test_signals_*.py`, `test_pedestrian_*.py`) |
 | **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/`, `backend/apps/core/telemetry/` | Phase 06, 07, 08, 10, 20, 30, 31 | `TESTED` | Phase 06–10 & Phase 20 Metrics Aggregation & Export Tested (`test_routing_*.py`, `test_runner_metrics_aggregation.py`, `test_runner_determinism_and_export.py`) |
 | **FR-06** | Decentralized Vehicle Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/`, `sim_engine/agents/` | Phase 11, 12, 13, 14 | `NOT STARTED` | Phase 11–14 Protocol, Discovery, Neighbors, Knowledge & Outages Tested (`test_communication_*.py`, `test_coordination_*.py`) |
@@ -31,7 +31,7 @@
 | **FR-11** | Communication Range Detection | `backend/apps/core/communication/discovery.py`, `backend/apps/core/communication/neighbors.py` | Phase 11, 12, 14, 27 | `NOT STARTED` | Phase 11, 12, 14 Spatial Discovery, Tables & Distance Loss Tested (`test_communication_discovery.py`, `test_communication_impairment.py`) |
 | **FR-12** | Communication Failure Handling | `backend/apps/core/communication/network.py`, `backend/apps/core/communication/neighbors.py` | Phase 11, 12, 14, 27 | `NOT STARTED` | Phase 11, 12, 14 Latency, Loss, Burst Channels, Outages & Recovery Tested (`test_communication_latency.py`, `test_communication_impairment.py`, `test_communication_degradation_integration.py`) |
 | **FR-13** | AI Model Training Using Reinforcement Learning | `rl_engine/` | Phase 32, 33, 34 | `NOT STARTED` | Pending Phase 32 |
-| **FR-14** | Real-Time 3D Visualization and Interactive Dashboard | `backend/apps/core/api/`, `backend/apps/core/realtime/`, `frontend/` | Phase 21–30 | `IN PROGRESS` | Phase 21 REST API Tested (`test_api_*.py`: 46 tests); Phase 22 WebSockets Tested (`test_ws_*.py`: 42 tests); Phase 23 Frontend Foundation & 3D Viewer Tested (35 frontend tests) |
+| **FR-14** | Real-Time 3D Visualization and Interactive Dashboard | `backend/apps/core/api/`, `backend/apps/core/realtime/`, `frontend/` | Phase 21–30 | `IN PROGRESS` | Phase 21 REST API Tested (46 tests); Phase 22 WebSockets Tested (42 tests); Phase 23 3D Viewer Tested (35 tests); Phase 24 Enhanced 3D City & Road Rendering Tested (62 frontend tests) |
 
 
 
@@ -62,7 +62,7 @@
 - **Target Phases:** Phase 04 (Road graph and deterministic city), Phase 05 (OpenStreetMap import), Phase 24 (3D city and road rendering).
 - **Components:** `sim_engine/map/osm_loader.py`, `sim_engine/map/graph.py`, `data/osm/`
 - **Verification Plan:** Tests for OSM XML/OSMnx graph ingestion, node-edge connectivity, lane count attributes, and offline deterministic fallback grid.
-- **Current Status:** `NOT STARTED`
+- **Current Status:** `TESTED (Phase 04 RoadGraph & City Grid, Phase 05 OSM Normalizer, and Phase 24 3D Road Network & OSM Data Adapter Complete)`
 
 ---
 

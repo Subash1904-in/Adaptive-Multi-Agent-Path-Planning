@@ -789,7 +789,18 @@ npm test
 npm run build
 ```
 
-### 6.25 Troubleshooting
+### 6.26 Enhanced 3D City, Road Network & Urban Environment Rendering (Phase 24)
+Phase 24 upgrades the Three.js viewport into a navigable 3D urban environment:
+- **Layered Road Surface & Anti-Z-Fighting Hierarchy**: Enforces a strict vertical elevation structure: Ground Grid ($Y=-0.10\,\text{m}$), Drivable Asphalt ($Y=0.02\,\text{m}$), Junction Pads ($Y=0.022\,\text{m}$), Multi-Lane Markings ($Y=0.035\,\text{m}$), Zebra Crosswalk Stripes ($Y=0.04\,\text{m}$), and Curbs/Sidewalks ($Y=0.06-0.12\,\text{m}$).
+- **Multi-Lane Markings**: Solid white outer borders, solid yellow centerlines on two-way roads, and dashed white lane dividers on multi-lane and one-way roadways.
+- **Intersections & Crosswalks**: Smooth junction cylinder pads bridging adjoining roads with zero holes. Zebra crosswalk stripes rendered from explicit scenario definitions or inferred at intersection approaches (clearly designated as visual inference).
+- **Curbs & Sidewalks**: Raised concrete sidewalk meshes parallel to roadways set back from intersections to prevent obstruction.
+- **Procedural Urban Buildings**: Seeded deterministic PRNG (Mulberry32) generating urban buildings with strict Euclidean distance exclusion zones ($d \ge W_{\text{road}}/2 + W_{\text{sidewalk}} + \text{clearance} + R_{\text{bld}}$), ensuring zero overlap with roads or intersections. Toggleable in HUD. *Clearly designated as procedural visual context, distinct from real mapped structures.*
+- **Day & Night Visual Modes**: HUD toggle between neutral daylight illumination and dark night mode with glowing headlights, moonlight, and high-contrast traffic signal heads.
+- **Dual Camera Projections**: Seamless HUD switching between 3D Perspective (45° FOV) and 2D Orthographic camera modes with synchronized orbit targets and scales.
+- **OpenStreetMap Data Adapter**: Deterministic adapter (`adaptOsmRoadNetwork`) with Equirectangular geographic-to-Cartesian projection (`projectGeoCoordinatesToLocalMeters`) and documented synthetic grid fallback.
+
+### 6.27 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -825,6 +836,7 @@ npm run build
 - [docs/progress/PHASE_21.md](docs/progress/PHASE_21.md): Phase 21 Django REST API for scenario management and simulation runs report.
 - [docs/progress/PHASE_22.md](docs/progress/PHASE_22.md): Phase 22 Django Channels WebSockets for live simulation and telemetry streaming report.
 - [docs/progress/PHASE_23.md](docs/progress/PHASE_23.md): Phase 23 frontend foundation and interactive 3D simulation viewer report.
+- [docs/progress/PHASE_24.md](docs/progress/PHASE_24.md): Phase 24 3D city, road network, and urban environment rendering report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

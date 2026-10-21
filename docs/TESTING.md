@@ -425,8 +425,8 @@ python backend/manage.py check
 
 ---
 
-### 4.3 Frontend Test Suites & Commands (Phase 23)
-The frontend application includes 4 comprehensive Vitest test suites executing in headless `jsdom`:
+### 4.3 Frontend Test Suites & Commands (Phases 23–24)
+The frontend application includes 4 comprehensive Vitest test suites executing in headless `jsdom` (62 tests passing):
 
 ```bash
 # Run all frontend tests
@@ -443,11 +443,11 @@ npm run lint
 npm run build
 ```
 
-#### Frontend Test Breakdown:
+#### Frontend Test Breakdown (62 tests):
+- **`src/test/geometry.test.ts` (34 passed):** Tests planar-to-Three.js coordinate transforms (`simToWorldCoordinates`), non-finite coordinate safety, dynamic road edge width resolution (`computeRoadEdgeWidth`), multi-lane road markings (`generateMultiLaneMarkings`: solid white outer borders, solid yellow centerlines, dashed white lane dividers), zebra crosswalk stripes (`generateZebraStripes`), inferred intersection crosswalks (`generateInferredCrosswalks`), curbs and sidewalks (`generateCurbsAndSidewalks`), Mulberry32 PRNG determinism (`createMulberry32`), Euclidean point-to-segment distance calculation (`pointToSegmentDistance`), deterministic procedural urban buildings with strict road and junction exclusion zones (`generateProceduralBuildings`), local Cartesian Equirectangular projection (`projectGeoCoordinatesToLocalMeters`), and OpenStreetMap graph data adaptation (`adaptOsmRoadNetwork`).
+- **`src/test/components.test.tsx` (12 passed):** Tests Header branding and connection badge, scenario selection and run creation, run stats rendering and stepping (+1, +10, Run to End, Cancel), TelemetryFeed stream and gap alert banner, MetricsPanel grid rendering, EntityInspector vehicle details, and SimulationViewer3D viewport controls (Day/Night lighting mode toggle, Perspective/Orthographic camera projection toggle, Procedural Buildings ON/OFF toggle, Reset View interaction, scene legend, and loading state overlay).
 - **`src/test/api-client.test.ts` (8 passed):** Tests base URL construction, trailing slash normalization, scenario listing, scenario detail, run creation, RFC 7807 problem details handling, invalid JSON defense, and network error handling.
 - **`src/test/websocket-client.test.ts` (8 passed):** Tests initial handshake, automatic subscription command dispatch, Schema 1.0.0 envelope parsing, malformed JSON/binary frame resilience, server heartbeat ping/pong reply, non-recoverable 4404 close halting, bounded exponential backoff with stable connection window, and cleanup on disconnect.
-- **`src/test/geometry.test.ts` (9 passed):** Tests planar-to-Three.js coordinate transforms (`simToWorldCoordinates`), non-finite coordinate safety, synthetic grid geometry generation (nodes, bidirectional edges), scenario geometry extraction, and network bounding box computation.
-- **`src/test/components.test.tsx` (10 passed):** Tests Header branding and connection badge, scenario selection and run creation, run stats rendering and stepping (+1, +10, Run to End, Cancel), TelemetryFeed stream and gap alert banner, MetricsPanel grid rendering, and EntityInspector vehicle details.
 
 ---
 
