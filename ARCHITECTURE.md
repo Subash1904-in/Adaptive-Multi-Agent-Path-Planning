@@ -924,5 +924,124 @@ If a simulation step fails, `EmergencyPriorityManager.capture_state()` and `rest
 ### 14.7 Educational Disclaimer
 This simulation is developed solely for educational and research purposes and is NOT certified for physical vehicle deployment.
 
+---
+
+## 15. Pluggable AI Decision Policies for Autonomous Vehicle Agents (Phase 19)
+
+Phase 19 introduces a typed, modular decision-policy subsystem (`apps.core.decision`) that evaluates alternative candidate routes against current trajectories before committing route modifications.
+
+```mermaid
+flowchart TD
+    subgraph LocalContext["1. Agent Local Decision Context"]
+        AgentState["Vehicle Kinematics & Active Route"]
+        Knowledge["VehicleKnowledgeStore (Beliefs & Observations)"]
+        CorridorAwareness["Active Emergency Corridor Awareness (Phase 18)"]
+        ContextBuild["DecisionContext Assembly (No Omniscient Leakage)"]
+    end
+
+    subgraph CandidateGen["2. Candidate Route Generation"]
+        AStar["RoutePlanner (Dijkstra / A*)"]
+        CurRoute["Current Active Route Baseline"]
+        CandidateSet["CandidateRoute Set [Current, Alternative 1..N]"]
+    end
+
+    subgraph DecisionSubsystem["3. Pluggable Decision Policy Subsystem"]
+        HardCheck{"Hard Safety Constraint Check<br/>(Closures, Active Corridors, Connectivity)"}
+        FeatNorm["Feature Normalization (Travel Time, Congestion, Hazard)"]
+        ConfidenceScore["Observation Confidence & Freshness Scoring"]
+        Scorer["Multi-Objective Scorer S(c)"]
+        PolicyEval{"RuleBasedDecisionPolicy<br/>(Confidence & Hysteresis Evaluation)"}
+        Outcome["DecisionResult (ACCEPT, REJECT, DEFER, REEVALUATE)"]
+    end
+
+    subgraph Execution["4. Authoritative Integration & Rollback"]
+        AdapterCommit["DynamicRouteAdapter Route Suffix Replacement"]
+        SafetySupremacy["Phase 16 SafetyManager Emergency Override"]
+        MetricsLog["DecisionRecord & Metrics Telemetry"]
+        Rollback["Atomic Rollback on Step Exception"]
+    end
+
+    LocalContext --> ContextBuild
+    CandidateGen --> HardCheck
+    ContextBuild --> HardCheck
+    HardCheck -- "Violated (S=-inf)" --> Outcome
+    HardCheck -- "Satisfied" --> FeatNorm
+    FeatNorm --> ConfidenceScore
+    ConfidenceScore --> Scorer
+    Scorer --> PolicyEval
+    PolicyEval --> Outcome
+    Outcome -- "ACCEPT" --> AdapterCommit
+    Outcome -- "REJECT / DEFER" --> MetricsLog
+    AdapterCommit --> SafetySupremacy
+    SafetySupremacy --> MetricsLog
+    MetricsLog --> Rollback
+```
+
+### 15.1 Pluggable Policy Interface & Baseline Protocol
+- **`DecisionPolicy` Protocol**: Python `@runtime_checkable` protocol with signature:
+  ```python
+  def evaluate(self, context: DecisionContext, candidates: Sequence[CandidateRoute]) -> DecisionResult: ...
+  ```
+- **Interchangeability**: Custom heuristic or learned policy strategies can be injected without altering graph structures or simulation engine stepping loops.
+- **`RuleBasedDecisionPolicy`**: Deterministic baseline implementing multi-objective weighted evaluation, strict hard-constraint enforcement, observation confidence thresholds, and route stability hysteresis.
+
+### 15.2 Decision Context & Information Isolation Boundary
+- **Information Boundary**: The decision context captures strictly what is available in the vehicle's local state, public graph topology, and received V2V communications:
+  - Agent kinematics: current edge, destination, distance along segment.
+  - Known closed edges: extracted exclusively from vehicle-private active beliefs.
+  - Active emergency corridors: extracted from locally received V2V emergency awareness records.
+  - Congestion beliefs: locally fused delay estimates and confidence ratings.
+- **Decentralization Invariant**: No agent accesses the private knowledge store or private state of another agent. Omniscient global world state is strictly prohibited from leaking into the policy context.
+
+### 15.3 Multi-Objective Candidate Scoring Formula
+The normalized multi-objective scoring function balances travel time, congestion, risk, confidence, and route stability:
+$$S(c) = -w_t \cdot T_{\text{norm}}(c) - w_g \cdot G_{\text{norm}}(c) - w_h \cdot H_{\text{norm}}(c) + w_c \cdot C(c) + w_r \cdot R(c)$$
+
+Where:
+- $T_{\text{norm}}(c) = \min(1.0, \text{travel\_time\_s} / T_{\text{max\_norm}})$: Normalized estimated travel time.
+- $G_{\text{norm}}(c) = \min(1.0, \text{congestion\_cost} / G_{\text{max\_norm}})$: Normalized estimated local congestion delay.
+- $H_{\text{norm}}(c) = \min(1.0, \text{hazard\_cost} / H_{\text{max\_norm}})$: Normalized hazard penalty cost.
+- $C(c) \in [0.0, 1.0]$: Supporting observation confidence score.
+- $R(c) \in \{0.0, 1.0\}$: Route stability bonus ($1.0$ if $c$ is the currently active route, else $0.0$).
+- Configurable weights: $w_t, w_g, w_h, w_c, w_r \ge 0.0$ governed by `DecisionConfig`.
+
+### 15.4 Hard Safety Constraints Precedence
+Hard safety constraints are evaluated strictly prior to candidate scoring:
+1. **Structural Feasibility**: Candidate must contain $\ge 2$ nodes and consecutive edge continuity.
+2. **Known Road Closures**: Candidate traversing an edge confirmed closed by high-confidence local belief is marked invalid.
+3. **Active Emergency Corridors**: Candidate traversing an edge currently reserved by an active emergency vehicle corridor (Phase 18) is marked invalid for non-emergency vehicles.
+- **Invariant**: Any candidate violating a hard constraint is assigned $S(c) = -\infty$, `hard_constraint_violated = True`, and is **strictly prohibited from being accepted**, regardless of lower travel time.
+
+### 15.5 4-Tier Deterministic Tie-Breaking Precedence
+When ranking candidate routes, ties are resolved deterministically using:
+1. Higher raw score $S(c)$ (descending).
+2. Higher observation confidence $C(c)$ (descending).
+3. Shorter estimated travel time $T(c)$ (ascending).
+4. Candidate ID string lexicographical order (ascending).
+
+### 15.6 Route Stability Hysteresis & Anti-Flapping
+To prevent rapid high-frequency switching between routes of comparable cost:
+- The currently active route receives stability bonus $w_r \cdot R(c)$.
+- Alternative candidate routes must exceed the current route's score by at least `min_score_improvement` (default $+0.05$) to trigger an `ACCEPT` outcome.
+- If an alternative fails to achieve this improvement margin, the decision returns `REJECT` with reason `INSUFFICIENT_IMPROVEMENT`, preserving route stability.
+
+### 15.7 Decision Outcomes & Reason Taxonomy
+Policy outcomes are strictly classified:
+- `ACCEPT`: Alternative candidate satisfies hard constraints, meets confidence thresholds, and provides sufficient benefit over current route.
+- `REJECT`: Candidate violates hard constraints or fails to exceed the stability threshold.
+- `DEFER`: Information confidence is below `min_confidence_threshold` ($0.40$), deferring reroute.
+- `REEVALUATE`: Explicit request to regenerate candidates upon sudden environment invalidation.
+- Every outcome is annotated with a deterministic `DecisionReasonCode`.
+
+### 15.8 Single-Clock Lifecycle Integration & Atomic Rollback
+- Integrated directly into `DynamicRouteAdapter.evaluate_agent()` during `SimulationEngine.step()`.
+- Pre-tick snapshot: `DecisionManager.capture_state()` saves metrics and evaluation history.
+- On step failure: `DecisionManager.restore_state()` restores telemetry, guaranteeing atomic rollback.
+- Telemetry: Populates `TickResult.decision_metrics` and `TickResult.decision_records`.
+
+### 15.9 Educational Simulation Disclaimer
+This simulation is developed solely for educational and research purposes and is NOT certified for physical vehicle deployment.
+
+
 
 

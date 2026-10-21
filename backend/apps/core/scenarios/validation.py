@@ -8,6 +8,7 @@ from typing import Optional
 
 from apps.core.communication.models import CommunicationConfig
 from apps.core.coordination.models import CoordinationConfig
+from apps.core.decision.config import DecisionConfig
 from apps.core.emergency.models import EmergencyConfig, EmergencyType
 from apps.core.graph.road_graph import RoadGraph
 from apps.core.kinematics.models import KinematicsConfig
@@ -360,6 +361,20 @@ def validate_scenario(
             "emergency_config must be an EmergencyConfig instance.",
             field="emergency_config",
         )
+
+    if scenario.decision_config is not None:
+        if not isinstance(scenario.decision_config, DecisionConfig):
+            raise ScenarioValidationError(
+                "decision_config must be a DecisionConfig instance.",
+                field="decision_config",
+            )
+        try:
+            scenario.decision_config.validate()
+        except Exception as exc:
+            raise ScenarioValidationError(
+                f"Invalid decision_config: {exc}",
+                field="decision_config",
+            ) from exc
 
     # 9. Graph compatibility validation if graph is provided
     target_graph = graph or scenario.road_network.supplied_graph

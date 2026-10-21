@@ -13,6 +13,8 @@ from apps.core.communication.scheduler import BroadcastScheduler
 from apps.core.coordination.knowledge import VehicleKnowledgeStore
 from apps.core.coordination.manager import CoordinationManager
 from apps.core.coordination.models import CoordinationConfig
+from apps.core.decision.config import DecisionConfig
+from apps.core.decision.manager import DecisionManager
 from apps.core.domain.models import SimulationConfig, TrafficSignal
 from apps.core.domain.values import Position2D
 from apps.core.emergency.models import (
@@ -71,6 +73,7 @@ class WorldState:
         adaptive_routing_config: Optional[AdaptiveRoutingConfig] = None,
         safety_config: Optional[SafetyConfig] = None,
         emergency_config: Optional[EmergencyConfig] = None,
+        decision_config: Optional[DecisionConfig] = None,
     ) -> None:
         """Initialize the world state container.
 
@@ -84,6 +87,7 @@ class WorldState:
             adaptive_routing_config: Optional AdaptiveRoutingConfig governing dynamic rerouting.
             safety_config: Optional SafetyConfig governing collision detection and avoidance.
             emergency_config: Optional EmergencyConfig governing emergency priority and corridors.
+            decision_config: Optional DecisionConfig governing AI decision policy evaluation.
 
         Raises:
             TypeError: If road_graph is not an instance of RoadGraph.
@@ -168,6 +172,18 @@ class WorldState:
             config=self.emergency_config,
         )
         self._emergency_baseline: Optional[dict[str, Any]] = None
+
+        # Initialize Decision Policy subsystem
+        if decision_config is not None:
+            self.decision_config: DecisionConfig = decision_config
+        else:
+            self.decision_config = DecisionConfig(enabled=False)
+        self.decision_manager: DecisionManager = DecisionManager(config=self.decision_config)
+        self._decision_baseline: Optional[dict[str, Any]] = None
+
+        # Link decision and emergency managers to adaptive routing adapter
+        self.adaptive_routing_adapter.decision_manager = self.decision_manager
+        self.adaptive_routing_adapter.emergency_manager = self.emergency_manager
 
         # Auto-register signals defined in the road_graph
         for sig in self.road_graph.get_traffic_signals().values():
@@ -602,6 +618,7 @@ class WorldState:
         self._routing_baseline = self.adaptive_routing_adapter.capture_state()
         self._safety_baseline = self.safety_manager.capture_state()
         self._emergency_baseline = self.emergency_manager.capture_state()
+        self._decision_baseline = self.decision_manager.capture_state()
 
     def restore_baseline(self) -> None:
         """Restore all registered agents and subsystems to their recorded baseline states."""
@@ -625,6 +642,8 @@ class WorldState:
             self.safety_manager.restore_state(self._safety_baseline)
         if self._emergency_baseline is not None:
             self.emergency_manager.restore_state(self._emergency_baseline)
+        if self._decision_baseline is not None:
+            self.decision_manager.restore_state(self._decision_baseline)
 
     def reset(self) -> None:
         """Reset simulation clock to tick 0 and restore all agents, signals, comms, and safety."""
@@ -639,6 +658,7 @@ class WorldState:
         self.adaptive_routing_adapter.reset()
         self.safety_manager.reset()
         self.emergency_manager.reset()
+        self.decision_manager.reset()
         if self.communication_network.config.enabled:
             for aid in self._agents:
                 if not self.communication_network.is_participant_registered(aid):
@@ -752,6 +772,16 @@ class WorldState:
             emergency=emergency_snap,
             corridors=corridor_snaps,
             emergency_metrics=emergency_metrics_snap,
+            decision_metrics=(
+                self.decision_manager.metrics.to_dict()
+                if self.decision_manager.config.enabled
+                else None
+            ),
+            decision_records=(
+                [r.to_dict() for r in self.decision_manager._records]
+                if self.decision_manager.config.enabled
+                else None
+            ),
             metadata=dict(self.metadata),
         )
 

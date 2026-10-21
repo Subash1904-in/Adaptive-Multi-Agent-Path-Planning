@@ -197,6 +197,36 @@ python backend/manage.py check
   - Safe separation distance computation with reaction time and braking distance terms.
   - Time-To-Collision (TTC) estimation with non-closing / receding vehicle safety bounds.
   - 5-tier risk classification: `COLLISION`, `IMMINENT`, `HIGH_RISK`, `CAUTION`, `SAFE`.
+- **Decision Models & Config (`test_decision_models_and_config.py`, 11 passed)**
+  - Dataclass validation, numeric bounds, immutable semantics for candidates and scores.
+  - Serialization to dictionaries (`to_dict()`) and deserialization compatibility (`from_dict()`).
+  - Handling of $-\infty$ raw score for hard-constraint violations without overflow.
+- **Decision Features & Candidate Scoring (`test_decision_features_and_scoring.py`, 6 passed)**
+  - Feature normalization (travel time, congestion delay, hazard penalties).
+  - Multi-objective weighted score computation.
+  - Hard constraint violations resulting in $S(c) = -\infty$.
+  - 4-tier deterministic ranking and tie-breaking `(-raw_score, -confidence, travel_time_s, candidate_id)`.
+  - Candidate input permutation invariance.
+- **Decision Policy Outcomes & Hysteresis (`test_decision_policy_outcomes.py`, 8 passed)**
+  - `ACCEPT`, `REJECT`, `DEFER`, `REEVALUATE` outcomes with `DecisionReasonCode`.
+  - Rejection of candidates violating hard constraints (closures, active corridors).
+  - Route stability hysteresis preventing oscillation when improvement $< \text{min\_score\_improvement}$.
+  - Low-confidence deferral when observation confidence $< \text{min\_confidence\_threshold}$.
+  - Current route closure handling ensuring fallback alternative acceptance.
+- **DynamicRouteAdapter & Isolation Integration (`test_decision_adapter_integration.py`, 4 passed)**
+  - DynamicRouteAdapter evaluation with injected `DecisionManager`.
+  - Updating agent route when candidate accepted, retaining current route when rejected.
+  - Strict vehicle knowledge store isolation ensuring zero state leakage across vehicles.
+  - 100% backward compatibility when decision policy is disabled in config.
+- **SimulationEngine Stepping & Atomic Rollback (`test_decision_engine_and_rollback.py`, 4 passed)**
+  - Single-clock stepping populating `TickResult.decision_metrics` and `decision_records`.
+  - Atomic rollback restoring decision state and metrics upon simulated kinematic exception.
+  - Deterministic replay producing bit-identical decision telemetry.
+  - WorldState reset restoring decision manager to clean baseline state.
+- **AI Decision Scenario Orchestration (`test_decision_scenarios.py`, 10 passed)**
+  - Scenario validation and builder injection for decision configurations.
+  - End-to-end execution across all 6 Phase 19 deterministic scenario fixtures.
+  - Backward compatibility with legacy scenarios omitting decision configurations.
 - **Emergency Models & Lifecycle FSM (`test_emergency_models_and_lifecycle.py`, 13 passed)**
   - Priority levels (1-3) and emergency types (`AMBULANCE`, `FIRE_ENGINE`, `POLICE`).
   - Lifecycle state machine transitions and invalid transition rejection.
@@ -318,8 +348,8 @@ python backend/manage.py check
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 18: **96%** coverage across 913 passing tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_18.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 19: **95.72%** coverage across 956 passing tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_19.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend Deferred Cleanly:** Frontend build/lint/typecheck job runs in Node 22.x, deferring execution cleanly until `frontend/package.json` is introduced.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.

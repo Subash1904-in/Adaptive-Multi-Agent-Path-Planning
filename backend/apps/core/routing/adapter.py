@@ -32,9 +32,13 @@ class DynamicRouteAdapter:
         self,
         road_graph: RoadGraph,
         config: Optional[AdaptiveRoutingConfig] = None,
+        decision_manager: Optional[Any] = None,
+        emergency_manager: Optional[Any] = None,
     ) -> None:
         self.road_graph: RoadGraph = road_graph
         self.config: AdaptiveRoutingConfig = config or AdaptiveRoutingConfig()
+        self.decision_manager: Optional[Any] = decision_manager
+        self.emergency_manager: Optional[Any] = emergency_manager
         self.planner: RoutePlanner = RoutePlanner(road_graph)
         self.metrics: AdaptiveRoutingMetrics = AdaptiveRoutingMetrics()
 
@@ -252,18 +256,169 @@ class DynamicRouteAdapter:
         self._last_belief_fingerprints[vid] = fp_key
 
         # Benefit calculation and decision policy
-        if math.isinf(current_cost):
-            # Active road closure on current route: accept alternative immediately
-            benefit = float("inf")
-            accept = True
-            req_benefit = 0.0
-        else:
-            benefit = current_cost - candidate_cost
-            req_benefit = max(
-                self.config.min_absolute_benefit,
-                self.config.min_relative_benefit * current_cost,
+        if self.decision_manager is not None and self.decision_manager.config.enabled:
+            from apps.core.decision.models import (
+                CandidateRoute,
+                DecisionContext,
+                DecisionOutcome,
             )
-            accept = benefit >= req_benefit - 1e-9
+
+            corridor_edges = set()
+            if self.emergency_manager and getattr(self.emergency_manager.config, "enabled", False):
+                check_em = getattr(
+                    self.emergency_manager, "is_emergency_vehicle", lambda _vid: False
+                )
+                if not check_em(vid):
+                    corridors_dict = getattr(self.emergency_manager, "corridors", {})
+                    for corr in corridors_dict.values():
+                        corridor_edges.update(corr.edge_ids)
+
+            if at_origin:
+                cur_rem_edges = [s.edge_id for s in agent._segments]
+                cur_rem_nodes = [s.start_node_id for s in agent._segments] + (
+                    [agent._segments[-1].end_node_id] if agent._segments else []
+                )
+            else:
+                cur_rem_edges = [s.edge_id for s in agent._segments[agent.current_edge_index :]]
+                cur_rem_nodes = [agent._segments[agent.current_edge_index].start_node_id] + [
+                    s.end_node_id for s in agent._segments[agent.current_edge_index :]
+                ]
+
+            # Assess observation confidence from local knowledge store
+            cand_conf = 1.0
+            if knowledge_store is not None:
+                beliefs = knowledge_store.get_beliefs(
+                    active_only=True, current_time_s=current_time_s
+                )
+                c_confs = [
+                    b.confidence
+                    for b in beliefs.values()
+                    if hasattr(b, "edge_id") and b.edge_id in routing_res.edge_ids
+                ]
+                if c_confs:
+                    cand_conf = sum(c_confs) / len(c_confs)
+
+            cand_opt = CandidateRoute(
+                candidate_id=f"cand_{vid}_{routing_res.route.id}",
+                node_ids=tuple(routing_res.node_ids),
+                edge_ids=tuple(routing_res.edge_ids),
+                estimated_travel_time_s=routing_res.estimated_duration_s,
+                total_distance_m=routing_res.total_distance_m,
+                objective_cost=candidate_cost,
+                confidence=cand_conf,
+                source="adaptive_routing",
+                is_current_route=False,
+                route=routing_res.route,
+            )
+
+            cur_opt = CandidateRoute(
+                candidate_id=f"cur_{vid}_{agent.route.id}",
+                node_ids=tuple(cur_rem_nodes),
+                edge_ids=tuple(cur_rem_edges),
+                estimated_travel_time_s=current_cost if math.isfinite(current_cost) else 9999.0,
+                total_distance_m=agent.total_route_distance_m,
+                objective_cost=current_cost if math.isfinite(current_cost) else 9999.0,
+                confidence=1.0,
+                source="active_route",
+                is_current_route=True,
+                route=agent.route,
+            )
+
+            dec_ctx = DecisionContext(
+                agent_id=vid,
+                current_time_s=current_time_s,
+                destination_node_id=agent.vehicle.target_node_id,
+                current_node_id=agent.vehicle.current_node_id,
+                current_edge_id=agent.vehicle.current_edge_id,
+                current_route_id=agent.route.id,
+                current_cost=current_cost,
+                current_route_edge_ids=tuple(cur_rem_edges),
+                known_closed_edges=frozenset(closed_edges),
+                emergency_corridor_edges=frozenset(corridor_edges),
+            )
+
+            dec_result = self.decision_manager.evaluate_decision(
+                context=dec_ctx,
+                candidates=[cand_opt, cur_opt],
+                applied=True,
+            )
+
+            if (
+                dec_result.outcome == DecisionOutcome.ACCEPT
+                and dec_result.selected_candidate_id == cand_opt.candidate_id
+            ):
+                accept = True
+                benefit = (
+                    current_cost - candidate_cost
+                    if math.isfinite(current_cost)
+                    else float("inf")
+                )
+                req_benefit = 0.0
+            else:
+                accept = False
+                if dec_result.outcome == DecisionOutcome.REJECT:
+                    self.metrics.record_insufficient_benefit()
+                    dec = RerouteDecision(
+                        decision_type=RerouteDecisionType.REROUTE_REJECTED,
+                        vehicle_id=vid,
+                        timestamp_s=current_time_s,
+                        current_cost=current_cost,
+                        candidate_cost=candidate_cost,
+                        cost_improvement=(
+                            current_cost - candidate_cost
+                            if math.isfinite(current_cost)
+                            else None
+                        ),
+                        old_route_id=agent.route.id,
+                        reason=f"Policy rejected route: {dec_result.reason}",
+                    )
+                    self._last_decisions[vid] = dec
+                    return dec
+                elif dec_result.outcome == DecisionOutcome.DEFER:
+                    self.metrics.record_insufficient_benefit()
+                    dec = RerouteDecision(
+                        decision_type=RerouteDecisionType.INSUFFICIENT_BENEFIT,
+                        vehicle_id=vid,
+                        timestamp_s=current_time_s,
+                        current_cost=current_cost,
+                        candidate_cost=candidate_cost,
+                        cost_improvement=(
+                            current_cost - candidate_cost
+                            if math.isfinite(current_cost)
+                            else None
+                        ),
+                        old_route_id=agent.route.id,
+                        reason=f"Policy deferred route change: {dec_result.reason}",
+                    )
+                    self._last_decisions[vid] = dec
+                    return dec
+                else:
+                    self.metrics.record_insufficient_benefit()
+                    dec = RerouteDecision(
+                        decision_type=RerouteDecisionType.NO_CHANGE,
+                        vehicle_id=vid,
+                        timestamp_s=current_time_s,
+                        current_cost=current_cost,
+                        candidate_cost=candidate_cost,
+                        cost_improvement=0.0,
+                        old_route_id=agent.route.id,
+                        reason=f"Policy decided: {dec_result.reason}",
+                    )
+                    self._last_decisions[vid] = dec
+                    return dec
+        else:
+            if math.isinf(current_cost):
+                # Active road closure on current route: accept alternative immediately
+                benefit = float("inf")
+                accept = True
+                req_benefit = 0.0
+            else:
+                benefit = current_cost - candidate_cost
+                req_benefit = max(
+                    self.config.min_absolute_benefit,
+                    self.config.min_relative_benefit * current_cost,
+                )
+                accept = benefit >= req_benefit - 1e-9
 
         if accept:
             # Verify candidate route does not exactly duplicate remaining route

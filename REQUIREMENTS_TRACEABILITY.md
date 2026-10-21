@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 17 (Pedestrian Agents, Crosswalks, and Traffic-Signal Interaction)  
+**Current Phase:** Phase 19 (AI Decision Policy)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 18 (Emergency Vehicle Priority, Yielding Policies, and Dynamic Emergency Corridors):* Phase 18 implements typed emergency vehicles (`EmergencyType` AMBULANCE/FIRE_ENGINE/POLICE, priority levels 1-3, `EmergencyLifecycleState` FSM), authoritative `EmergencyPriorityManager`, deterministic tie-breaking `(priority_level, creation_time_s, vehicle_id)`, idempotent priority activation, V2V emergency message codecs and awareness stores without omniscient leakage, dynamic emergency corridor planning and temporary reservations (`EmergencyCorridorPlanner`), cooperative yielding policy with physical deceleration limits, stopping before red traffic signals, crosswalk protection for crossing pedestrians, supreme Phase 16 safety collision avoidance overrides, and traffic signal priority overrides. 913 total tests passing, 96% line coverage. This fulfills the emergency vehicle priority requirements of FR-10. AI decision policies (Phase 19) remain strictly deferred.
+> *Note on Phase 19 (Pluggable AI Decision Policies for Autonomous Vehicle Agents):* Phase 19 implements a typed pluggable decision policy interface (`DecisionPolicy` protocol), a deterministic rule-based baseline policy (`RuleBasedDecisionPolicy`), multi-objective candidate route scoring balancing travel time, local congestion beliefs, hazard penalties, observation confidence, and route stability hysteresis, pre-scoring hard safety constraint checks (closed edges, active emergency corridors, graph connectivity) where violations yield $S(c) = -\infty$, deterministic 4-tier tie-breaking, bounded confidence scoring $[0.0, 1.0]$, route flapping prevention, explicit outcome taxonomy (`ACCEPT`, `REJECT`, `DEFER`, `REEVALUATE`), decentralized local knowledge isolation, and single-clock `SimulationEngine.step()` integration with atomic rollback. 956 total tests passing, 95.72% line coverage. This fulfills the baseline AI decision-making requirements of FR-08. Reinforcement learning model training (FR-13) remains strictly deferred to Phases 32–34.
 
 ---
 
@@ -25,7 +25,7 @@
 | **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 06, 07, 08, 10, 30, 31 | `NOT STARTED` | Phase 06–10 Tested (`test_routing_*.py`, `test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`) |
 | **FR-06** | Decentralized Vehicle Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/`, `sim_engine/agents/` | Phase 11, 12, 13, 14 | `NOT STARTED` | Phase 11–14 Protocol, Discovery, Neighbors, Knowledge & Outages Tested (`test_communication_*.py`, `test_coordination_*.py`) |
 | **FR-07** | Adaptive Path Planning | `backend/apps/core/routing/`, `sim_engine/planning/` | Phase 06, 15, 28 | `NOT STARTED` | Phase 06 & 15 Baseline & Adaptive Rerouting Tested (`test_routing_*.py`) |
-| **FR-08** | AI-Based Decision-Making | `sim_engine/agents/`, `rl_engine/policies/` | Phase 19, 34 | `NOT STARTED` | Pending Phase 19 |
+| **FR-08** | AI-Based Decision-Making | `backend/apps/core/decision/`, `backend/apps/core/routing/adapter.py` | Phase 19, 34 | `TESTED` | Phase 19 Pluggable Rule-Based AI Decision Policies Tested (`test_decision_*.py`: 43 tests passing) |
 | **FR-09** | Collision Detection and Avoidance | `backend/apps/core/safety/` | Phase 16, 17, 37 | `TESTED` | Phase 16 V2V & Phase 17 Vehicle-Pedestrian Collision Avoidance Tested (`test_safety_*.py`, `test_pedestrian_safety_and_collisions.py`) |
 | **FR-10** | Emergency Vehicle Priority | `backend/apps/core/emergency/`, `backend/apps/core/simulation/` | Phase 18, 25, 29 | `TESTED` | Phase 18 Emergency Priority, Corridors, Yielding & Signals Tested (`test_emergency_*.py`: 60 tests passing) |
 | **FR-11** | Communication Range Detection | `backend/apps/core/communication/discovery.py`, `backend/apps/core/communication/neighbors.py` | Phase 11, 12, 14, 27 | `NOT STARTED` | Phase 11, 12, 14 Spatial Discovery, Tables & Distance Loss Tested (`test_communication_discovery.py`, `test_communication_impairment.py`) |
@@ -104,9 +104,9 @@
 ### FR-08: AI-Based Decision-Making
 - **Requirement Statement:** Develop an intelligent decision-making system for autonomous vehicles; enable vehicles to independently accept or reject route suggestions based on traffic conditions, safety, and travel efficiency.
 - **Target Phases:** Phase 19 (AI decision policy), Phase 34 (RL evaluation and policy integration).
-- **Components:** `sim_engine/agents/decision_policy.py`, `rl_engine/policies/`
-- **Verification Plan:** Evaluation tests verifying agent evaluates candidate paths and rationally selects optimal route under conflicting traffic suggestions.
-- **Current Status:** `NOT STARTED`
+- **Components:** `backend/apps/core/decision/` (`models.py`, `config.py`, `features.py`, `scoring.py`, `policy.py`, `manager.py`, `metrics.py`), `backend/apps/core/routing/adapter.py`
+- **Verification Plan:** Multi-objective scoring tests, hard safety constraint rejection (closures, active corridors), bounded observation confidence evaluation, route stability hysteresis, explicit outcome taxonomy (`ACCEPT`, `REJECT`, `DEFER`, `REEVALUATE`), decentralized local knowledge isolation, single-clock simulation engine stepping, and atomic rollback (`test_decision_*.py`: 43 tests passing).
+- **Current Status:** `TESTED (Phase 19 Rule-Based Baseline Complete; RL Deferred to Phases 32-34)`
 
 ---
 

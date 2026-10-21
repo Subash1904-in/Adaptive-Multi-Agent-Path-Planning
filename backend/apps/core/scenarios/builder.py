@@ -115,6 +115,7 @@ class ScenarioBuilder:
                 adaptive_routing_config=self.scenario.adaptive_routing_config,
                 safety_config=self.scenario.safety_config,
                 emergency_config=self.scenario.emergency_config,
+                decision_config=self.scenario.decision_config,
             )
         except Exception as exc:
             msg = (

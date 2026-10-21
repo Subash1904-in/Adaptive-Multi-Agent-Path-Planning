@@ -10,6 +10,7 @@ Provides compact, offline, and deterministic scenario templates illustrating:
 
 from apps.core.communication.models import CommunicationConfig
 from apps.core.coordination.models import CoordinationConfig
+from apps.core.decision.config import DecisionConfig
 from apps.core.domain.enums import VehicleType
 from apps.core.emergency.models import EmergencyConfig, EmergencyType, ReservationConflictPolicy
 from apps.core.graph.generator import CityGridConfig
@@ -1862,6 +1863,292 @@ def create_pedestrian_crosswalk_signal_priority_denial_scenario(
         max_ticks=max_ticks,
         seed=seed,
     )
+
+
+def create_ai_decision_fastest_route_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 100,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create scenario where agent evaluates alternative routes and selects fastest viable path."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=15.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_fastest",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r2_c2",
+        algorithm=RoutingAlgorithm.ASTAR,
+        cost_mode=CostMode.TRAVEL_TIME,
+        initial_speed_mps=5.0,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_ai_fastest_route",
+            name="AI Decision: Fastest Feasible Route Selection",
+            description="Agent policy evaluates candidate routes and chooses the fastest.",
+        ),
+        road_network=rn,
+        vehicles=(v1,),
+        adaptive_routing_config=AdaptiveRoutingConfig(enabled=True),
+        decision_config=DecisionConfig(
+            enabled=True,
+            weight_travel_time=1.0,
+            weight_confidence=0.5,
+        ),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+
+
+def create_ai_decision_road_closure_rejection_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 100,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create scenario where agent rejects candidate route that traverses a known road closure."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=15.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_closure_avoid",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+        algorithm=RoutingAlgorithm.ASTAR,
+        initial_speed_mps=5.0,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_ai_closure_rejection",
+            name="AI Decision: Road Closure Rejection",
+            description="Policy rejects closed candidate route and reroutes to open path.",
+        ),
+        road_network=rn,
+        vehicles=(v1,),
+        coordination_config=CoordinationConfig(enabled=True),
+        adaptive_routing_config=AdaptiveRoutingConfig(enabled=True),
+        decision_config=DecisionConfig(
+            enabled=True,
+            weight_travel_time=1.0,
+        ),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+
+
+def create_ai_decision_congestion_belief_preference_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 100,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create scenario where agent selects alternative route with lower dynamic congestion."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=15.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_congestion_avoid",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r2_c2",
+        algorithm=RoutingAlgorithm.ASTAR,
+        initial_speed_mps=5.0,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_ai_congestion_preference",
+            name="AI Decision: Low-Congestion Route Preference",
+            description="Agent prefers route with lower congestion cost based on local beliefs.",
+        ),
+        road_network=rn,
+        vehicles=(v1,),
+        coordination_config=CoordinationConfig(enabled=True),
+        adaptive_routing_config=AdaptiveRoutingConfig(enabled=True),
+        decision_config=DecisionConfig(
+            enabled=True,
+            weight_travel_time=1.0,
+            weight_congestion=1.0,
+        ),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+
+
+def create_ai_decision_low_confidence_deferral_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 100,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create scenario where route change is deferred due to low observation confidence."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=15.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_low_conf",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r2_c2",
+        algorithm=RoutingAlgorithm.ASTAR,
+        initial_speed_mps=5.0,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_ai_low_confidence",
+            name="AI Decision: Low-Confidence Deferral",
+            description="Policy defers route change when candidate confidence is below threshold.",
+        ),
+        road_network=rn,
+        vehicles=(v1,),
+        adaptive_routing_config=AdaptiveRoutingConfig(enabled=True),
+        decision_config=DecisionConfig(
+            enabled=True,
+            min_confidence_threshold=0.8,
+        ),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+
+
+def create_ai_decision_route_stability_hysteresis_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 100,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create scenario where route stability bonus prevents route oscillation / flapping."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=15.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v1 = VehicleScenarioDefinition(
+        vehicle_id="veh_hysteresis",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r2_c2",
+        algorithm=RoutingAlgorithm.ASTAR,
+        initial_speed_mps=5.0,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_ai_route_stability",
+            name="AI Decision: Route Stability and Hysteresis",
+            description="Policy suppresses minor-gain rerouting to maintain stable active route.",
+        ),
+        road_network=rn,
+        vehicles=(v1,),
+        adaptive_routing_config=AdaptiveRoutingConfig(enabled=True),
+        decision_config=DecisionConfig(
+            enabled=True,
+            weight_stability=0.5,
+            min_score_improvement=0.2,
+        ),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+
+
+def create_ai_decision_emergency_corridor_rejection_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 100,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create scenario where policy rejects routing through an active emergency corridor."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=15.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v_norm = VehicleScenarioDefinition(
+        vehicle_id="veh_normal",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+        algorithm=RoutingAlgorithm.ASTAR,
+        initial_speed_mps=5.0,
+    )
+    v_amb = VehicleScenarioDefinition(
+        vehicle_id="amb_corridor",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+        algorithm=RoutingAlgorithm.ASTAR,
+        initial_speed_mps=10.0,
+    )
+    ev_amb = EmergencyVehicleScenarioDefinition(
+        vehicle_id="amb_corridor",
+        emergency_type=EmergencyType.AMBULANCE,
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+        priority_level=1,
+        auto_activate=True,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_ai_corridor_rejection",
+            name="AI Decision: Emergency Corridor Hard Constraint Rejection",
+            description="Normal vehicle policy strictly rejects entering emergency corridor.",
+        ),
+        road_network=rn,
+        vehicles=(v_norm, v_amb),
+        emergency_vehicles=(ev_amb,),
+        v2v_config=CommunicationConfig(enabled=True, range_m=200.0),
+        emergency_config=EmergencyConfig(enabled=True),
+        adaptive_routing_config=AdaptiveRoutingConfig(enabled=True),
+        decision_config=DecisionConfig(enabled=True),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+
 
 
 

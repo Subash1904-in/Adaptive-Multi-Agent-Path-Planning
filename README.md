@@ -598,9 +598,66 @@ The platform includes an individual vehicle kinematics and route-following coord
   tick_res = engine.step()
   print(f"Active corridors: {tick_res.emergency_metrics['active_corridors']}")
   ```
+### 6.21 Pluggable AI Decision Policies for Autonomous Vehicle Agents (Phase 19)
+- **Module:** `backend/apps/core/decision/`
+- **Key Classes:** `DecisionPolicy`, `RuleBasedDecisionPolicy`, `DecisionManager`, `DecisionConfig`, `CandidateRoute`, `CandidateScore`, `DecisionContext`, `DecisionResult`, `DecisionOutcome`, `DecisionReasonCode`, `DecisionMetrics`.
+- **Capabilities:** Pluggable, typed protocol interface for local autonomous vehicle decision-making; deterministic multi-objective candidate scoring balancing estimated travel time, local congestion beliefs, hazard penalties, observation confidence, and route stability hysteresis; strict pre-scoring evaluation of hard safety constraints (known impassable closures, active emergency corridors from Phase 18, structural graph discontinuity) where constraint violations result in $S(c) = -\infty$ and can never be accepted; bounded observation confidence scoring $[0.0, 1.0]$ with automatic deferral when confidence is below configured threshold; route stability bonus and hysteresis threshold preventing rapid route oscillation (anti-flapping); explicit decision outcome and reason taxonomy; complete local knowledge isolation preserving decentralized principles without omniscient cross-vehicle state leakage; authoritative single-clock engine execution and atomic rollback guarantees.
+- **Clarification:** This baseline policy is a deterministic, rule-based multi-objective decision system. It does **not** train a neural network or claim to be a learned reinforcement-learning model (RL model training is strictly scheduled for Phases 32–34).
+- **Python API Usage Example:**
+  ```python
+  from apps.core.decision import (
+      CandidateRoute,
+      DecisionConfig,
+      DecisionContext,
+      RuleBasedDecisionPolicy,
+      DecisionOutcome,
+  )
+
+  # 1. Initialize decision config and deterministic baseline policy
+  cfg = DecisionConfig(
+      enabled=True,
+      weight_travel_time=1.0,
+      weight_confidence=0.4,
+      min_confidence_threshold=0.40,
+      min_score_improvement=0.05,
+  )
+  policy = RuleBasedDecisionPolicy(config=cfg)
+
+  # 2. Assemble agent-isolated decision context with local knowledge
+  ctx = DecisionContext(
+      agent_id="veh_01",
+      current_time_s=10.0,
+      destination_node_id="node_dest",
+      known_closed_edges=frozenset({"edge_blocked"}),
+  )
+
+  # 3. Create candidate routes: one traversing a closed edge, another clear alternative
+  infeasible_cand = CandidateRoute(
+      candidate_id="route_closure",
+      node_ids=("node_start", "node_mid", "node_dest"),
+      edge_ids=("edge_blocked", "edge_2"),
+      estimated_travel_time_s=15.0,  # Fast travel time, but traverses a closure
+      confidence=0.95,
+  )
+  feasible_cand = CandidateRoute(
+      candidate_id="route_open",
+      node_ids=("node_start", "node_alt", "node_dest"),
+      edge_ids=("edge_open1", "edge_open2"),
+      estimated_travel_time_s=22.0,  # Slightly longer, but structurally passable
+      confidence=0.90,
+  )
+
+  # 4. Evaluate candidates under policy
+  result = policy.evaluate(context=ctx, candidates=[infeasible_cand, feasible_cand])
+
+  print(f"Outcome: {result.outcome.value}")  # 'accept'
+  print(f"Selected Candidate: {result.selected_candidate_id}")  # 'route_open'
+  print(f"Reason: {result.reason_code.value}")  # 'fastest_feasible_route'
+  # Infeasible route rejected with S(c) = -inf despite shorter travel time!
+  ```
 > *Educational Simulation Disclaimer:* This software is designed solely for educational and academic research into multi-agent path planning. It is not designed or certified for real-world vehicular control.
 
-### 6.21 Troubleshooting
+### 6.22 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -631,6 +688,7 @@ The platform includes an individual vehicle kinematics and route-following coord
 - [docs/progress/PHASE_16.md](docs/progress/PHASE_16.md): Phase 16 collision detection, safe separation, and avoidance report.
 - [docs/progress/PHASE_17.md](docs/progress/PHASE_17.md): Phase 17 pedestrian agents, crosswalks, and traffic signals report.
 - [docs/progress/PHASE_18.md](docs/progress/PHASE_18.md): Phase 18 emergency vehicle priority, yielding policies, and dynamic corridors report.
+- [docs/progress/PHASE_19.md](docs/progress/PHASE_19.md): Phase 19 pluggable AI decision policies for autonomous vehicle agents report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

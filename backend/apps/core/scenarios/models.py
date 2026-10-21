@@ -11,6 +11,7 @@ from typing import Any, Optional, Union
 
 from apps.core.communication.models import CommunicationConfig
 from apps.core.coordination.models import CoordinationConfig
+from apps.core.decision.config import DecisionConfig
 from apps.core.domain.enums import VehicleType
 from apps.core.emergency.models import EmergencyConfig, EmergencyType
 from apps.core.graph.generator import CityGridConfig
@@ -271,6 +272,7 @@ class ScenarioDefinition:
     adaptive_routing_config: Optional[AdaptiveRoutingConfig] = None
     safety_config: Optional[SafetyConfig] = None
     emergency_config: Optional[EmergencyConfig] = None
+    decision_config: Optional[DecisionConfig] = None
 
     @property
     def effective_max_ticks(self) -> Optional[int]:
@@ -320,6 +322,11 @@ class ScenarioDefinition:
             "emergency_config": (
                 self.emergency_config.to_dict()
                 if self.emergency_config
+                else None
+            ),
+            "decision_config": (
+                self.decision_config.to_dict()
+                if self.decision_config
                 else None
             ),
             "simulation_metadata": dict(self.simulation_metadata),

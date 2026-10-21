@@ -219,6 +219,13 @@ class SimulationEngine:
             safety_rollback = self.world.safety_manager.capture_state()
         if hasattr(self.world, "emergency_manager") and self.world.emergency_manager:
             emergency_rollback = self.world.emergency_manager.capture_state()
+        decision_rollback = None
+        if (
+            hasattr(self.world, "decision_manager")
+            and self.world.decision_manager
+            and self.world.decision_manager.config.enabled
+        ):
+            decision_rollback = self.world.decision_manager.capture_state()
 
         # 2. Advance communication network tick (moves transit messages to inboxes)
         if self.world.communication_network.config.enabled:
@@ -536,6 +543,8 @@ class SimulationEngine:
                 self.world.safety_manager.restore_state(safety_rollback)
             if emergency_rollback is not None and hasattr(self.world, "emergency_manager"):
                 self.world.emergency_manager.restore_state(emergency_rollback)
+            if decision_rollback is not None and hasattr(self.world, "decision_manager"):
+                self.world.decision_manager.restore_state(decision_rollback)
 
             self.status = EngineStatus.FAILED
             raise TickExecutionError(
@@ -626,6 +635,24 @@ class SimulationEngine:
             yield_decisions=(
                 {vid: dec.to_dict() for vid, dec in yield_decisions.items()}
                 if yield_decisions
+                else None
+            ),
+            decision_metrics=(
+                self.world.decision_manager.metrics.to_dict()
+                if (
+                    hasattr(self.world, "decision_manager")
+                    and self.world.decision_manager
+                    and self.world.decision_manager.config.enabled
+                )
+                else None
+            ),
+            decision_records=(
+                [r.to_dict() for r in self.world.decision_manager._records]
+                if (
+                    hasattr(self.world, "decision_manager")
+                    and self.world.decision_manager
+                    and self.world.decision_manager.config.enabled
+                )
                 else None
             ),
         )

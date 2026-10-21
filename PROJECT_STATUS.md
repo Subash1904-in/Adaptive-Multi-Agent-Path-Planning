@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 18 (Emergency Vehicle Priority, Yielding Policies, and Dynamic Emergency Corridors)
+- **Current Phase:** Phase 19 (AI Decision Policy)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 19 (AI Decision Policy) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 20 (Backend Integration Checkpoint) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-21
 
 ---
@@ -33,8 +33,8 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 16** | **Collision detection and avoidance** | **COMPLETED** | 2D OBB SAT collision detection, safe separation distance, TTC estimation, 5-tier risk classification, controlled deceleration/emergency braking, deterministic conflict resolution, atomic rollback, 808 tests passed (96% coverage). |
 | **Phase 17** | **Pedestrian agents, crosswalks, and traffic signals** | **COMPLETED** | Typed pedestrian agents, bounded kinematics, crosswalk corridor model, traffic signal integration & clearance policy, vehicle-pedestrian SAT OBB conflict detection & braking, atomic rollback, 853 tests passed (96% coverage). |
 | **Phase 18** | **Emergency vehicle priority, yielding & dynamic corridors** | **COMPLETED** | Ambulance/fire/police types, priority FSM, V2V announcements, dynamic corridors, yielding policies, signal priority, 913 tests passed (96% coverage). |
-| **Phase 19** | AI decision policy | Pending | Pluggable local decision policy evaluating travel time, congestion, risk, confidence scores. |
-| **Phase 20** | Backend integration checkpoint | Pending | End-to-end backend integration tests (incident, comms failure, emergency vehicle, arrival metrics). |
+| **Phase 19** | **AI decision policy** | **COMPLETED** | Pluggable local decision policy evaluating travel time, congestion, risk, confidence scores, 956 tests passed (95.72% coverage). |
+| **Phase 20** | **Backend integration checkpoint** | **PENDING** | End-to-end backend integration tests (incident, comms failure, emergency vehicle, arrival metrics). |
 | **Phase 21** | Django REST API | Pending | REST endpoints: health, simulation lifecycle, vehicle listing, map data, metrics, scenario config. |
 | **Phase 22** | Real-time WebSocket streaming | Pending | Django Channels telemetry stream, versioned event schemas, resync, bounded frequency. |
 | **Phase 23** | Frontend scaffold and visual system | Pending | TypeScript + Three.js scaffold, professional UI design system, typography, layout, API/render split. |
@@ -237,10 +237,13 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Communication Degradation & Latency (`test_communication_*.py`):** 74 passed.
 - **V2V Coordination & Belief Dissemination (`test_coordination_*.py`):** 52 passed.
 - **Dynamic Neighbor Tables & Heartbeats (`test_communication_neighbors*.py`):** 38 passed.
-- **V2V Message Protocol & Codecs (`test_communication_protocol.py`):** 35 passed.
-- **Spatial Peer Discovery (`test_communication_discovery.py`):** 24 passed.
-- **Simulated Communication Network (`test_communication_network.py`):** 16 passed.
-- **Broadcast Scheduler (`test_communication_scheduler.py`):** 14 passed.
+- **AI Decision Policies & Scenarios (`test_decision_*.py`):** 43 passed.
+- **Emergency Priority, Corridors & Yielding (`test_emergency_*.py`):** 60 passed.
+- **Pedestrian Crosswalks & Safety (`test_pedestrian_*.py`):** 45 passed.
+- **Collision Detection & Safety Engine (`test_safety_*.py`):** 48 passed.
+- **Dynamic Routing & Adaptive Policy (`test_routing_*.py`):** 84 passed.
+- **Decentralized Coordination & Belief Fusion (`test_coordination_*.py`):** 52 passed.
+- **V2V Communication Degradation & Impairment (`test_communication_*.py`):** 145 passed.
 - **Scenario Validation & Execution (`test_scenarios_*.py`):** 44 passed.
 - **Signal Controller & World Integration (`test_signals_*.py`):** 64 passed.
 - **Clock, World, & Engine (`test_simulation_*.py`):** 59 passed.
@@ -249,14 +252,14 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Road Graph & City Generator (`test_road_graph.py`, `test_city_generator.py`):** 41 passed.
 - **Domain Models, Values & Codecs (`test_domain_*.py`):** 105 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **913 passed, 0 failed in 6.63s**, **96% line coverage** (exceeds 80% threshold).
+- **Total:** **956 passed, 0 failed in 9.51s**, **95.72% line coverage** (exceeds 80% threshold).
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Emergency priority subsystem (`backend/apps/core/emergency/`) complete, deterministic, and fully integrated with `SimulationEngine.step()`, `WorldState`, traffic signals, V2V communication, and the Phase 16 safety collision avoidance subsystem with atomic rollback guarantees.
+- **Notes:** AI decision policy subsystem (`backend/apps/core/decision/`) complete, deterministic, and fully integrated with `DynamicRouteAdapter`, `SimulationEngine.step()`, `WorldState`, and emergency priority constraints with atomic rollback guarantees.
 - **Educational Disclaimer:** This simulation is developed solely for educational and research purposes and is NOT certified for physical vehicle deployment.
 
 ---
@@ -284,7 +287,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 9. Exact Next Steps
-1. Await user prompt for **Phase 18: Emergency Vehicle Priority**.
-2. Implement emergency vehicle entity types (Ambulance, Fire, Police), priority beacons, cooperative yielding policies, and dynamic emergency corridor creation.
+1. Await user prompt for **Phase 20: Backend Integration Checkpoint**.
+2. Implement comprehensive end-to-end multi-agent integration benchmarks verifying simultaneous road closures, emergency vehicle preemption, pedestrian crosswalk clearance, communication degradation, and pluggable AI route decision evaluations.
 
 
