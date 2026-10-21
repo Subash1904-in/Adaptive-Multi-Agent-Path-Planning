@@ -183,7 +183,14 @@ To maintain 60 FPS performance without memory leaks:
 
 ## 8. CI Pipeline Execution & Evidence
 
-*(Will be populated with authoritative GitHub Actions run URL and job execution details following push)*
+- **Authoritative CI Run URL:** [https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39638429540](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39638429540)
+- **Commit SHA:** `5d1ce9196a09e078ba1593ef2778e3be16757b01` (Short: `5d1ce91`)
+- **Workflow:** `CI Pipeline` (`.github/workflows/ci.yml`)
+- **Trigger:** `push` on branch `main`
+- **Job Statuses:**
+  - `repo-hygiene` (ID `119355284177`): **SUCCESS** (4s) — Verified presence of all mandatory documentation and phase reports from `PHASE_01.md` through `PHASE_27.md`; zero secret leaks or prohibited files detected.
+  - `backend-quality` (ID `119355284528`): **SUCCESS** (37s) — Ruff linting clean, Django system checks clean (0 silenced), full test suite executed: **1,097 passed in 16.78s**, **95.65% line coverage** (exceeds 80% threshold).
+  - `frontend-quality` (ID `119355284597`): **SUCCESS** (20s) — Reproducible `npm ci`, ESLint clean (0 errors, 0 warnings), strict TypeScript typecheck clean (`tsc --noEmit`), **147 Vitest unit & component tests passed across 8 test suites**, Vite production bundle build clean in 1.27s (`dist/index.html`, `dist/assets/index-DuKV4v-l.css`, `dist/assets/index-D8pmlVFn.js`).
 
 ---
 
