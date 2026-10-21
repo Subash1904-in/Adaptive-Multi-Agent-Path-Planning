@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles (AMAPP)  
 **Testing Frameworks:** `pytest`, `pytest-cov`, `pytest-django`, `pytest-asyncio`  
-**Current Status:** Standards & Strategy Defined (Phase 01)
+**Current Status:** Active Test Strategy Enforced (Phase 22 — 1,095 Tests Passing, 95.66% Coverage)
 
 ---
 
@@ -84,11 +84,11 @@ def set_deterministic_seed():
 
 ---
 
-## 4. Active Test Suites & Commands (Phase 06)
+## 4. Active Test Suites & Commands (Phase 22)
 
 ### 4.1 Running Active Tests
 ```bash
-# Run entire backend test suite via pytest (257 passed)
+# Run entire backend test suite via pytest (1,095 passed)
 pytest
 
 # Run with full coverage report and 80% failure threshold
@@ -97,25 +97,18 @@ pytest --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80
 # Run with verbose output
 pytest -v
 
-# Run specific routing test suites (Phase 06)
-pytest backend/apps/core/tests/test_routing_costs_and_heuristics.py
-pytest backend/apps/core/tests/test_routing_dijkstra.py
-pytest backend/apps/core/tests/test_routing_astar.py
-pytest backend/apps/core/tests/test_routing_planner.py
+# Run WebSocket test suites (Phase 22)
+pytest backend/apps/core/tests/test_ws_routing_and_handshake.py
+pytest backend/apps/core/tests/test_ws_protocol_and_errors.py
+pytest backend/apps/core/tests/test_ws_live_events.py
+pytest backend/apps/core/tests/test_ws_replay_and_backpressure.py
+pytest backend/apps/core/tests/test_ws_auth_and_lifecycle.py
 
-# Run specific OSM test suites (Phase 05)
-pytest backend/apps/core/tests/test_osm_models_and_projector.py
-pytest backend/apps/core/tests/test_osm_normalizer.py
-pytest backend/apps/core/tests/test_osm_service_and_fallback.py
-
-# Run specific graph test suites (Phase 04)
-pytest backend/apps/core/tests/test_road_graph.py
-pytest backend/apps/core/tests/test_city_generator.py
-
-# Run specific domain test suites (Phase 03)
-pytest backend/apps/core/tests/test_domain_values.py
-pytest backend/apps/core/tests/test_domain_models.py
-pytest backend/apps/core/tests/test_domain_serialization.py
+# Run REST API test suites (Phase 21)
+pytest backend/apps/core/tests/test_api_scenarios.py
+pytest backend/apps/core/tests/test_api_runs.py
+pytest backend/apps/core/tests/test_api_telemetry_and_export.py
+pytest backend/apps/core/tests/test_api_security_and_errors.py
 
 # Run Ruff linting
 ruff check backend
@@ -124,7 +117,45 @@ ruff check backend
 python backend/manage.py check
 ```
 
-### 4.2 Verified Test Coverage (Phase 21 — 1,053 Tests Passing, 95.77% Coverage)
+### 4.2 Verified Test Coverage (Phase 22 — 1,095 Tests Passing, 95.66% Coverage)
+- **WebSocket Routing & Handshake (`test_ws_routing_and_handshake.py`, 5 passed):**
+  - URL routing matching valid alphanumeric, dash, and underscore run IDs (`ws://host/ws/v1/runs/{run_id}/`).
+  - Invalid route rejection and 404 on unroutable paths.
+  - Handshake execution with immediate `connection.ack` event broadcast.
+  - Run resolution against `RunRegistry`: 4404 close code on missing run ID.
+  - Educational disclaimer validation in connection ACK payload.
+- **WebSocket Protocol & Error Handling (`test_ws_protocol_and_errors.py`, 10 passed):**
+  - Standard JSON event envelope format (`event_type`, `run_id`, `sequence`, `tick`, `timestamp_s`, `schema_version`, `disclaimer`, `payload`).
+  - Monotonically increasing sequence numbers per event stream.
+  - Text frame decoding and malformed JSON text handling (4400 close code).
+  - Client ping/heartbeat command handling with server heartbeat response.
+  - Client unsubscribe and unknown command error reporting without unhandled exceptions.
+  - Maximum message size enforcement (`AMAPP_WS_MAX_MESSAGE_BYTES = 65536`).
+- **WebSocket Live Event Streaming (`test_ws_live_events.py`, 9 passed):**
+  - Real-time event dispatch for all 21 `SimulationEventType` variants.
+  - Telemetry collector listener bridge (`TelemetryRecord` -> WebSocket event envelope).
+  - Lifecycle state transition streaming (`run.state_change`, `run.completed`, `run.cancelled`).
+  - Periodic kinematic snapshot streaming (`simulation.snapshot`).
+  - Discrete step notifications (`run.step`) and metrics summary streaming (`metrics.summary`).
+  - Subsystem events: safety near-misses, routing reroutes, V2V transmissions, pedestrian crosswalk crossings, emergency corridors, and autonomous decision evaluations.
+- **WebSocket Bounded Replay & Backpressure Handling (`test_ws_replay_and_backpressure.py`, 8 passed):**
+  - Bounded history replay from in-memory telemetry buffer using `subscribe` with `from_sequence`.
+  - Tick-based historical replay using `from_tick`.
+  - Maximum replay limit enforcement (`AMAPP_WS_MAX_REPLAY_RECORDS = 500`).
+  - Historical eviction gap notification (`telemetry.gap` with `reason="expired_history"`).
+  - Bounded per-consumer outbound queue (`AMAPP_WS_MAX_QUEUE_SIZE = 128`).
+  - Backpressure drop policy: non-critical events dropped on buffer saturation with `telemetry.gap` (`reason="buffer_overflow"`).
+  - Zero-drop preservation of critical lifecycle events (`run.state_change`, `run.completed`, etc.).
+- **WebSocket Authentication, Origin & Consumer Lifecycle (`test_ws_auth_and_lifecycle.py`, 10 passed):**
+  - Origin validation via `SimulationOriginValidator` against `ALLOWED_HOSTS` and `AMAPP_WS_ALLOWED_ORIGINS`.
+  - Disallowed origin rejection with 4401 Unauthorized close code.
+  - Authentication state propagation through `AuthMiddlewareStack`.
+  - Client-driven simulation step commands (`type="step"`) advancing the authoritative runner.
+  - Client-driven cooperative cancellation (`type="cancel"`).
+  - Multiple concurrent WebSocket consumers subscribed to the same simulation run.
+  - Clean consumer disconnect and channel layer group deregistration.
+  - Broadcaster resilience to absent or failed channel layer instances without runner crash.
+
 - **API Scenario Management & Validation (`test_api_scenarios.py`, 10 passed):**
   - Scenario collection listing and preloaded example templates (`scn_single_veh`, `scn_multi_veh`, `scn_emergency_corridor`, `scn_signalized_intersection`).
   - Single scenario retrieval by ID with full structural definition serialization.
@@ -397,8 +428,8 @@ python backend/manage.py check
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 21: **95.77%** coverage across 1,053 passing tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_21.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 22: **95.66%** coverage across 1,095 passing tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_22.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend Deferred Cleanly:** Frontend build/lint/typecheck job runs in Node 22.x, deferring execution cleanly until `frontend/package.json` is introduced.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.

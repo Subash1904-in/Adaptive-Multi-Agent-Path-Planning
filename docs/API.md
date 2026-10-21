@@ -1,7 +1,7 @@
-# API & TELEMETRY PROTOCOL SPECIFICATION (BLUEPRINT)
+# API & TELEMETRY PROTOCOL SPECIFICATION
 
-> **Document Status:** Planned Architectural Specification (Phase 01)  
-> **Implementation Status:** **PROPOSED / NOT IMPLEMENTED** (Implementation scheduled across Phases 2, 21, 22, 29, 35)
+> **Document Status:** Authoritative Architectural & API Specification  
+> **Implementation Status:** **IMPLEMENTED & TESTED across Phases 02, 21, and 22** (All core REST endpoints and WebSocket live streaming fully tested)
 
 ---
 
@@ -246,131 +246,133 @@ Endpoints for initializing, stepping, cancelling, and inspecting scenario simula
 
 ---
 
-## 2. WebSocket Streaming Protocol (`ws://<host>:8000/ws/simulation/`)
+## 2. WebSocket Streaming Protocol (`ws://<host>:8000/ws/v1/runs/{run_id}/`)
 
-**Target Phase:** Phase 22 (Django Channels)  
-**Encoding:** JSON UTF-8  
-**Rate:** Configurable $10\text{--}30\,\text{Hz}$ (server-throttled)
-
-### 2.1 Backend Broadcast Event Schemas (Server $\rightarrow$ Client)
-
-#### Category 1: `SIMULATION_SNAPSHOT` (High Frequency)
-Transmitted at each tick interval to provide authoritative positions for Three.js interpolation.
-```json
-{
-  "event": "SIMULATION_SNAPSHOT",
-  "tick": 340,
-  "sim_time": 34.0,
-  "vehicles": [
-    {
-      "id": "veh_001",
-      "type": "STANDARD",
-      "x": 45.2,
-      "y": 0.0,
-      "z": -18.4,
-      "heading_rad": 1.5708,
-      "speed_mps": 11.2,
-      "state": "NAVIGATING",
-      "comm_radius": 50.0
-    },
-    {
-      "id": "amb_001",
-      "type": "EMERGENCY",
-      "x": 30.0,
-      "y": 0.0,
-      "z": -18.4,
-      "heading_rad": 1.5708,
-      "speed_mps": 18.0,
-      "siren_active": true,
-      "comm_radius": 100.0
-    }
-  ],
-  "pedestrians": [
-    {
-      "id": "ped_001",
-      "x": 50.0,
-      "y": 0.0,
-      "z": -15.0,
-      "state": "CROSSING"
-    }
-  ],
-  "traffic_signals": [
-    {"junction_id": "junc_01", "phase": "GREEN", "time_remaining_sec": 7.5}
-  ]
-}
-```
-
-#### Category 2: `V2V_EVENT` (Event Driven)
-Notifies the client of message transmissions, range discoveries, or dropped packets.
-```json
-{
-  "event": "V2V_EVENT",
-  "tick": 342,
-  "action": "TRANSMIT", // "TRANSMIT", "DELIVER", "DROP_PACKET", "PEER_DISCOVERED"
-  "message_id": "msg_98234",
-  "sender_id": "veh_001",
-  "recipient_id": "veh_002",
-  "message_type": "HAZARD_ALERT",
-  "latency_ticks": 2,
-  "sender_pos": {"x": 45.2, "z": -18.4}
-}
-```
-
-#### Category 3: `ROUTE_CHANGE` (Event Driven)
-Transmitted when an agent adaptively replans its route based on V2V alerts or sensor detections.
-```json
-{
-  "event": "ROUTE_CHANGE",
-  "tick": 345,
-  "vehicle_id": "veh_002",
-  "reason": "V2V_HAZARD_ALERT",
-  "old_route": ["node_01", "node_02", "node_06"],
-  "new_route": ["node_01", "node_03", "node_07", "node_06"],
-  "cost_difference": -12.4
-}
-```
-
-#### Category 4: `INCIDENT_EVENT` (Event Driven)
-Notifies of dynamic environmental hazards or collision incidents.
-```json
-{
-  "event": "INCIDENT_EVENT",
-  "tick": 350,
-  "incident_type": "COLLISION", // "ROAD_BLOCKAGE", "COLLISION", "NEAR_MISS"
-  "involved_agents": ["veh_005", "veh_008"],
-  "location": {"x": 100.0, "z": -40.0}
-}
-```
-
-#### Category 5: `METRICS_UPDATE` (Low Frequency, 1 Hz)
-Aggregated performance telemetry for HUD charts.
-```json
-{
-  "event": "METRICS_UPDATE",
-  "tick": 350,
-  "fps": 28.5,
-  "pdr": 0.945,
-  "active_count": 22,
-  "collisions_total": 0
-}
-```
-
-#### Category 6: `CONNECTION_STATUS` / `ERROR`
-```json
-{
-  "event": "CONNECTION_STATUS",
-  "status": "CONNECTED",
-  "channel_id": "sim_ch_001"
-}
-```
+> **Document Status:** Authoritative Architectural Contract  
+> **Implementation Status:** **IMPLEMENTED & TESTED in Phase 22** (42 automated tests passing)  
+> **Endpoint Route:** `ws://<host>:8000/ws/v1/runs/{run_id}/`  
+> **ASGI Server:** Daphne 4.2+ (Protocol router in `backend/config/asgi.py`)  
+> **Encoding:** UTF-8 JSON text frames  
+> **Schema Version:** `1.0.0`
 
 ---
 
-### 2.2 Client Interactive Commands (Client $\rightarrow$ Server)
+### 2.1 Connection Handshake, Origin Validation, and Close Codes
+
+Clients connect to a specific simulation run channel via `ws://<host>:8000/ws/v1/runs/{run_id}/`.
+
+1. **Origin Verification:** Handshake is evaluated by `SimulationOriginValidator`. In production or authenticated modes, origins must match `ALLOWED_HOSTS` or `AMAPP_WS_ALLOWED_ORIGINS`. Disallowed origins are rejected with close code `4401`.
+2. **Run Existence Check:** The consumer resolves `run_id` against `RunRegistry`. If the run does not exist, connection is immediately closed with code `4404`.
+3. **Connection ACK:** Upon successful connection, the server immediately sends a `connection.ack` event with schema version `1.0.0`, current run state, initial tick, and educational disclaimer.
+
+#### WebSocket Close Codes
+| Close Code | Constant Name | Condition |
+| :--- | :--- | :--- |
+| `1000` | Normal Closure | Clean disconnect by client or server shutdown. |
+| `4400` | Bad Request | Malformed JSON payload or invalid/unknown client command. |
+| `4401` | Unauthorized | Disallowed HTTP `Origin` header during handshake. |
+| `4404` | Run Not Found | `run_id` was not found in the authoritative `RunRegistry`. |
+| `4409` | Lifecycle Conflict | Client attempted to mutate a run in an invalid or terminal state. |
+
+---
+
+### 2.2 Standard WebSocket Event Envelope (Server $\rightarrow$ Client)
+
+All server-to-client broadcasts conform strictly to a standardized envelope format:
+
 ```json
 {
-  "action": "COMMAND",
-  "command": "STEP", // "PLAY", "PAUSE", "STEP", "RESET", "INJECT_HAZARD"
-  "payload": {}
+  "event_type": "simulation.snapshot",
+  "run_id": "run_001",
+  "sequence": 142,
+  "tick": 24,
+  "timestamp_s": 2.4,
+  "schema_version": "1.0.0",
+  "payload": { ... },
+  "disclaimer": "AMAPP is an educational simulation framework and is not intended for real-world autonomous vehicle safety-critical control."
 }
 ```
+
+#### Field Specifications:
+- `event_type` (`string`): One of the 21 defined `SimulationEventType` identifiers.
+- `run_id` (`string`): Unique identifier of the simulation run.
+- `sequence` (`integer` $\ge 0$): Monotonically increasing sequence number per event stream.
+- `tick` (`integer` $\ge 0$): Discrete simulation tick when the event was generated.
+- `timestamp_s` (`float` $\ge 0.0$): Simulated elapsed time in seconds.
+- `schema_version` (`string`): SemVer string representing protocol contract version (`"1.0.0"`).
+- `payload` (`object`): Event-specific dictionary.
+- `disclaimer` (`string`): Academic and educational simulation disclaimer.
+
+---
+
+### 2.3 Catalog of 21 Server Broadcast Event Types
+
+#### 1. Lifecycle Events (Critical — Zero-Drop)
+- **`run.state_change`**: Lifecycle transition (e.g., `READY` $\rightarrow$ `RUNNING`). Payload: `{"from_state": "READY", "to_state": "RUNNING", "current_tick": 0}`.
+- **`run.step`**: Notification of tick step completion. Payload: `{"tick": 1, "sim_time_s": 0.1, "arrived_count": 0, "active_count": 1}`.
+- **`run.completed`**: Normal run completion. Payload: `{"completed_ticks": 150, "duration_s": 15.0, "reason": "all_vehicles_arrived"}`.
+- **`run.cancelled`**: Operator cancellation. Payload: `{"cancelled_tick": 45, "reason": "operator_request"}`.
+- **`run.failed`**: Execution failure. Payload: `{"failed_tick": 12, "error_message": "..."}`.
+- **`run.limit_reached`**: Ticks or duration cap exceeded. Payload: `{"max_ticks": 200, "completed_ticks": 200}`.
+
+#### 2. High-Frequency State Events (Sampled / Backpressure-Droppable)
+- **`simulation.snapshot`**: Full world state at step boundary. Payload: `{"vehicles": [...], "traffic_signals": [...], "pedestrians": [...]}`.
+- **`vehicle.state`**: Kinematic vehicle update. Payload: `{"vehicle_id": "veh_01", "position": {"x": 12.4, "y": 0.0}, "speed_mps": 8.5, "heading_rad": 1.57, "lifecycle_state": "en_route"}`.
+- **`traffic_signals.update`**: Phase change for signals. Payload: `{"signal_id": "sig_01", "node_id": "int_01", "state": "GREEN", "time_to_green_s": 0.0, "time_to_red_s": 25.0}`.
+
+#### 3. Subsystem Domain Events (Event-Driven)
+- **`safety.event`**: Conflict detection, near-miss, or emergency deceleration override. Payload: `{"event_type": "near_miss", "vehicle_id": "veh_01", "other_id": "veh_02", "ttc_s": 1.4, "action": "emergency_brake"}`.
+- **`routing.reroute`**: Dynamic reroute decision evaluated. Payload: `{"vehicle_id": "veh_01", "decision": "accept", "reason": "avoid_closure", "new_route": [...]}`.
+- **`communication.message`**: V2V packet transmitted or delivered. Payload: `{"message_id": "msg_01", "sender_id": "veh_01", "message_type": "heartbeat", "receivers": ["veh_02"]}`.
+- **`communication.impairment`**: Packet loss, degradation, or link outage. Payload: `{"outage_type": "partition", "affected_nodes": ["veh_01", "veh_02"]}`.
+- **`coordination.report`**: Congestion or road closure dissemination. Payload: `{"report_id": "rep_01", "report_type": "congestion", "edge_id": "edge_north", "confidence": 0.85}`.
+- **`pedestrian.state`**: Pedestrian corridor crossing update. Payload: `{"pedestrian_id": "ped_01", "crosswalk_id": "cw_01", "lifecycle_state": "crossing"}`.
+- **`emergency.event`**: Emergency vehicle corridor request or activation. Payload: `{"vehicle_id": "amb_01", "emergency_type": "ambulance", "priority_level": 2, "corridor": [...]}`.
+- **`decision.evaluated`**: Autonomous policy scoring result. Payload: `{"vehicle_id": "veh_01", "outcome": "accept", "selected_candidate_id": "route_b", "scores": [...]}`.
+
+#### 4. Diagnostic, Transport & Telemetry Events
+- **`connection.ack`**: Handshake acknowledgement. Payload: `{"run_id": "run_01", "status": "READY", "initial_tick": 0}`.
+- **`telemetry.gap`**: Notification of missed telemetry records due to outbound buffer overflow (`"reason": "buffer_overflow"`) or expired history during replay (`"reason": "expired_history"`). Payload includes `dropped_count` and `from_sequence`/`to_sequence`.
+- **`metrics.summary`**: Periodic aggregated cross-subsystem metrics. Payload matches `MetricsAggregator.to_dict()`.
+- **`heartbeat`**: Server-originated ping/keepalive frame. Payload: `{"server_time_s": 1729528000.0}`.
+- **`error`**: Structured error notification. Payload: `{"error_code": "INVALID_COMMAND", "message": "..."}`.
+
+---
+
+### 2.4 Client Commands (Client $\rightarrow$ Server)
+
+Clients send JSON text messages to the consumer:
+
+```json
+{
+  "type": "step",
+  "ticks": 5
+}
+```
+
+#### Supported Commands:
+1. **`subscribe`**:
+   - Optional parameters: `from_sequence` (`integer`) or `from_tick` (`integer`).
+   - Requests historical telemetry replay from in-memory ring buffer (up to `AMAPP_WS_MAX_REPLAY_RECORDS = 500`).
+   - If requested history has already been evicted from the collector, a `telemetry.gap` event with `"reason": "expired_history"` is delivered first.
+2. **`unsubscribe`**:
+   - Stops event streaming to the consumer while keeping the WebSocket open.
+3. **`step`**:
+   - Optional parameters: `ticks` (`integer`, default: 1), `run_to_completion` (`boolean`, default: false), `target_accels` (`object`).
+   - Advances the simulation runner and streams resulting tick events.
+4. **`cancel`**:
+   - Optional parameters: `reason` (`string`).
+   - Requests cooperative cancellation of the running scenario.
+5. **`ping` / `heartbeat`**:
+   - Client keepalive probe. Server responds with a `heartbeat` event.
+
+---
+
+### 2.5 Backpressure and Bounded Outbound Queueing
+
+To protect server responsiveness against slow WebSocket clients:
+- Each connected consumer maintains an asynchronous, bounded outbound queue (`AMAPP_WS_MAX_QUEUE_SIZE = 128` messages).
+- **Critical Event Preservation:** Critical events (`run.state_change`, `run.completed`, `run.cancelled`, `run.failed`, `connection.ack`, `telemetry.gap`) are marked non-droppable and wait for queue space.
+- **Non-Critical Drop Policy:** If the outbound queue is full when high-frequency state updates arrive, non-critical events are discarded, and an internal drop counter increments.
+- **Gap Notification:** When queue space recovers, a `telemetry.gap` event with `"reason": "buffer_overflow"` and `"dropped_count": N` is immediately queued to inform the client of the gap.
+

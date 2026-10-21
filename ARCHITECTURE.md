@@ -1221,6 +1221,81 @@ Phase 21 delivers an authoritative, testable Django REST Framework (DRF) HTTP AP
 Every API response envelope, scenario detail, and exported result includes the mandatory academic disclaimer:
 `"AMAPP is an educational simulation framework and is not intended for real-world autonomous vehicle safety-critical control."`
 
+---
+
+## 18. Django Channels WebSockets for Live Simulation & Telemetry Streaming (`apps.core.realtime`)
+
+Phase 22 implements an asynchronous real-time WebSocket transport layer using Django Channels 4 and Daphne ASGI around the simulation services under route `/ws/v1/runs/{run_id}/`.
+
+### 18.1 ASGI Entrypoint and Channels ProtocolTypeRouter
+The root ASGI application in `backend/config/asgi.py` routes incoming traffic by protocol:
+- **`http`**: Routed to `get_asgi_application()`, ensuring complete backwards compatibility with existing DRF REST endpoints (`/api/v1/`) and health check (`/health/`).
+- **`websocket`**: Wrapped in a custom `SimulationOriginValidator`, `AuthMiddlewareStack`, and `URLRouter` pointing to `websocket_urlpatterns`.
+- **`SimulationOriginValidator`**: Allows headless non-browser clients (command-line utilities, test communicators) without an `Origin` header while strictly checking browser `Origin` headers against `ALLOWED_HOSTS`.
+
+### 18.2 Versioned WebSocket Route and Subscription Boundaries
+- **Route**: `ws://host/ws/v1/runs/{run_id}/` (or `wss://` behind TLS).
+- **Run ID Validation**: Validates the `run_id` parameter against slug/identifier syntax.
+- **Run Existence Check**: On connection, queries `default_run_registry.exists(run_id)`. If absent, sends a structured error envelope (`RUN_NOT_FOUND`) and closes the connection with code `4404`.
+- **Server-Derived Channel Groups**: Clients cannot supply arbitrary channel group names. The channel group is strictly computed server-side as `run_{run_id}`.
+- **Run Isolation Invariant**: Subscribers to run A never receive events emitted by run B. The consumer explicitly verifies `envelope.get("run_id") == self.run_id` before enqueuing events to the client.
+
+### 18.3 Standardized Message Protocol (Schema Version 1.0.0)
+All server-to-client messages follow a versioned JSON envelope:
+```json
+{
+  "schema_version": "1.0.0",
+  "message_id": "ws_msg_e3b0c442",
+  "event_type": "vehicle.updated",
+  "run_id": "run_scn_single_veh_01",
+  "tick": 4,
+  "simulation_time_s": 0.4,
+  "sequence": 12,
+  "payload": { ... }
+}
+```
+
+#### Supported Server-to-Client Event Types
+- **Lifecycle**: `run.status`, `run.started`, `run.completed`, `run.cancelled`, `run.failed`
+- **World & Agents**: `world.snapshot`, `vehicle.updated`, `pedestrian.updated`
+- **Infrastructure & Routing**: `signal.updated`, `route.changed`
+- **Network & Safety**: `communication.event`, `coordination.event`, `safety.event`, `collision.detected`
+- **Emergency & Decisions**: `emergency.updated`, `corridor.updated`, `decision.updated`
+- **Metrics & Protocol**: `metrics.snapshot`, `telemetry.gap`, `server.heartbeat`, `error`
+
+#### Supported Client-to-Server Messages
+- `{"type": "subscribe", "last_sequence": 0, "max_replay_records": 50}`
+- `{"type": "unsubscribe"}`
+- `{"type": "heartbeat"}` or `{"type": "ping"}`
+- `{"type": "step", "ticks": 1}` *(staff privileges required)*
+- `{"type": "cancel", "reason": "..."}` *(staff privileges required)*
+
+### 18.4 Decoupled Event Source & Broadcaster Integration
+- **Source of Truth**: `TelemetryCollector` remains the single authoritative telemetry event source.
+- **Listener Pattern**: `SimulationEventBroadcaster` registers a callback on `TelemetryCollector.add_listener()` when runs are registered in `RunRegistry`.
+- **Resilient Dispatch**: `_dispatch_to_group()` inspects the current thread. If an event loop is active, it schedules `loop.create_task(channel_layer.group_send(...))`; otherwise, it dispatches via `async_to_sync`.
+- **Fault Tolerance**: Broadcaster catches and logs all channel layer exceptions without raising into the simulation runner. Channel layer saturation or failure never disrupts vehicle path planning, kinematics, or world state stepping.
+
+### 18.5 Bounded Queues, Backpressure, and Telemetry Gap Handling
+- **Queue Bounds**: Every active WebSocket connection maintains an internal `asyncio.Queue(maxsize=AMAPP_WS_MAX_QUEUE_SIZE)` (default: 128).
+- **Backpressure Policy**:
+  - When the queue is full, incoming non-critical events are discarded, and drop statistics (`dropped_events_count`, `dropped_start_seq`, `dropped_end_seq`) are recorded.
+  - Critical events (`run.completed`, `run.cancelled`, `run.failed`, `safety.event`, `collision.detected`, `error`) are prioritized: if the queue is full, the consumer evicts an existing non-critical event to guarantee delivery.
+- **Gap Notification**: As the outbound sender drains the queue, it detects `dropped_events_count > 0` and prepends a `telemetry.gap` notification (`reason="buffer_overflow"`) with exact start and end sequence numbers.
+
+### 18.6 Bounded Replay & Cursor Semantics
+- **Sequence-Based Replay**: Clients reconnecting after brief drops supply `last_sequence`. The consumer streams retained records where `sequence_number > last_sequence` up to `AMAPP_WS_MAX_REPLAY_RECORDS` (default: 500).
+- **Tick-Based Replay**: Clients can optionally request `replay_from_tick`.
+- **Expired History Gap Notification**: If the requested `last_sequence` is older than the oldest available retained telemetry record, the consumer emits a `telemetry.gap` notification (`reason="expired_history"`).
+
+### 18.7 Connection Health & Cleanup
+- **Heartbeats**: The consumer runs an asynchronous `_heartbeat_loop` emitting periodic `server.heartbeat` frames (`AMAPP_WS_HEARTBEAT_INTERVAL_S=30.0`), and replies to client `ping` or `heartbeat` messages.
+- **Teardown Cleanup**: On disconnect, the consumer cancels `_outbound_sender` and `_heartbeat_loop`, awaits task termination cleanly, discards channel layer group memberships, and drains the outbound queue. Disconnecting clients never interrupt simulation runs.
+
+### 18.8 Process-Local Limitations & Scalability
+- **In-Memory Channel Layer**: By default, AMAPP uses `channels.layers.InMemoryChannelLayer`. In this configuration, WebSocket connections and simulation runs must reside within the same server process.
+- **Horizontal Scaling Path**: Multi-process or clustered production environments require configuring Redis as the backing store via `channels_redis` and moving the in-memory run registry to a centralized execution worker model.
+
 
 
 

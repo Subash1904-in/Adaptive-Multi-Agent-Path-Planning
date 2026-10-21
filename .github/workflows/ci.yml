@@ -54,6 +54,7 @@ jobs:
             "docs/progress/PHASE_19.md"
             "docs/progress/PHASE_20.md"
             "docs/progress/PHASE_21.md"
+            "docs/progress/PHASE_22.md"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"
@@ -109,7 +110,7 @@ jobs:
       - name: Verify Environment & Installed Dependencies
         shell: bash
         run: |
-          python -c "import django, rest_framework, networkx, osmnx, pytest, pytest_cov, ruff; print(f'Environment verification:\n- Python: {__import__(\"sys\").version}\n- Django: {django.__version__}\n- DRF: {rest_framework.__version__}\n- NetworkX: {networkx.__version__}\n- OSMnx: {osmnx.__version__}\n- Pytest: {pytest.__version__}\n- Pytest-Cov: {pytest_cov.__version__}')"
+          python -c "import sys, django, rest_framework, channels, daphne, pytest_asyncio, networkx, osmnx, pytest, pytest_cov, ruff; print(f'Environment verification:\n- Python: {sys.version}\n- Django: {django.__version__}\n- DRF: {rest_framework.__version__}\n- Channels: {channels.__version__}\n- Daphne: {daphne.__version__}\n- Pytest-Asyncio: {pytest_asyncio.__version__}\n- NetworkX: {networkx.__version__}\n- OSMnx: {osmnx.__version__}\n- Pytest: {pytest.__version__}\n- Pytest-Cov: {pytest_cov.__version__}')"
 
       - name: Run Ruff Linting
         shell: bash
@@ -121,7 +122,7 @@ jobs:
         run: |
           python backend/manage.py check
 
-      - name: Run Full Automated Test Suite with Coverage (Phases 2-21)
+      - name: Run Full Automated Test Suite with Coverage (Phases 2-22, WebSockets, Channels ASGI)
         shell: bash
         run: |
           pytest --cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80
@@ -151,6 +152,6 @@ jobs:
             npm run typecheck
             npm run build
           else
-            echo "Phase 19 verified: Pluggable AI Decision Policies for Autonomous Vehicle Agents active; frontend/package.json not yet declared. Node 22.x environment verified."
+            echo "Phase 22 verified: Live Simulation & Telemetry WebSocket Streaming active; frontend/package.json not yet declared. Node 22.x environment verified."
           fi
 

@@ -5,7 +5,8 @@ critical event retention (safety, collision, error, run-terminal), drop counter 
 and multi-attribute query filtering.
 """
 
-from typing import Any, Iterable, Optional, Union
+import logging
+from typing import Any, Callable, Iterable, Optional, Union
 
 from apps.core.telemetry.exceptions import (
     TelemetryError,
@@ -18,6 +19,8 @@ from apps.core.telemetry.models import (
     TelemetryRecord,
     TelemetryRecordType,
 )
+
+logger = logging.getLogger("amapp.telemetry")
 
 
 class TelemetryCollector:
@@ -38,6 +41,7 @@ class TelemetryCollector:
         self._drop_stats = TelemetryDropStats()
         self._is_closed: bool = False
         self._sequence_counter: int = 0
+        self._listeners: list[Callable[[TelemetryRecord], None]] = []
 
     @property
     def is_closed(self) -> bool:
@@ -137,7 +141,26 @@ class TelemetryCollector:
                 return False
 
         self._records.append(record)
+        for listener in list(self._listeners):
+            try:
+                listener(record)
+            except Exception as exc:
+                logger.warning(
+                    "Telemetry listener error for run '%s': %s",
+                    self.run_id,
+                    exc,
+                )
         return True
+
+    def add_listener(self, listener: Callable[[TelemetryRecord], None]) -> None:
+        """Register a callback invoked whenever a telemetry record is stored."""
+        if listener not in self._listeners:
+            self._listeners.append(listener)
+
+    def remove_listener(self, listener: Callable[[TelemetryRecord], None]) -> None:
+        """Unregister a previously registered telemetry callback."""
+        if listener in self._listeners:
+            self._listeners.remove(listener)
 
     def emit(
         self,

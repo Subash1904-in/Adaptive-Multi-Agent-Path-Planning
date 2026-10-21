@@ -33,11 +33,13 @@ else:
     SECRET_KEY = _raw_secret
 
 # Allowed hosts configuration
-_raw_hosts = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]")
+_raw_hosts = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,[::1],testserver")
 ALLOWED_HOSTS = [h.strip() for h in _raw_hosts.split(",") if h.strip()]
+
 
 # Application definition
 INSTALLED_APPS = [
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -45,10 +47,12 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # Third-party apps
+    "channels",
     "rest_framework",
     # Project apps
     "apps.core.apps.CoreConfig",
 ]
+
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -130,3 +134,19 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "apps.core.api.exceptions.api_exception_handler",
     "UNAUTHENTICATED_USER": None,
 }
+
+# Django Channels in-memory channel layer (Phase 22)
+# Suitable for single-process development and deterministic automated test execution.
+# For production multi-worker deployment, an external Redis channel layer is recommended.
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
+
+# Real-time WebSocket streaming configuration (Phase 22)
+AMAPP_WS_MAX_QUEUE_SIZE = 128
+AMAPP_WS_MAX_MESSAGE_BYTES = 65536
+AMAPP_WS_MAX_REPLAY_RECORDS = 500
+AMAPP_WS_HEARTBEAT_INTERVAL_S = 30.0
+AMAPP_API_REQUIRE_AUTHENTICATION = False

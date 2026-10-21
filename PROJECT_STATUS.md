@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 21 (Django REST API Layer for Scenario Management, Simulation Runs, and Telemetry)
+- **Current Phase:** Phase 22 (Django Channels WebSockets for Live Simulation and Telemetry Streaming)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 22 (Real-time WebSocket Streaming) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 23 (Frontend Scaffold and Visual System) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-21
 
 
@@ -37,7 +37,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 19** | **AI decision policy** | **COMPLETED** | Pluggable local decision policy evaluating travel time, congestion, risk, confidence scores, 956 tests passed (95.72% coverage). |
 | **Phase 20** | **Backend integration checkpoint & telemetry streams** | **COMPLETED** | Unified 8-state execution lifecycle, cooperative cancellation, SHA-256 reproducibility fingerprints, bounded telemetry stream, cross-subsystem metrics aggregator, RFC 8259 JSON export, 1,007 tests passed (96% coverage). |
 | **Phase 21** | **Django REST API Layer for Scenarios, Control & Telemetry** | **COMPLETED** | REST endpoints under `/api/v1/`: scenario CRUD/validation, simulation run lifecycle, discrete stepping, cancellation, telemetry, metrics, export, custom exception taxonomy, 1,053 tests passed (95.77% coverage). |
-| **Phase 22** | Real-time WebSocket streaming | Pending | Django Channels telemetry stream, versioned event schemas, resync, bounded frequency. |
+| **Phase 22** | **Django Channels WebSockets for Live Simulation & Telemetry** | **COMPLETED** | Real-time WebSocket transport under `/ws/v1/runs/{run_id}/`, Channels 4 + Daphne ASGI, 21 event types, bounded backpressure, replay, origin & auth validation, 1,095 tests passed (95.66% coverage). |
 
 | **Phase 23** | Frontend scaffold and visual system | Pending | TypeScript + Three.js scaffold, professional UI design system, typography, layout, API/render split. |
 | **Phase 24** | 3D city and road rendering | Pending | Render road graph as navigable 3D city (surfaces, intersections, markings, buildings, lighting). |

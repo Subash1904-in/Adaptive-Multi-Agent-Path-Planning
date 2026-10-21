@@ -689,7 +689,63 @@ The platform includes an individual vehicle kinematics and route-following coord
   ```
 > *Educational Simulation Disclaimer:* This software is designed solely for educational and academic research into multi-agent path planning. It is not designed or certified for real-world vehicular control.
 
-### 6.23 Troubleshooting
+### 6.23 Django REST API for Scenario Management, Simulation Runs, and Telemetry (Phase 21)
+- **Module:** `backend/apps/core/api/`
+- **Key Endpoints:**
+  - `GET /api/v1/health/`: Liveness and readiness probe.
+  - `GET`, `POST /api/v1/scenarios/`: Enumerate preloaded and custom scenarios, register new scenarios with atomic validation.
+  - `POST /api/v1/scenarios/validate/`: Pre-flight scenario validation without persistence.
+  - `GET /api/v1/scenarios/{id}/`: Full scenario definition retrieval.
+  - `GET`, `POST /api/v1/runs/`: List simulation runs, initialize a new `ScenarioRunner` in `READY` state.
+  - `POST /api/v1/runs/{id}/step/`: Advance discrete ticks (`ticks=N` or `run_to_completion=true`).
+  - `POST /api/v1/runs/{id}/cancel/`: Cooperative run cancellation.
+  - `GET /api/v1/runs/{id}/result/`: Retrieve intermediate or final `ScenarioExecutionResult`.
+  - `GET /api/v1/runs/{id}/metrics/`: Unified cross-subsystem metrics aggregated on-the-fly.
+  - `GET /api/v1/runs/{id}/telemetry/`: Query bounded in-memory telemetry records by tick range and category.
+  - `GET /api/v1/runs/{id}/export/`: Export simulation results as RFC 8259 JSON with payload caps.
+- **REST API Usage Example:**
+  ```bash
+  # Initialize simulation run
+  curl -X POST http://127.0.0.1:8000/api/v1/runs/ \
+    -H "Content-Type: application/json" \
+    -d '{"scenario_id": "scn_single_veh", "run_id": "run_01", "max_ticks": 50}'
+
+  # Step simulation by 10 ticks
+  curl -X POST http://127.0.0.1:8000/api/v1/runs/run_01/step/ \
+    -H "Content-Type: application/json" \
+    -d '{"ticks": 10}'
+  ```
+
+### 6.24 Django Channels WebSockets for Live Simulation & Telemetry Streaming (Phase 22)
+- **Module:** `backend/apps/core/realtime/` & `backend/config/asgi.py`
+- **Key Classes:** `SimulationRunConsumer`, `SimulationEventBroadcaster`, `SimulationOriginValidator`, `SimulationEventType`.
+- **WebSocket Endpoint:** `ws://127.0.0.1:8000/ws/v1/runs/{run_id}/`
+- **Capabilities:**
+  - Real-time asynchronous streaming over Daphne ASGI with standardized JSON event envelopes (`schema_version="1.0.0"`).
+  - 21 discrete simulation event types spanning run lifecycle, kinematic snapshots, V2V transmissions, safety conflicts, reroutes, pedestrian crossings, emergency corridors, and autonomous decision scoring.
+  - Point-in-time handshake validation with 4404 close code on unknown runs and 4401 on unauthorized origins.
+  - Bounded outbound queueing (default 128 messages) per consumer with backpressure drop policy for high-frequency state updates and zero-drop guarantees for critical lifecycle events.
+  - Automatic `telemetry.gap` notification on outbound buffer overflow or expired historical replay.
+  - Bounded replay from in-memory telemetry buffer using client `subscribe` commands with `from_sequence` or `from_tick` (capped at 500 records).
+  - Client interactive simulation steering (`step`, `cancel`, `ping`, `heartbeat`).
+- **WebSocket Connection Example (JavaScript):**
+  ```javascript
+  const socket = new WebSocket("ws://127.0.0.1:8000/ws/v1/runs/run_01/");
+
+  socket.onopen = () => {
+    console.log("Connected to AMAPP simulation run channel");
+    // Advance simulation by 5 ticks
+    socket.send(JSON.stringify({ type: "step", ticks: 5 }));
+  };
+
+  socket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log(`[${data.event_type}] Seq:${data.sequence} Tick:${data.tick}`, data.payload);
+  };
+  ```
+> *Educational Simulation Disclaimer:* This software is designed solely for educational and academic research into multi-agent path planning. It is not designed or certified for real-world vehicular control.
+
+### 6.25 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -722,8 +778,11 @@ The platform includes an individual vehicle kinematics and route-following coord
 - [docs/progress/PHASE_18.md](docs/progress/PHASE_18.md): Phase 18 emergency vehicle priority, yielding policies, and dynamic corridors report.
 - [docs/progress/PHASE_19.md](docs/progress/PHASE_19.md): Phase 19 pluggable AI decision policies for autonomous vehicle agents report.
 - [docs/progress/PHASE_20.md](docs/progress/PHASE_20.md): Phase 20 backend integration expansion, scenario runner enhancements, and telemetry streams report.
+- [docs/progress/PHASE_21.md](docs/progress/PHASE_21.md): Phase 21 Django REST API for scenario management and simulation runs report.
+- [docs/progress/PHASE_22.md](docs/progress/PHASE_22.md): Phase 22 Django Channels WebSockets for live simulation and telemetry streaming report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.
+
 
 

@@ -169,6 +169,9 @@ class RunRegistry:
                     run_id=run_id,
                 )
             self._runs[run_id] = runner
+            from apps.core.realtime.broadcaster import SimulationEventBroadcaster
+
+            SimulationEventBroadcaster.get_instance().attach_runner(runner)
             logger.info("Registered simulation run '%s' in RunRegistry.", run_id)
             return runner
 
@@ -215,6 +218,9 @@ class RunRegistry:
             if run_id not in self._runs:
                 raise RunNotFoundError(run_id)
             runner = self._runs.pop(run_id)
+            from apps.core.realtime.broadcaster import SimulationEventBroadcaster
+
+            SimulationEventBroadcaster.get_instance().detach_runner(runner)
             if hasattr(runner, "telemetry") and not runner.telemetry.is_closed:
                 runner.telemetry.close()
             logger.info("Deleted simulation run '%s' from RunRegistry.", run_id)
@@ -223,7 +229,11 @@ class RunRegistry:
     def clear(self) -> None:
         """Remove all runners and close open telemetry collectors."""
         with self._lock:
+            from apps.core.realtime.broadcaster import SimulationEventBroadcaster
+
+            broadcaster = SimulationEventBroadcaster.get_instance()
             for runner in self._runs.values():
+                broadcaster.detach_runner(runner)
                 if hasattr(runner, "telemetry") and not runner.telemetry.is_closed:
                     runner.telemetry.close()
             self._runs.clear()
