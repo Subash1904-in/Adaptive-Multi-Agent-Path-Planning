@@ -150,12 +150,14 @@ To completely prevent z-fighting across co-planar Three.js meshes, the viewport 
 
 ## 7. CI Pipeline Execution & Evidence
 
-- **Authoritative CI Run URL:** TBD (Recorded after git push)
-- **Commit SHA:** TBD (Recorded after git commit)
+- **Authoritative CI Run URL:** [https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39604218709](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39604218709)
+- **Commit SHA:** `6a390ab228189c445674c1023d5d71049c8fc438` (Short: `6a390ab`)
+- **Workflow:** `CI Pipeline` (`.github/workflows/ci.yml`)
+- **Trigger:** `push` on branch `main`
 - **Job Statuses:**
-  - `repo-hygiene`: SUCCESS
-  - `backend-quality`: SUCCESS (1,095 passed, 95.66% coverage)
-  - `frontend-quality`: SUCCESS (ESLint clean, TypeScript clean, 62 tests passed, Vite build clean)
+  - `repo-hygiene` (ID `119236158525`): **SUCCESS** (6s) — Verified all mandatory documentation and phase reports from `PHASE_01.md` through `PHASE_24.md`; zero secret leaks or prohibited files detected.
+  - `backend-quality` (ID `119236158756`): **SUCCESS** (46s) — Ruff linting clean, Django system checks clean (0 silenced), full test suite executed: **1,095 passed in 20.85s**, **95.64% line coverage** (exceeds 80% threshold).
+  - `frontend-quality` (ID `119236159235`): **SUCCESS** (22s) — Reproducible `npm ci`, ESLint clean (0 errors, 0 warnings), strict TypeScript typecheck clean (`tsc --noEmit`), **62 Vitest unit tests passed in 2.28s**, Vite production bundle build clean in 2.10s (`dist/index.html`, `dist/assets/index-CrQojOHx.css`, `dist/assets/index-CXXDrFCa.js`).
 
 ---
 
