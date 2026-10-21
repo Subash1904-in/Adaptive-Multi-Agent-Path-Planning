@@ -31,6 +31,18 @@ import {
   generateZebraStripes,
   simToWorldCoordinates,
 } from "./geometry";
+import {
+  createPedestrianModel,
+  createVehicleModel,
+  determineVehicleModelType,
+  disposeModelAssets,
+  updatePedestrianVisuals,
+  updateVehicleVisuals,
+} from "./models";
+import {
+  EntityInterpolationBuffer,
+  simHeadingToWorldRotationY,
+} from "./interpolation";
 
 export interface SimulationViewer3DProps {
   scenario: ScenarioDefinition | null;
@@ -81,6 +93,24 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
   const pedestrianMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
   const signalMeshesRef = useRef<Map<string, THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>>>(new Map());
   const routeLineRef = useRef<THREE.Line | null>(null);
+
+  // Temporal interpolation and presentation animation references
+  const interpolationBufferRef = useRef<EntityInterpolationBuffer>(
+    new EntityInterpolationBuffer({
+      maxSamples: 10,
+      defaultTimeStepS: 0.1,
+      staleThresholdS: 5.0,
+      maxExtrapolationS: 0.15,
+    })
+  );
+  const clockRef = useRef<THREE.Clock>(new THREE.Clock());
+  const latestSimTimeRef = useRef<number>(0);
+  const simTimeRef = useRef<number>(0);
+  const selectedEntityIdRef = useRef<string | null | undefined>(selectedEntityId);
+
+  useEffect(() => {
+    selectedEntityIdRef.current = selectedEntityId;
+  }, [selectedEntityId]);
 
   // Material Cache for resource reuse
   const materialsRef = useRef<{
@@ -243,9 +273,62 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     // Initial camera placement
     handleResetCamera();
 
-    // Render loop
+    // Render loop with temporal interpolation and presentation animations
+    const clock = clockRef.current;
+    clock.start();
+
     const animate = () => {
       animFrameIdRef.current = requestAnimationFrame(animate);
+
+      const delta = clock.getDelta();
+      const elapsed = clock.getElapsedTime();
+
+      // Smoothly advance local presentation time towards latest telemetry timestamp
+      const targetSimTime = latestSimTimeRef.current;
+      if (simTimeRef.current < targetSimTime) {
+        simTimeRef.current = Math.min(targetSimTime, simTimeRef.current + delta);
+      } else {
+        simTimeRef.current = targetSimTime;
+      }
+      const renderTime = simTimeRef.current;
+
+      const prefersReducedMotion =
+        typeof window !== "undefined" &&
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      // 1. Update vehicle mesh transforms from interpolation buffer
+      for (const [vId, vGroup] of vehicleMeshesRef.current.entries()) {
+        const interp = interpolationBufferRef.current.getInterpolatedState(vId, renderTime, 0.5);
+        if (interp) {
+          vGroup.position.set(interp.world_position.x, interp.world_position.y, interp.world_position.z);
+          vGroup.rotation.y = interp.rotation_y;
+          const isSelected = selectedEntityIdRef.current === vId;
+          updateVehicleVisuals(
+            vGroup,
+            { isEmergency: interp.is_emergency, isSelected, speed_mps: interp.speed_mps },
+            elapsed,
+            prefersReducedMotion
+          );
+        }
+      }
+
+      // 2. Update pedestrian mesh transforms from interpolation buffer
+      for (const [pId, pGroup] of pedestrianMeshesRef.current.entries()) {
+        const interp = interpolationBufferRef.current.getInterpolatedState(pId, renderTime, 0.0);
+        if (interp) {
+          pGroup.position.set(interp.world_position.x, 0, interp.world_position.z);
+          pGroup.rotation.y = interp.rotation_y;
+          const isSelected = selectedEntityIdRef.current === pId;
+          updatePedestrianVisuals(
+            pGroup,
+            { speed_mps: interp.speed_mps, lifecycle_state: interp.lifecycle_state, isSelected },
+            elapsed,
+            prefersReducedMotion
+          );
+        }
+      }
+
       if (rendererRef.current && sceneRef.current) {
         const activeCam =
           projectionMode === "perspective"
@@ -283,11 +366,26 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
 
     window.addEventListener("resize", handleResize);
 
+    const vehicleMeshes = vehicleMeshesRef.current;
+    const pedestrianMeshes = pedestrianMeshesRef.current;
+    const interpolationBuffer = interpolationBufferRef.current;
+
     return () => {
       window.removeEventListener("resize", handleResize);
       if (animFrameIdRef.current) {
         cancelAnimationFrame(animFrameIdRef.current);
       }
+      for (const vGroup of vehicleMeshes.values()) {
+        scene.remove(vGroup);
+      }
+      vehicleMeshes.clear();
+      for (const pGroup of pedestrianMeshes.values()) {
+        scene.remove(pGroup);
+      }
+      pedestrianMeshes.clear();
+      interpolationBuffer.clear();
+      disposeModelAssets();
+
       if (rendererRef.current) {
         rendererRef.current.dispose();
         rendererRef.current = null;
@@ -552,7 +650,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     }
   }, [activeGeometry, scenario]);
 
-  // 8. Update Vehicle Meshes
+  // 8. Update Vehicle Meshes & Ingest Telemetry into Interpolation Buffer
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
@@ -562,58 +660,61 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
 
     for (const [vId, vState] of vehicles.entries()) {
       activeVehicleIds.add(vId);
-      const isSelected = selectedEntityId === vId;
+
       const isEmergency =
         vState.is_emergency ||
         vState.vehicle_type === "emergency" ||
+        vState.emergency_type !== undefined ||
         vId.toLowerCase().startsWith("amb_") ||
+        vId.toLowerCase().startsWith("fire_") ||
         vId.toLowerCase().startsWith("emerg_");
+
+      // Push sample to temporal interpolation buffer
+      interpolationBufferRef.current.pushSample(vId, {
+        position: vState.position,
+        heading_rad: vState.heading_rad,
+        speed_mps: vState.speed_mps,
+        tick: vState.tick,
+        timestamp_s: vState.simulation_time_s,
+        lifecycle_state: vState.lifecycle_state,
+        is_emergency: isEmergency,
+        vehicle_type: vState.vehicle_type,
+        route: vState.route,
+        current_edge_id: vState.current_edge_id,
+      });
+
+      if (Number.isFinite(vState.simulation_time_s)) {
+        latestSimTimeRef.current = Math.max(
+          latestSimTimeRef.current,
+          Number(vState.simulation_time_s)
+        );
+      } else if (Number.isFinite(vState.tick)) {
+        latestSimTimeRef.current = Math.max(
+          latestSimTimeRef.current,
+          Number(vState.tick) * 0.1
+        );
+      }
 
       let vGroup = currentMeshes.get(vId);
       if (!vGroup) {
-        vGroup = new THREE.Group();
-
-        // Chassis body
-        const bodyGeo = new THREE.BoxGeometry(2.4, 1.0, 4.6);
-        const bodyMat = new THREE.MeshLambertMaterial({
-          color: isEmergency ? 0xef4444 : 0x3b82f6,
+        const modelType = determineVehicleModelType(
+          vId,
+          vState.vehicle_type,
+          vState.emergency_type,
+          vState.model_type
+        );
+        vGroup = createVehicleModel(modelType, {
+          vehicleId: vId,
+          isEmergency,
         });
-        const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
-        bodyMesh.position.y = 0.5;
-        vGroup.add(bodyMesh);
 
-        // Roof cabin
-        const cabinGeo = new THREE.BoxGeometry(2.0, 0.8, 2.6);
-        const cabinMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
-        const cabinMesh = new THREE.Mesh(cabinGeo, cabinMat);
-        cabinMesh.position.set(0, 1.4, -0.2);
-        vGroup.add(cabinMesh);
-
-        // Emergency beacon
-        if (isEmergency) {
-          const beaconGeo = new THREE.SphereGeometry(0.35, 8, 8);
-          const beaconMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-          const beaconMesh = new THREE.Mesh(beaconGeo, beaconMat);
-          beaconMesh.position.set(0, 1.95, 0);
-          vGroup.add(beaconMesh);
-        }
-
-        // Headlights indicator
-        const lightGeo = new THREE.BoxGeometry(2.0, 0.22, 0.1);
-        const lightMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
-        const lightMesh = new THREE.Mesh(lightGeo, lightMat);
-        lightMesh.position.set(0, 0.5, 2.31);
-        vGroup.add(lightMesh);
-
+        // Set initial world coordinates
+        const worldPos = simToWorldCoordinates(vState.position.x, vState.position.y, 0.5);
+        vGroup.position.set(worldPos.x, worldPos.y, worldPos.z);
+        vGroup.rotation.y = simHeadingToWorldRotationY(vState.heading_rad);
         scene.add(vGroup);
         currentMeshes.set(vId, vGroup);
       }
-
-      // Update position & heading
-      const worldPos = simToWorldCoordinates(vState.position.x, vState.position.y, 0.5);
-      vGroup.position.set(worldPos.x, worldPos.y, worldPos.z);
-      vGroup.rotation.y = vState.heading_rad;
-      vGroup.scale.setScalar(isSelected ? 1.25 : 1.0);
     }
 
     // Remove deleted vehicles
@@ -621,11 +722,12 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
       if (!activeVehicleIds.has(id)) {
         scene.remove(mesh);
         currentMeshes.delete(id);
+        interpolationBufferRef.current.removeEntity(id);
       }
     }
-  }, [vehicles, selectedEntityId]);
+  }, [vehicles]);
 
-  // 9. Update Pedestrian Meshes
+  // 9. Update Pedestrian Meshes & Ingest Telemetry into Interpolation Buffer
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
@@ -635,44 +737,73 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
 
     for (const [pId, pState] of pedestrians.entries()) {
       activePedIds.add(pId);
-      const isSelected = selectedEntityId === pId;
+
+      // Push sample to temporal interpolation buffer
+      interpolationBufferRef.current.pushSample(pId, {
+        position: pState.position,
+        heading_rad: pState.heading_rad,
+        speed_mps: pState.speed_mps,
+        tick: pState.tick,
+        timestamp_s: pState.simulation_time_s,
+        lifecycle_state: pState.lifecycle_state,
+      });
+
+      if (Number.isFinite(pState.simulation_time_s)) {
+        latestSimTimeRef.current = Math.max(
+          latestSimTimeRef.current,
+          Number(pState.simulation_time_s)
+        );
+      } else if (Number.isFinite(pState.tick)) {
+        latestSimTimeRef.current = Math.max(
+          latestSimTimeRef.current,
+          Number(pState.tick) * 0.1
+        );
+      }
 
       let pGroup = currentMeshes.get(pId);
       if (!pGroup) {
-        pGroup = new THREE.Group();
+        pGroup = createPedestrianModel({
+          pedestrianId: pId,
+          isCrossing: pState.lifecycle_state === "crossing",
+        });
 
-        // Pedestrian body (cylinder)
-        const bodyGeo = new THREE.CylinderGeometry(0.4, 0.4, 1.6, 8);
-        const bodyMat = new THREE.MeshLambertMaterial({ color: 0x06b6d4 });
-        const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
-        bodyMesh.position.y = 0.8;
-        pGroup.add(bodyMesh);
-
-        // Head
-        const headGeo = new THREE.SphereGeometry(0.32, 8, 8);
-        const headMat = new THREE.MeshLambertMaterial({ color: 0xfed7aa });
-        const headMesh = new THREE.Mesh(headGeo, headMat);
-        headMesh.position.y = 1.85;
-        pGroup.add(headMesh);
-
+        const worldPos = simToWorldCoordinates(pState.position.x, pState.position.y, 0);
+        pGroup.position.set(worldPos.x, 0, worldPos.z);
+        pGroup.rotation.y = simHeadingToWorldRotationY(pState.heading_rad);
         scene.add(pGroup);
         currentMeshes.set(pId, pGroup);
       }
-
-      const worldPos = simToWorldCoordinates(pState.position.x, pState.position.y, 0);
-      pGroup.position.set(worldPos.x, 0, worldPos.z);
-      pGroup.scale.setScalar(isSelected ? 1.3 : 1.0);
     }
 
+    // Remove deleted pedestrians
     for (const [id, mesh] of currentMeshes.entries()) {
       if (!activePedIds.has(id)) {
         scene.remove(mesh);
         currentMeshes.delete(id);
+        interpolationBufferRef.current.removeEntity(id);
       }
     }
-  }, [pedestrians, selectedEntityId]);
+  }, [pedestrians]);
 
-  // 10. Update Traffic Signals
+  // 10. Scenario or Run Reset: Clean up dynamic entities and interpolation buffers
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (scene) {
+      for (const group of vehicleMeshesRef.current.values()) {
+        scene.remove(group);
+      }
+      vehicleMeshesRef.current.clear();
+      for (const group of pedestrianMeshesRef.current.values()) {
+        scene.remove(group);
+      }
+      pedestrianMeshesRef.current.clear();
+    }
+    interpolationBufferRef.current.clear();
+    latestSimTimeRef.current = 0;
+    simTimeRef.current = 0;
+  }, [scenario?.metadata?.id]);
+
+  // 11. Update Traffic Signals
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
@@ -705,7 +836,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     }
   }, [signals, activeGeometry]);
 
-  // 11. Update Active Route Line
+  // 12. Update Active Route Line
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;

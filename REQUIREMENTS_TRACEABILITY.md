@@ -123,9 +123,9 @@
 ### FR-10: Emergency Vehicle Priority
 - **Requirement Statement:** Identify emergency vehicles such as ambulances, fire engines, and police cars; enable nearby vehicles to safely adjust their movement, yield, create dynamic corridors, and grant traffic signal priority.
 - **Target Phases:** Phase 18 (Emergency vehicle priority), Phase 25 (Vehicle and pedestrian visualization), Phase 29 (Traffic incidents and scenario controls).
-- **Components:** `backend/apps/core/emergency/` (`models.py`, `v2v.py`, `corridor_planner.py`, `yielding_policy.py`, `priority_manager.py`, `metrics.py`), `backend/apps/core/signals/controller.py`, `backend/apps/core/simulation/engine.py`
-- **Verification Plan:** Unit and integration tests for emergency models, priority FSM, tie-breaking, V2V announcements without leakage, corridor reservations and preemption, yielding with physical limits, red signal and crosswalk protection, signal priority override with pedestrian clearance denial, single-clock engine execution, and atomic rollback (`test_emergency_*.py`: 60 tests passing).
-- **Current Status:** `TESTED (Phase 18 Complete)`
+- **Components:** `backend/apps/core/emergency/` (`models.py`, `v2v.py`, `corridor_planner.py`, `yielding_policy.py`, `priority_manager.py`, `metrics.py`), `backend/apps/core/signals/controller.py`, `backend/apps/core/simulation/engine.py`, `frontend/src/features/scene3d/models.ts`
+- **Verification Plan:** Unit and integration tests for emergency models, priority FSM, tie-breaking, V2V announcements without leakage, corridor reservations and preemption, yielding with physical limits, red signal and crosswalk protection, signal priority override with pedestrian clearance denial, single-clock engine execution, atomic rollback, and 3D visual distinction with subtle alternating beacon pulsing (`test_emergency_*.py`: 60 tests passing; `models.test.ts`: 18 tests passing).
+- **Current Status:** `TESTED (Phase 18 Backend Engine & Phase 25 Emergency 3D Visual Treatments Complete)`
 
 ---
 
@@ -159,6 +159,7 @@
 ### FR-14: Real-Time 3D Visualization and Interactive Dashboard
 - **Requirement Statement:** Develop a web-based dashboard using Django and Three.js; visualize realistic roads, buildings, autonomous vehicles, pedestrians, and traffic conditions; display real-time vehicle movements, V2V communication, route changes, and AI decisions.
 - **Target Phases:** Phase 21 (Django REST API), Phase 22 (Real-time WebSocket streaming), Phase 23 (Frontend scaffold), Phase 24 (3D city and road rendering), Phase 25 (Vehicle and pedestrian visualization), Phase 26 (Live simulation controls), Phase 27 (V2V visualization), Phase 28 (Adaptive routing visualization), Phase 29 (Traffic incidents and scenario controls), Phase 30 (Operational metrics dashboard).
-- **Components:** `backend/channels/consumer.py`, `frontend/src/scene/`, `frontend/src/ui/`
-- **Verification Plan:** WebSocket frame serialization tests, client connection lifecycle tests, Three.js mesh rendering verification, and end-to-end integration tests.
-- **Current Status:** `NOT STARTED`
+- **Components:** `backend/apps/core/realtime/`, `frontend/src/features/scene3d/` (`SimulationViewer3D.tsx`, `geometry.ts`, `models.ts`, `interpolation.ts`), `frontend/src/features/simulation/EntityInspector.tsx`
+- **Verification Plan:** WebSocket frame serialization tests, client connection lifecycle tests, Three.js mesh rendering verification, temporal interpolation unit tests, and regression tests (`websocket-client.test.ts`, `api-client.test.ts`, `geometry.test.ts`, `interpolation.test.ts`, `models.test.ts`, `components.test.tsx`: 107 tests passing).
+- **Current Status:** `IN PROGRESS (Phases 21, 22, 23, 24, and 25 COMPLETED & TESTED; Phase 26 Live Controls Next)`
+

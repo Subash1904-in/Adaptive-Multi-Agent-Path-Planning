@@ -282,10 +282,72 @@ describe("Component Unit Tests", () => {
       expect(screen.getByText(/11.20 m\/s/i)).toBeInTheDocument();
       expect(screen.getByText("(45.0, 80.0)")).toBeInTheDocument();
       expect(screen.getByText("node_r0_c0 → node_r0_c1 → node_r1_c1")).toBeInTheDocument();
+      expect(screen.getByText(/LIVE \(Interpolated\)/i)).toBeInTheDocument();
+      expect(screen.getByText("Sedan")).toBeInTheDocument();
 
       const closeBtn = screen.getByRole("button", { name: /close entity inspector/i });
       fireEvent.click(closeBtn);
       expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("renders emergency vehicle details, priority, and stale indication", () => {
+      const mockEmergency: VehicleState = {
+        vehicle_id: "amb_01",
+        vehicle_type: "emergency",
+        emergency_type: "ambulance",
+        is_emergency: true,
+        priority_level: 2,
+        position: { x: 120.0, y: 40.0 },
+        heading_rad: 0,
+        speed_mps: 18.0,
+        lifecycle_state: "en_route",
+        tick: 42,
+        simulation_time_s: 4.2,
+        is_stale: true,
+      };
+
+      render(
+        <EntityInspector
+          entityId="amb_01"
+          entityType="vehicle"
+          vehicleState={mockEmergency}
+          onClose={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText("Ambulance")).toBeInTheDocument();
+      expect(screen.getByText(/ACTIVE \(ambulance\)/i)).toBeInTheDocument();
+      expect(screen.getByText("Level 2")).toBeInTheDocument();
+      expect(screen.getByText("Tick #42 • 4.20s")).toBeInTheDocument();
+      expect(screen.getByText(/STALE \(Last Known State\)/i)).toBeInTheDocument();
+    });
+
+    it("renders pedestrian agent details and crosswalk information", () => {
+      const mockPedestrian = {
+        pedestrian_id: "ped_cross_01",
+        position: { x: 50.0, y: 52.0 },
+        heading_rad: 3.1415,
+        speed_mps: 1.4,
+        lifecycle_state: "crossing",
+        crosswalk_id: "cw_node_r1_c1_north",
+        tick: 15,
+        simulation_time_s: 1.5,
+      };
+
+      render(
+        <EntityInspector
+          entityId="ped_cross_01"
+          entityType="pedestrian"
+          pedestrianState={mockPedestrian}
+          onClose={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText("PEDESTRIAN AGENT")).toBeInTheDocument();
+      expect(screen.getByText("ped_cross_01")).toBeInTheDocument();
+      expect(screen.getByText("crossing")).toBeInTheDocument();
+      expect(screen.getByText("cw_node_r1_c1_north")).toBeInTheDocument();
+      expect(screen.getByText("Tick #15 • 1.50s")).toBeInTheDocument();
     });
   });
 

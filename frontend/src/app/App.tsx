@@ -153,16 +153,26 @@ export const App: React.FC = () => {
           if (vId && pos) {
             setVehicles((prev) => {
               const next = new Map(prev);
+              const prevV = prev.get(vId);
               next.set(vId, {
                 vehicle_id: vId,
                 position: pos,
-                speed_mps: Number(p.speed_mps || 0),
-                heading_rad: Number(p.heading_rad || 0),
-                lifecycle_state: String(p.lifecycle_state || "en_route"),
-                vehicle_type: (p.vehicle_type as "standard" | "emergency") || "standard",
-                route: p.route as string[] | undefined,
-                current_edge_id: p.current_edge_id as string | undefined,
-                is_emergency: vId.toLowerCase().startsWith("amb_") || p.vehicle_type === "emergency",
+                speed_mps: Number(p.speed_mps ?? prevV?.speed_mps ?? 0),
+                heading_rad: Number(p.heading_rad ?? prevV?.heading_rad ?? 0),
+                lifecycle_state: String(p.lifecycle_state || prevV?.lifecycle_state || "en_route"),
+                vehicle_type: (p.vehicle_type as "standard" | "emergency") || prevV?.vehicle_type || "standard",
+                route: (p.route as string[] | undefined) ?? prevV?.route,
+                current_edge_id: (p.current_edge_id as string | undefined) ?? prevV?.current_edge_id,
+                is_emergency:
+                  vId.toLowerCase().startsWith("amb_") ||
+                  vId.toLowerCase().startsWith("fire_") ||
+                  p.vehicle_type === "emergency" ||
+                  p.emergency_type !== undefined ||
+                  prevV?.is_emergency,
+                emergency_type: (p.emergency_type as "ambulance" | "fire_engine" | "police" | undefined) ?? prevV?.emergency_type,
+                priority_level: (p.priority_level as number | undefined) ?? prevV?.priority_level,
+                tick: event.tick,
+                simulation_time_s: event.timestamp_s,
               });
               return next;
             });
@@ -176,13 +186,16 @@ export const App: React.FC = () => {
           if (pId && pos) {
             setPedestrians((prev) => {
               const next = new Map(prev);
+              const prevP = prev.get(pId);
               next.set(pId, {
                 pedestrian_id: pId,
                 position: pos,
-                speed_mps: Number(p.speed_mps || 0),
-                heading_rad: Number(p.heading_rad || 0),
-                lifecycle_state: String(p.lifecycle_state || "walking"),
-                crosswalk_id: p.crosswalk_id as string | undefined,
+                speed_mps: Number(p.speed_mps ?? prevP?.speed_mps ?? 0),
+                heading_rad: Number(p.heading_rad ?? prevP?.heading_rad ?? 0),
+                lifecycle_state: String(p.lifecycle_state || prevP?.lifecycle_state || "walking"),
+                crosswalk_id: (p.crosswalk_id as string | undefined) ?? prevP?.crosswalk_id,
+                tick: event.tick,
+                simulation_time_s: event.timestamp_s,
               });
               return next;
             });

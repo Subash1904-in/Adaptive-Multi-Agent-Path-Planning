@@ -297,9 +297,37 @@ A fundamental requirement of AMAPP is the strict separation between global groun
 - **Responsibilities:** Django REST Framework API for scenario discovery, simulation lifecycle control (play/pause/step/reset), metrics querying, and experiment history persistence.
 - **Django Channels (ASGI / Daphne):** Streams authoritative simulation snapshots and V2V events over WebSockets at bounded frequencies (10–30 Hz).
 
-### 3.10 Frontend & Visualization (`frontend/` — Planned Phases 23–30)
-- **Responsibilities:** TypeScript + Three.js application rendering 3D road networks, vehicles, pedestrians, traffic signals, communication range rings, and hazard indicators.
-- **Strict Rendering Boundary:** The frontend never computes physics or invents simulation state; it strictly interpolates authoritative state received from WebSockets.
+### 3.10 Frontend & Visualization (`frontend/` — IMPLEMENTED in Phases 23–25, Planned Phases 26–30)
+- **Responsibilities:** React 18 + TypeScript + Three.js web application rendering 3D road networks, urban environments, vehicles, pedestrians, traffic signals, metrics summaries, and live event streams.
+- **Strict Authoritative Simulation Boundary:**
+  - The frontend never computes authoritative physics, generates route plans, overrides collisions, or advances simulation time.
+  - Rendering interpolation is presentation-only, computing smooth visual transforms between discrete backend telemetry snapshots (nominally 10 Hz / 100ms intervals).
+  - Web wall-clock frame time is decoupled from authoritative discrete simulation time ($t_{\text{sim}}$ and tick counters).
+- **Vehicle Model Architecture (`frontend/src/features/scene3d/models.ts`):**
+  - Procedural low-poly Three.js compound meshes using shared geometry and material singletons (`ModelAssetCache`):
+    - *Sedan:* Compact body (4.4m x 2.0m x 0.7m), cabin greenhouse (2.3m x 1.75m x 0.65m), 4 cylinder wheels, warm yellow headlights, red taillights.
+    - *Truck:* Commercial chassis (7.4m x 2.4m x 0.7m), front cab (1.8m x 2.3m x 1.8m), cargo container (5.2m x 2.4m x 2.1m), 6 cylinder wheels, headlights/taillights.
+    - *Bus:* Elongated transit body (9.6m x 2.5m x 2.6m), dark window stripe (8.8m x 2.54m x 0.85m), 6 cylinder wheels, headlights/taillights.
+    - *Ambulance:* Boxy high-roof emergency van (5.6m x 2.2m x 1.9m), red medical cross emblems on sides, roof emergency beacon bar (blue/red), headlights/taillights.
+    - *Fire Engine:* Heavy emergency chassis (8.0m x 2.6m x 1.8m), cab, roof silver ladder (5.2m x 1.1m x 0.2m), roof emergency beacon bar (red/amber), headlights/taillights.
+    - *Unknown Fallback:* Neutral slate sedan model ensuring visual continuity for unrecognized classifications.
+  - *Asset Reuse & Zero-Allocation Render Loop:* Geometries and materials are instantiated once and cached in `ModelAssetCache`; dynamic entity updates mutate position and rotation transforms directly without per-frame allocations.
+- **Emergency Beacon Visual States:**
+  - Emergency visual state reflects backend data (`is_emergency`, `emergency_type`, `priority_level`).
+  - Active emergencies pulse alternating beacon colors at 2.5 Hz without full-screen flashes or visual interference.
+  - Inactive emergency vehicles display dimmed unlit beacon materials.
+  - Supports accessibility via CSS `prefers-reduced-motion`: provides steady non-flashing illumination.
+- **Pedestrian Model Architecture (`frontend/src/features/scene3d/models.ts`):**
+  - Low-poly human avatar with torso, head, and articulated left/right leg pivots placed at ground elevation ($Y = 0.0$ or crosswalk surface $Y = 0.04$).
+  - High-visibility amber clothing during active `crossing` lifecycle state.
+  - Subtle procedural leg-swing walking animation when moving ($v > 0.05$ m/s), resetting cleanly to neutral when waiting or stopped.
+- **Temporal Interpolation Engine (`frontend/src/features/scene3d/interpolation.ts`):**
+  - Bounded sample ring buffer per entity (retaining up to 10 samples).
+  - *Position Interpolation:* Deterministic linear interpolation $P(t) = P_0 + \alpha (P_1 - P_0)$, $\alpha \in [0, 1]$.
+  - *Heading Interpolation:* Shortest angular path lerp across the $0 \leftrightarrow 2\pi$ wraparound boundary ($\Delta \theta = ((\theta_1 - \theta_0 + \pi) \pmod{2\pi}) - \pi$), eliminating $360^\circ$ vehicle spinning.
+  - *Coordinate Transformation:* Maps simulation planar coordinates $(x_{\text{sim}}, y_{\text{sim}})$ to Three.js world space ($X = x_{\text{sim}}, Y = \text{elevation}, Z = -y_{\text{sim}}$) and derives Three.js rotation angle around Y via $\text{atan2}(\cos\theta, -\sin\theta)$.
+  - *Defensive Robustness:* Rejects non-finite coordinates (`NaN`, `Infinity`), deduplicates matching ticks/timestamps in-place, orders out-of-order events, and bounds visual dead-reckoning extrapolation ($\le 0.15$s) before clamping.
+  - *Lifecycle Cleanup:* Run transitions or scene unmounts clear all interpolation buffers and remove dynamic entity groups from the Three.js scene graph, completely preventing entity leakage across runs.
 
 ---
 

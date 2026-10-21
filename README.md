@@ -800,7 +800,16 @@ Phase 24 upgrades the Three.js viewport into a navigable 3D urban environment:
 - **Dual Camera Projections**: Seamless HUD switching between 3D Perspective (45° FOV) and 2D Orthographic camera modes with synchronized orbit targets and scales.
 - **OpenStreetMap Data Adapter**: Deterministic adapter (`adaptOsmRoadNetwork`) with Equirectangular geographic-to-Cartesian projection (`projectGeoCoordinatesToLocalMeters`) and documented synthetic grid fallback.
 
-### 6.27 Troubleshooting
+### 6.27 Enhanced Vehicle and Pedestrian Models, Animation, and Temporal Interpolation (Phase 25)
+Phase 25 enhances dynamic simulation entity rendering in Three.js with temporal smoothness and visual fidelity:
+- **Reusable Low-Poly Vehicle Models**: Procedural Three.js compound geometries representing Sedan, Commercial Truck, Transit Bus, EMS Ambulance, Fire Engine, and Unknown fallback. Models reuse static geometries and materials from `ModelAssetCache` to prevent memory allocation per frame or telemetry event.
+- **Emergency Vehicle Distinction**: Distinguishable visual styling (medical crosses, roof equipment ladders, color livery) reflecting actual backend data. Subtle alternating 2.5 Hz beacon pulsing without full-screen flashes; automatically reverts to static glow when `prefers-reduced-motion` is enabled.
+- **Low-Poly Pedestrian Avatars**: Human proportioned avatars (~1.75m) with articulated legs placed consistently at ground/crosswalk elevation. Includes high-visibility amber styling during `crossing` states and subtle procedural walking animations that never mutate authoritative speed or crossing states.
+- **Bounded Temporal Interpolation Engine**: Dedicated `EntityInterpolationBuffer` performing deterministic linear position interpolation and shortest-path angular heading lerp across the $0 \leftrightarrow 2\pi$ wraparound boundary. Eliminates visual jitter and 360° spins while clamping extrapolation ($\le 0.15$s) when simulation halts.
+- **Authoritative Boundary Preservation**: Rendering interpolation and animation cues are strictly presentation-only. Backend simulation time, collision detection, and routing decisions remain 100% authoritative.
+- **Lifecycle Cleanup**: Run switches and scene unmounts clear interpolation buffers and Three.js scene groups, completely preventing stale entity leakage.
+
+### 6.28 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -837,6 +846,7 @@ Phase 24 upgrades the Three.js viewport into a navigable 3D urban environment:
 - [docs/progress/PHASE_22.md](docs/progress/PHASE_22.md): Phase 22 Django Channels WebSockets for live simulation and telemetry streaming report.
 - [docs/progress/PHASE_23.md](docs/progress/PHASE_23.md): Phase 23 frontend foundation and interactive 3D simulation viewer report.
 - [docs/progress/PHASE_24.md](docs/progress/PHASE_24.md): Phase 24 3D city, road network, and urban environment rendering report.
+- [docs/progress/PHASE_25.md](docs/progress/PHASE_25.md): Phase 25 vehicle and pedestrian models, animation, and temporal interpolation report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

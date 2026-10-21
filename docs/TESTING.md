@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles (AMAPP)  
 **Testing Frameworks:** `pytest`, `pytest-cov`, `pytest-django`, `pytest-asyncio`  
-**Current Status:** Active Test Strategy Enforced (Phase 23 — 1,095 Backend Tests Passing at 95.66% Coverage; 35 Frontend Tests Passing)
+**Current Status:** Active Test Strategy Enforced (Phase 25 — 1,095 Backend Tests Passing at 95.66% Coverage; 107 Frontend Tests Passing across 6 test files)
 
 ---
 
@@ -425,8 +425,8 @@ python backend/manage.py check
 
 ---
 
-### 4.3 Frontend Test Suites & Commands (Phases 23–24)
-The frontend application includes 4 comprehensive Vitest test suites executing in headless `jsdom` (62 tests passing):
+### 4.3 Frontend Test Suites & Commands (Phases 23–25)
+The frontend application includes 6 comprehensive Vitest test suites executing in headless `jsdom` (107 tests passing):
 
 ```bash
 # Run all frontend tests
@@ -443,9 +443,11 @@ npm run lint
 npm run build
 ```
 
-#### Frontend Test Breakdown (62 tests):
+#### Frontend Test Breakdown (107 tests across 6 suites):
+- **`src/test/interpolation.test.ts` (25 passed):** Unit tests for pure temporal interpolation engine (`EntityInterpolationBuffer`). Validates angle positive normalization (`normalizeAnglePositive`), shortest angular difference calculation (`shortestAngularDiff`), smooth heading lerp across the $0 \leftrightarrow 2\pi$ wraparound boundary (`interpolateHeading`), linear planar position lerp (`interpolatePosition`), simulation heading to Three.js rotation around Y (`simHeadingToWorldRotationY`), rejection of out-of-order samples, duplicate timestamp handling, bounded history pruning ($\le 10$ samples), bounded forward extrapolation clamping ($\le 0.15\text{s}$), and stale state detection ($> 1.0\text{s}$).
+- **`src/test/models.test.ts` (18 passed):** Tests procedural low-poly 3D models and animation helpers. Verifies vehicle classification (`classifyVehicleType`), asset cache singleton geometry/material reuse (`ModelAssetCache`), procedural mesh hierarchies (Sedan, Truck, Bus, Ambulance with medical cross emblems, Fire Engine with roof ladder, Unknown fallback), articulated pedestrian avatars (torso, head, left/right leg pivot groups), emergency beacon animation state (alternating 2.5 Hz blue/red flashing when active, dimmed when inactive), accessibility compliance under `prefers-reduced-motion` (steady static glow), dynamic pedestrian walking leg swing driven by velocity ($v > 0.05\text{ m/s}$), and full scene resource cleanup/disposal methods.
 - **`src/test/geometry.test.ts` (34 passed):** Tests planar-to-Three.js coordinate transforms (`simToWorldCoordinates`), non-finite coordinate safety, dynamic road edge width resolution (`computeRoadEdgeWidth`), multi-lane road markings (`generateMultiLaneMarkings`: solid white outer borders, solid yellow centerlines, dashed white lane dividers), zebra crosswalk stripes (`generateZebraStripes`), inferred intersection crosswalks (`generateInferredCrosswalks`), curbs and sidewalks (`generateCurbsAndSidewalks`), Mulberry32 PRNG determinism (`createMulberry32`), Euclidean point-to-segment distance calculation (`pointToSegmentDistance`), deterministic procedural urban buildings with strict road and junction exclusion zones (`generateProceduralBuildings`), local Cartesian Equirectangular projection (`projectGeoCoordinatesToLocalMeters`), and OpenStreetMap graph data adaptation (`adaptOsmRoadNetwork`).
-- **`src/test/components.test.tsx` (12 passed):** Tests Header branding and connection badge, scenario selection and run creation, run stats rendering and stepping (+1, +10, Run to End, Cancel), TelemetryFeed stream and gap alert banner, MetricsPanel grid rendering, EntityInspector vehicle details, and SimulationViewer3D viewport controls (Day/Night lighting mode toggle, Perspective/Orthographic camera projection toggle, Procedural Buildings ON/OFF toggle, Reset View interaction, scene legend, and loading state overlay).
+- **`src/test/components.test.tsx` (14 passed):** Component tests for Header branding, connection badge, scenario selection, run creation, run stats rendering and stepping (+1, +10, Run to End, Cancel), TelemetryFeed stream and gap alert banner, MetricsPanel grid rendering, EntityInspector vehicle and pedestrian inspection (model classification title-case, emergency status, priority level badge, tick/timestamp metadata, and live interpolated vs. stale data indication), and SimulationViewer3D viewport controls (Day/Night lighting mode toggle, Perspective/Orthographic camera projection toggle, Procedural Buildings ON/OFF toggle, Reset View interaction, scene legend, and loading state overlay).
 - **`src/test/api-client.test.ts` (8 passed):** Tests base URL construction, trailing slash normalization, scenario listing, scenario detail, run creation, RFC 7807 problem details handling, invalid JSON defense, and network error handling.
 - **`src/test/websocket-client.test.ts` (8 passed):** Tests initial handshake, automatic subscription command dispatch, Schema 1.0.0 envelope parsing, malformed JSON/binary frame resilience, server heartbeat ping/pong reply, non-recoverable 4404 close halting, bounded exponential backoff with stable connection window, and cleanup on disconnect.
 
@@ -454,8 +456,8 @@ npm run build
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`, `node`, `npm`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 23: **95.66%** coverage across 1,095 passing backend tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_23.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 25: **95.66%** coverage across 1,095 passing backend tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_25.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend CI Gate:** `frontend-quality` executes `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` inside `frontend/`. No skipping or conditional deferral.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.

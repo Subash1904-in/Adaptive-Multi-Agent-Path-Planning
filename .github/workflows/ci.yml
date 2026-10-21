@@ -57,6 +57,7 @@ jobs:
             "docs/progress/PHASE_22.md"
             "docs/progress/PHASE_23.md"
             "docs/progress/PHASE_24.md"
+            "docs/progress/PHASE_25.md"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"

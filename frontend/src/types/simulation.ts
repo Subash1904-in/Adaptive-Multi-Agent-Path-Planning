@@ -208,6 +208,12 @@ export interface VehicleState {
   route?: string[];
   current_edge_id?: string;
   is_emergency?: boolean;
+  model_type?: "sedan" | "truck" | "bus" | "ambulance" | "fire_engine" | "unknown";
+  emergency_type?: "ambulance" | "fire_engine" | "police";
+  priority_level?: number | null;
+  tick?: number;
+  simulation_time_s?: number;
+  is_stale?: boolean;
 }
 
 export interface PedestrianState {
@@ -217,6 +223,9 @@ export interface PedestrianState {
   heading_rad: number;
   lifecycle_state: string;
   crosswalk_id?: string;
+  tick?: number;
+  simulation_time_s?: number;
+  is_stale?: boolean;
 }
 
 export interface TrafficSignalState {
