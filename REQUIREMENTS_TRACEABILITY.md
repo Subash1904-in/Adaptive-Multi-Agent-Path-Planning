@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 24 (Enhance 3D City, Road Network, and Urban Environment Rendering)  
+**Current Phase:** Phase 26 (Implement Interactive Simulation Playback, Timeline, and Step Controls)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 24 (Enhance 3D City, Road Network, and Urban Environment Rendering):* Phase 24 delivers realistic 3D road visualization with multi-lane markings (outer borders, centerlines, dashed dividers), smooth intersection pads, zebra crosswalks (explicit and inferred), raised curbs/sidewalks, deterministic procedural urban buildings with strict exclusion zones (Mulberry32 PRNG), day/night lighting modes, dual perspective/orthographic camera projection, and OpenStreetMap data adaptation. 62 frontend tests passing, 1,095 backend tests passing (95.66% coverage).
+> *Note on Phase 26 (Interactive Simulation Playback, Timeline, and Step Controls):* Phase 26 delivers an interactive simulation playback controller (`PlaybackScheduler`), Play/Pause/Resume steering, single-step (+1 tick) and bounded multi-step (+10 ticks), playback speed multipliers (0.5x, 1x, 2x, 5x) governing client request cadence without mutating backend physics, a bounded 500-snapshot history buffer (`SimulationHistoryBuffer`), interactive timeline scrubber slider, clean separation between live stream and historical review modes, and backend non-blocking concurrency protection rejecting overlapping step requests with HTTP 409 Conflict. 126 frontend tests passing, 1,097 backend tests passing (95.67% coverage).
 
 ---
 
@@ -31,7 +31,7 @@
 | **FR-11** | Communication Range Detection | `backend/apps/core/communication/discovery.py`, `backend/apps/core/communication/neighbors.py` | Phase 11, 12, 14, 27 | `NOT STARTED` | Phase 11, 12, 14 Spatial Discovery, Tables & Distance Loss Tested (`test_communication_discovery.py`, `test_communication_impairment.py`) |
 | **FR-12** | Communication Failure Handling | `backend/apps/core/communication/network.py`, `backend/apps/core/communication/neighbors.py` | Phase 11, 12, 14, 27 | `NOT STARTED` | Phase 11, 12, 14 Latency, Loss, Burst Channels, Outages & Recovery Tested (`test_communication_latency.py`, `test_communication_impairment.py`, `test_communication_degradation_integration.py`) |
 | **FR-13** | AI Model Training Using Reinforcement Learning | `rl_engine/` | Phase 32, 33, 34 | `NOT STARTED` | Pending Phase 32 |
-| **FR-14** | Real-Time 3D Visualization and Interactive Dashboard | `backend/apps/core/api/`, `backend/apps/core/realtime/`, `frontend/` | Phase 21–30 | `IN PROGRESS` | Phase 21 REST API Tested (46 tests); Phase 22 WebSockets Tested (42 tests); Phase 23 3D Viewer Tested (35 tests); Phase 24 Enhanced 3D City & Road Rendering Tested (62 frontend tests) |
+| **FR-14** | Real-Time 3D Visualization and Interactive Dashboard | `backend/apps/core/api/`, `backend/apps/core/realtime/`, `frontend/` | Phase 21–30 | `IN PROGRESS` | Phases 21–26 Complete (126 frontend tests, 1,097 backend tests passing; Playback controls, timeline scrubber, buffer, 3D city/models fully integrated) |
 
 
 
@@ -159,7 +159,7 @@
 ### FR-14: Real-Time 3D Visualization and Interactive Dashboard
 - **Requirement Statement:** Develop a web-based dashboard using Django and Three.js; visualize realistic roads, buildings, autonomous vehicles, pedestrians, and traffic conditions; display real-time vehicle movements, V2V communication, route changes, and AI decisions.
 - **Target Phases:** Phase 21 (Django REST API), Phase 22 (Real-time WebSocket streaming), Phase 23 (Frontend scaffold), Phase 24 (3D city and road rendering), Phase 25 (Vehicle and pedestrian visualization), Phase 26 (Live simulation controls), Phase 27 (V2V visualization), Phase 28 (Adaptive routing visualization), Phase 29 (Traffic incidents and scenario controls), Phase 30 (Operational metrics dashboard).
-- **Components:** `backend/apps/core/realtime/`, `frontend/src/features/scene3d/` (`SimulationViewer3D.tsx`, `geometry.ts`, `models.ts`, `interpolation.ts`), `frontend/src/features/simulation/EntityInspector.tsx`
-- **Verification Plan:** WebSocket frame serialization tests, client connection lifecycle tests, Three.js mesh rendering verification, temporal interpolation unit tests, and regression tests (`websocket-client.test.ts`, `api-client.test.ts`, `geometry.test.ts`, `interpolation.test.ts`, `models.test.ts`, `components.test.tsx`: 107 tests passing).
-- **Current Status:** `IN PROGRESS (Phases 21, 22, 23, 24, and 25 COMPLETED & TESTED; Phase 26 Live Controls Next)`
+- **Components:** `backend/apps/core/realtime/`, `backend/apps/core/api/`, `frontend/src/features/scene3d/` (`SimulationViewer3D.tsx`, `geometry.ts`, `models.ts`, `interpolation.ts`), `frontend/src/features/playback/` (`playbackScheduler.ts`, `historyBuffer.ts`, `PlaybackBar.tsx`), `frontend/src/features/simulation/EntityInspector.tsx`
+- **Verification Plan:** WebSocket frame serialization tests, client connection lifecycle tests, Three.js mesh rendering verification, temporal interpolation unit tests, playback scheduler tests (fake timers, cadence scaling, non-overlapping requests, terminal stopping), history buffer tests (deep-cloning, deduplication, binary search ordering, bounded retention), and component tests (`websocket-client.test.ts`, `api-client.test.ts`, `geometry.test.ts`, `interpolation.test.ts`, `models.test.ts`, `playback.test.ts`, `components.test.tsx`: 126 tests passing).
+- **Current Status:** `IN PROGRESS (Phases 21, 22, 23, 24, 25, and 26 COMPLETED & TESTED; Phase 27 V2V Visualization Next)`
 

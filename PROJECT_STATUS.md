@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 25 (Enhance Vehicle and Pedestrian Models, Animation, and Temporal Interpolation)
+- **Current Phase:** Phase 26 (Interactive Simulation Playback, Timeline, and Step Controls)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 26 (Live Simulation Controls) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 27 (V2V visualization) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-21
 
 
@@ -41,7 +41,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 23** | **Build Frontend Foundation & 3D Simulation Viewer** | **COMPLETED** | React 18, TypeScript, Three.js 3D viewport, REST API & WebSocket clients, metrics panel, event feed, 35 frontend tests, CI integrated. |
 | **Phase 24** | **3D City and Road Rendering** | **COMPLETED** | Multi-lane markings, junction pads, zebra crosswalks, curbs/sidewalks, deterministic procedural buildings, day/night lighting, camera projection modes, 62 frontend tests, 1,095 backend tests. |
 | **Phase 25** | **Vehicle and Pedestrian Models, Animation & Temporal Interpolation** | **COMPLETED** | Reusable low-poly vehicle models (sedan, truck, bus, ambulance, fire engine, unknown fallback), pedestrian avatar & walking animation, subtle emergency beacons, bounded temporal interpolation buffer with shortest-path heading lerp, entity inspector enhancements, 107 frontend tests, 1,095 backend tests. |
-| **Phase 26** | **Live simulation controls** | Pending | UI connection to API/WebSockets, play/pause/step/reset, speed control, duplicate prevention. |
+| **Phase 26** | **Live simulation controls** | **COMPLETED** | Interactive simulation playback, Play/Pause/Resume, single/multi-step forward, speed multipliers (0.5x, 1x, 2x, 5x), bounded history buffer, timeline scrubber, live vs. review separation, concurrent step protection (409 Conflict), 126 frontend tests, 1,097 backend tests. |
 | **Phase 27** | V2V visualization | Pending | Active communication links within range, message event animations, latency & packet-loss stats. |
 | **Phase 28** | Adaptive routing visualization | Pending | Active routes vs alternative routes, animated reroutes, decision reasons, agent inspector panel. |
 | **Phase 29** | Traffic incidents and scenario controls | Pending | UI controls for closures, accidents, obstacles, signals, emergency triggers via backend APIs. |
@@ -222,15 +222,19 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 
 ## 5. Commands Executed and Actual Results
 1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
-2. `.\.venv\Scripts\ruff.exe format --check backend`: Exit code 0 (`199 files already formatted`).
+2. `.\.venv\Scripts\ruff.exe format --check backend`: Exit code 0 (`204 files already formatted`).
 3. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-4. `.\.venv\Scripts\pytest.exe --cov=apps.core --cov-report=term --cov-fail-under=80`: Executed entire test suite; returned `1053 passed in 24.92s`, `95.77% coverage` (exit code 0).
+4. `.\.venv\Scripts\pytest.exe --cov=apps.core --cov-report=term --cov-fail-under=80`: Executed entire test suite; returned `1097 passed`, `95.67% coverage` (exit code 0).
+5. `cd frontend && npm run lint`: Exit code 0 (`ESLint: 0 errors, 0 warnings`).
+6. `cd frontend && npm run typecheck`: Exit code 0 (`tsc --noEmit: clean`).
+7. `cd frontend && npm test`: Exit code 0 (`126 passed across 7 test suites`).
+8. `cd frontend && npm run build`: Exit code 0 (Vite v5.4.21 production bundle built cleanly in 1.61s).
 
 ---
 
 ## 6. Test Results
 - **Scenario Management REST API (`test_api_scenarios.py`):** 10 passed.
-- **Simulation Runs Lifecycle & Stepping REST API (`test_api_runs.py`):** 15 passed.
+- **Simulation Runs Lifecycle & Stepping REST API (`test_api_runs.py`):** 17 passed (includes Phase 26 concurrent step 409 Conflict rejection and cancellation safety).
 - **Telemetry, Metrics & Export REST API (`test_api_telemetry_and_export.py`):** 11 passed.
 - **REST API Error Taxonomy, Permissions & Security (`test_api_security_and_errors.py`):** 10 passed.
 - **ScenarioRunner Lifecycle & Cancellation (`test_runner_lifecycle_and_cancellation.py`):** 13 passed.
@@ -238,6 +242,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Runner Determinism, Fingerprinting & Export (`test_runner_determinism_and_export.py`):** 11 passed.
 - **Cross-Subsystem Metrics Aggregation (`test_runner_metrics_aggregation.py`):** 7 passed.
 - **End-to-End Backend Integration Scenarios (`test_backend_integration_scenarios.py`):** 9 passed.
+- **WebSocket Protocol & Streaming (`test_websocket_*.py`):** 42 passed.
 - **AI Decision Policies & Scenarios (`test_decision_*.py`):** 43 passed.
 - **Emergency Priority, Corridors & Yielding (`test_emergency_*.py`):** 60 passed.
 - **Pedestrian Crosswalks & Safety (`test_pedestrian_*.py`):** 45 passed.
@@ -253,14 +258,15 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Road Graph & City Generator (`test_road_graph.py`, `test_city_generator.py`):** 41 passed.
 - **Domain Models, Values & Codecs (`test_domain_*.py`):** 105 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **1,053 passed, 0 failed in 24.92s**, **95.77% line coverage** (exceeds 80% threshold).
+- **Total Backend:** **1,097 passed, 0 failed**, **95.67% line coverage** (exceeds 80% threshold).
+- **Frontend Unit & Component Suites:** **126 passed across 7 test suites** (`playback.test.ts`: 14 passed; `components.test.tsx`: 19 passed; `interpolation.test.ts`: 25 passed; `models.test.ts`: 18 passed; `geometry.test.ts`: 34 passed; `api-client.test.ts`: 8 passed; `websocket-client.test.ts`: 8 passed).
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Full Django REST API layer operational under `/api/v1/`. Features thin application views, in-memory thread-safe registries, standardized RFC 7807 error format, and preloaded scenario fixtures.
+- **Notes:** Full Django REST API layer operational under `/api/v1/`. Scenario execution stepping protected by non-blocking lock returning 409 Conflict on overlapping calls. Frontend playback controller drives simulation progression via bounded, non-overlapping step scheduling.
 - **Educational Disclaimer:** This simulation is developed solely for educational and research purposes and is NOT certified for physical vehicle deployment.
 
 ---
@@ -282,7 +288,12 @@ This roadmap is strictly aligned with our agreed master development plan, divide
    ```bash
    python backend/manage.py runserver 127.0.0.1:8000
    ```
-5. Query API endpoints:
+5. Launch frontend dev server:
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+6. Query API endpoints:
    - Health: `http://127.0.0.1:8000/api/v1/health/`
    - Scenarios: `http://127.0.0.1:8000/api/v1/scenarios/`
    - Runs: `http://127.0.0.1:8000/api/v1/runs/`
@@ -290,5 +301,5 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 9. Exact Next Steps
-1. Await user prompt for **Phase 26: Live Simulation Controls**.
-2. Connect UI controls to REST & WebSocket APIs for play, pause, single-step, cancellation, reset, speed multipliers, and duplicate command prevention.
+1. Await user prompt for **Phase 27: V2V Visualization**.
+2. Implement rendering of active V2V communication links within range, message event animations, latency & packet-loss stats overlays.

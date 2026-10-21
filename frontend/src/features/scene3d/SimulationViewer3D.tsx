@@ -53,6 +53,9 @@ export interface SimulationViewer3DProps {
   selectedEntityId?: string | null;
   onSelectEntity?: (entityId: string, entityType: "vehicle" | "pedestrian") => void;
   isLoading?: boolean;
+  isReviewing?: boolean;
+  reviewTick?: number | null;
+  onReturnToLive?: () => void;
 }
 
 export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
@@ -64,6 +67,9 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
   selectedEntityId,
   onSelectEntity,
   isLoading = false,
+  isReviewing = false,
+  reviewTick = null,
+  onReturnToLive,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -1032,6 +1038,54 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           }}
         >
           Loading 3D Simulation Environment...
+        </div>
+      )}
+
+      {/* Floating HUD: Historical Review Banner */}
+      {isReviewing && (
+        <div
+          className="viewport-hud-review-banner"
+          role="status"
+          style={{
+            position: "absolute",
+            top: "16px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            backgroundColor: "rgba(180, 83, 9, 0.95)",
+            backdropFilter: "blur(6px)",
+            border: "1px solid #f59e0b",
+            borderRadius: "8px",
+            padding: "8px 16px",
+            color: "#ffffff",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            zIndex: 10,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+          }}
+        >
+          <span>🕒 HISTORICAL REVIEW — TICK {reviewTick ?? 0}</span>
+          {onReturnToLive && (
+            <button
+              type="button"
+              onClick={onReturnToLive}
+              style={{
+                backgroundColor: "#fef3c7",
+                color: "#92400e",
+                border: "none",
+                borderRadius: "4px",
+                padding: "4px 10px",
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Return to Live ➔
+            </button>
+          )}
         </div>
       )}
 

@@ -6,8 +6,10 @@ import { TelemetryFeed } from "../features/telemetry/TelemetryFeed";
 import { MetricsPanel } from "../features/telemetry/MetricsPanel";
 import { EntityInspector } from "../features/simulation/EntityInspector";
 import { SimulationViewer3D } from "../features/scene3d/SimulationViewer3D";
+import { PlaybackBar } from "../features/playback/PlaybackBar";
 import type { RunMetrics, RunStatus, ScenarioSummary, VehicleState } from "../types/simulation";
 import type { WebSocketEventEnvelope } from "../types/websocket";
+import type { TimelineRange } from "../types/playback";
 
 describe("Component Unit Tests", () => {
   describe("Header", () => {
@@ -414,5 +416,211 @@ describe("Component Unit Tests", () => {
 
       expect(screen.getByText("Loading 3D Simulation Environment...")).toBeInTheDocument();
     });
+
+    it("displays historical review banner when isReviewing is true and triggers onReturnToLive", () => {
+      const handleReturnToLive = vi.fn();
+      render(
+        <SimulationViewer3D
+          scenario={null}
+          vehicles={new Map()}
+          pedestrians={new Map()}
+          signals={new Map()}
+          isReviewing={true}
+          reviewTick={14}
+          onReturnToLive={handleReturnToLive}
+        />
+      );
+
+      expect(screen.getByText("🕒 HISTORICAL REVIEW — TICK 14")).toBeInTheDocument();
+      const returnBtn = screen.getByRole("button", { name: /return to live/i });
+      fireEvent.click(returnBtn);
+      expect(handleReturnToLive).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("PlaybackBar", () => {
+    const defaultTimeline: TimelineRange = {
+      earliestTick: 0,
+      latestTick: 50,
+      currentTick: 25,
+      simulationTimeS: 2.5,
+      maxTicks: 100,
+      isLive: true,
+      activeReviewTick: null,
+      bufferedCount: 26,
+    };
+
+    it("renders controls, timeline range, speed options, and mode badge", () => {
+      render(
+        <PlaybackBar
+          playbackState="ready"
+          speed={1}
+          timeline={defaultTimeline}
+          isTerminal={false}
+          canPlay={true}
+          canStep={true}
+          onPlay={vi.fn()}
+          onPause={vi.fn()}
+          onResume={vi.fn()}
+          onStep={vi.fn()}
+          onSetSpeed={vi.fn()}
+          onSeekTick={vi.fn()}
+          onReturnToLive={vi.fn()}
+        />
+      );
+
+      expect(screen.getByRole("button", { name: /play simulation playback/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /advance simulation by 1 tick/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /advance simulation by 10 ticks/i })).toBeInTheDocument();
+      expect(screen.getByText("LIVE STREAM")).toBeInTheDocument();
+      expect(screen.getByText("READY")).toBeInTheDocument();
+      expect(screen.getByText(/26 frames in memory/i)).toBeInTheDocument();
+      expect(screen.getByRole("slider", { name: /timeline position scrubber/i })).toHaveValue("25");
+    });
+
+    it("handles transport clicks (play, pause, step +1, step +10, speed, seek)", () => {
+      const onPlay = vi.fn();
+      const onPause = vi.fn();
+      const onResume = vi.fn();
+      const onStep = vi.fn();
+      const onSetSpeed = vi.fn();
+      const onSeekTick = vi.fn();
+
+      const { rerender } = render(
+        <PlaybackBar
+          playbackState="ready"
+          speed={1}
+          timeline={defaultTimeline}
+          isTerminal={false}
+          canPlay={true}
+          canStep={true}
+          onPlay={onPlay}
+          onPause={onPause}
+          onResume={onResume}
+          onStep={onStep}
+          onSetSpeed={onSetSpeed}
+          onSeekTick={onSeekTick}
+          onReturnToLive={vi.fn()}
+        />
+      );
+
+      // Click Play
+      fireEvent.click(screen.getByRole("button", { name: /play simulation playback/i }));
+      expect(onPlay).toHaveBeenCalledTimes(1);
+
+      // Re-render as playing
+      rerender(
+        <PlaybackBar
+          playbackState="playing"
+          speed={1}
+          timeline={defaultTimeline}
+          isTerminal={false}
+          canPlay={true}
+          canStep={false}
+          onPlay={onPlay}
+          onPause={onPause}
+          onResume={onResume}
+          onStep={onStep}
+          onSetSpeed={onSetSpeed}
+          onSeekTick={onSeekTick}
+          onReturnToLive={vi.fn()}
+        />
+      );
+
+      // Click Pause
+      fireEvent.click(screen.getByRole("button", { name: /pause simulation playback/i }));
+      expect(onPause).toHaveBeenCalledTimes(1);
+
+      // Re-render as paused
+      rerender(
+        <PlaybackBar
+          playbackState="paused"
+          speed={1}
+          timeline={defaultTimeline}
+          isTerminal={false}
+          canPlay={true}
+          canStep={true}
+          onPlay={onPlay}
+          onPause={onPause}
+          onResume={onResume}
+          onStep={onStep}
+          onSetSpeed={onSetSpeed}
+          onSeekTick={onSeekTick}
+          onReturnToLive={vi.fn()}
+        />
+      );
+
+      // Click Step +1 and +10
+      fireEvent.click(screen.getByRole("button", { name: /advance simulation by 1 tick/i }));
+      expect(onStep).toHaveBeenCalledWith(1);
+
+      fireEvent.click(screen.getByRole("button", { name: /advance simulation by 10 ticks/i }));
+      expect(onStep).toHaveBeenCalledWith(10);
+
+      // Click speed
+      fireEvent.click(screen.getByRole("button", { name: /2x playback speed/i }));
+      expect(onSetSpeed).toHaveBeenCalledWith(2);
+
+      // Scrub timeline
+      const slider = screen.getByRole("slider", { name: /timeline position scrubber/i });
+      fireEvent.change(slider, { target: { value: "10" } });
+      expect(onSeekTick).toHaveBeenCalledWith(10);
+    });
+
+    it("displays historical review badge and return to live button when reviewing", () => {
+      const onReturnToLive = vi.fn();
+      render(
+        <PlaybackBar
+          playbackState="reviewing"
+          speed={1}
+          timeline={{
+            ...defaultTimeline,
+            isLive: false,
+            activeReviewTick: 12,
+          }}
+          isTerminal={false}
+          canPlay={true}
+          canStep={true}
+          onPlay={vi.fn()}
+          onPause={vi.fn()}
+          onResume={vi.fn()}
+          onStep={vi.fn()}
+          onSetSpeed={vi.fn()}
+          onSeekTick={vi.fn()}
+          onReturnToLive={onReturnToLive}
+        />
+      );
+
+      expect(screen.getByText("🕒 REVIEW (Tick 12)")).toBeInTheDocument();
+      const returnBtn = screen.getByRole("button", { name: /return to live simulation view/i });
+      fireEvent.click(returnBtn);
+      expect(onReturnToLive).toHaveBeenCalledTimes(1);
+    });
+
+    it("disables transport and step controls when run is terminal", () => {
+      render(
+        <PlaybackBar
+          playbackState="completed"
+          speed={1}
+          timeline={defaultTimeline}
+          isTerminal={true}
+          canPlay={false}
+          canStep={false}
+          onPlay={vi.fn()}
+          onPause={vi.fn()}
+          onResume={vi.fn()}
+          onStep={vi.fn()}
+          onSetSpeed={vi.fn()}
+          onSeekTick={vi.fn()}
+          onReturnToLive={vi.fn()}
+        />
+      );
+
+      expect(screen.getByRole("button", { name: /play simulation playback/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /advance simulation by 1 tick/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /advance simulation by 10 ticks/i })).toBeDisabled();
+      expect(screen.getByText("COMPLETED")).toBeInTheDocument();
+    });
   });
 });
+

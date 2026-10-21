@@ -118,6 +118,30 @@ class DuplicateScenarioIdError(ApiException):
         self.scenario_id = scenario_id
 
 
+class ConcurrentStepExecutionError(ApiException):
+    """Raised when another step operation is already actively executing on the runner."""
+
+    status_code = status.HTTP_409_CONFLICT
+    error_code = "CONCURRENT_STEP_IN_PROGRESS"
+
+    def __init__(
+        self,
+        message: str,
+        run_id: Optional[str] = None,
+        details: Optional[Any] = None,
+    ) -> None:
+        d = dict(details) if isinstance(details, dict) else {}
+        if run_id and "run_id" not in d:
+            d["run_id"] = run_id
+        super().__init__(
+            message,
+            error_code=self.error_code,
+            details=d or None,
+            status_code=self.status_code,
+        )
+        self.run_id = run_id
+
+
 def format_error_response(
     code: str,
     message: str,

@@ -5,6 +5,7 @@ result generation, deterministic state resets, explicit lifecycle management,
 bounded telemetry collection, and cross-subsystem metrics aggregation.
 """
 
+import threading
 from typing import Any, Optional
 
 from apps.core.scenarios.builder import ScenarioBuilder, ScenarioRunContext
@@ -75,6 +76,7 @@ class ScenarioRunner:
         self._cancellation_requested: bool = False
         self._cancellation_reason: Optional[str] = None
         self._last_result: Optional[ScenarioExecutionResult] = None
+        self._execution_lock: threading.Lock = threading.Lock()
 
         # Telemetry collector
         t_cfg = self.run_config.telemetry_config or telemetry_config or TelemetryConfig()

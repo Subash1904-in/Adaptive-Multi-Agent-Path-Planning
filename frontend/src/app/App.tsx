@@ -1,8 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Header } from "../components/Header";
 import { EntityInspector } from "../features/simulation/EntityInspector";
 import { ScenarioSelector } from "../features/scenarios/ScenarioSelector";
 import { SimulationViewer3D } from "../features/scene3d/SimulationViewer3D";
+import { PlaybackBar } from "../features/playback/PlaybackBar";
+import { PlaybackScheduler } from "../features/playback/playbackScheduler";
+import { SimulationHistoryBuffer } from "../features/playback/historyBuffer";
 import { MetricsPanel } from "../features/telemetry/MetricsPanel";
 import { TelemetryFeed } from "../features/telemetry/TelemetryFeed";
 import { defaultApiClient } from "../lib/api/client";
@@ -16,6 +19,11 @@ import type {
   TrafficSignalState,
   VehicleState,
 } from "../types/simulation";
+import type {
+  PlaybackSpeed,
+  PlaybackState,
+  TimelineRange,
+} from "../types/playback";
 import type {
   TelemetryGapPayload,
   WebSocketConnectionStatus,
@@ -38,6 +46,15 @@ export const App: React.FC = () => {
   const [signals, setSignals] = useState<Map<string, TrafficSignalState>>(new Map());
   const [telemetryEvents, setTelemetryEvents] = useState<WebSocketEventEnvelope[]>([]);
   const [latestGap, setLatestGap] = useState<TelemetryGapPayload | null>(null);
+
+  // Playback & Historical Review State
+  const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
+  const [playbackSpeed, setPlaybackSpeed] = useState<PlaybackSpeed>(1);
+  const [activeReviewTick, setActiveReviewTick] = useState<number | null>(null);
+  const [historyVersion, setHistoryVersion] = useState<number>(0);
+
+  const historyBufferRef = useRef<SimulationHistoryBuffer>(new SimulationHistoryBuffer(500));
+  const schedulerRef = useRef<PlaybackScheduler | null>(null);
 
   // Selection
   const [selectedEntity, setSelectedEntity] = useState<{
@@ -226,6 +243,18 @@ export const App: React.FC = () => {
         case "run.completed":
         case "run.cancelled":
         case "run.failed": {
+          const isCompleted = event.event_type === "run.completed";
+          const isCancelled = event.event_type === "run.cancelled";
+          const isFailed = event.event_type === "run.failed";
+          const isTerm = isCompleted || isCancelled || isFailed;
+
+          if (isTerm) {
+            schedulerRef.current?.stop();
+            if (isCompleted) setPlaybackState("completed");
+            else if (isCancelled) setPlaybackState("cancelled");
+            else setPlaybackState("failed");
+          }
+
           setCurrentRun((prev) => {
             if (!prev) return null;
             return {
@@ -234,11 +263,8 @@ export const App: React.FC = () => {
               elapsed_time_s: event.timestamp_s,
               lifecycle_state:
                 (p.to_state as RunStatus["lifecycle_state"]) ||
-                (event.event_type === "run.completed" ? "COMPLETED" : prev.lifecycle_state),
-              is_terminal:
-                event.event_type === "run.completed" ||
-                event.event_type === "run.cancelled" ||
-                event.event_type === "run.failed",
+                (isCompleted ? "COMPLETED" : isCancelled ? "CANCELLED" : isFailed ? "FAILED" : prev.lifecycle_state),
+              is_terminal: isTerm || prev.is_terminal,
             };
           });
           break;
@@ -273,9 +299,106 @@ export const App: React.FC = () => {
     }
   }, [currentRun?.run_id]);
 
-  // 4. Action Handlers
+  // 4. Session History Recording (Deduplicated snapshot capture)
+  useEffect(() => {
+    if (currentRun && currentRun.current_tick !== undefined) {
+      historyBufferRef.current.addSnapshot({
+        tick: currentRun.current_tick,
+        simulation_time_s: currentRun.elapsed_time_s,
+        timestamp_ms: Date.now(),
+        vehicles,
+        pedestrians,
+        signals,
+        metrics,
+      });
+      setHistoryVersion((v) => v + 1);
+    }
+  }, [currentRun, vehicles, pedestrians, signals, metrics]);
+
+  // 5. Playback Stepping Core Callback
+  const executeStep = useCallback(
+    async (ticks: number): Promise<boolean> => {
+      if (!currentRun || currentRun.is_terminal) {
+        return false;
+      }
+      setActionError(null);
+      try {
+        const res = await defaultApiClient.stepRun(currentRun.run_id, { ticks });
+        const nextTick = Number(res.current_tick ?? (currentRun.current_tick + ticks));
+        const nextSimTime = Number(
+          res.elapsed_time_s ??
+            currentRun.elapsed_time_s + ticks * (selectedScenario?.time_step_s ?? 0.1)
+        );
+        const nextLifecycle = String(res.lifecycle_state || "RUNNING") as RunStatus["lifecycle_state"];
+        const isTerm = Boolean(
+          res.is_terminal ||
+            ["COMPLETED", "CANCELLED", "FAILED", "LIMIT_REACHED"].includes(nextLifecycle)
+        );
+
+        setCurrentRun((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            current_tick: nextTick,
+            elapsed_time_s: nextSimTime,
+            lifecycle_state: nextLifecycle,
+            is_terminal: isTerm,
+            arrived_count:
+              res.arrived_count !== undefined ? Number(res.arrived_count) : prev.arrived_count,
+            active_count:
+              res.active_count !== undefined ? Number(res.active_count) : prev.active_count,
+          };
+        });
+
+        if (isTerm) {
+          if (nextLifecycle === "COMPLETED" || nextLifecycle === "LIMIT_REACHED") {
+            setPlaybackState("completed");
+          } else if (nextLifecycle === "CANCELLED") {
+            setPlaybackState("cancelled");
+          } else {
+            setPlaybackState("failed");
+          }
+          return false;
+        }
+
+        return true;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Simulation step failed";
+        setActionError(msg);
+        return false;
+      }
+    },
+    [currentRun, selectedScenario?.time_step_s]
+  );
+
+  // 6. Playback Scheduler Lifecycle Management
+  useEffect(() => {
+    schedulerRef.current = new PlaybackScheduler(
+      {
+        onStep: executeStep,
+        onStateChange: (st) => setPlaybackState(st),
+        onError: (err) => setActionError(err),
+      },
+      {
+        speed: playbackSpeed,
+        timeStepS: selectedScenario?.time_step_s ?? 0.1,
+      }
+    );
+
+    return () => {
+      schedulerRef.current?.dispose();
+      schedulerRef.current = null;
+    };
+  }, [executeStep, playbackSpeed, selectedScenario?.time_step_s]);
+
+  // 7. Action Handlers
   const handleCreateRun = async (scenarioId: string, maxTicks?: number) => {
     setActionError(null);
+    schedulerRef.current?.stop();
+    historyBufferRef.current.clear();
+    setActiveReviewTick(null);
+    setPlaybackState("ready");
+
     try {
       const run = await defaultApiClient.createRun({
         scenario_id: scenarioId,
@@ -289,6 +412,18 @@ export const App: React.FC = () => {
       setLatestGap(null);
       setSelectedEntity(null);
 
+      // Record tick 0 baseline snapshot
+      historyBufferRef.current.addSnapshot({
+        tick: run.current_tick,
+        simulation_time_s: run.elapsed_time_s,
+        timestamp_ms: Date.now(),
+        vehicles: new Map(),
+        pedestrians: new Map(),
+        signals: new Map(),
+        metrics: null,
+      });
+      setHistoryVersion((v) => v + 1);
+
       // Fetch initial metrics
       try {
         const m = await defaultApiClient.getRunMetrics(run.run_id);
@@ -299,40 +434,76 @@ export const App: React.FC = () => {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Run initialization failed";
       setActionError(msg);
+      setPlaybackState("idle");
     }
   };
 
   const handleStepRun = async (ticks: number, runToCompletion = false) => {
-    if (!currentRun) return;
-    setActionError(null);
-    try {
-      await defaultApiClient.stepRun(currentRun.run_id, {
-        ticks,
-        run_to_completion: runToCompletion,
-      });
+    if (!currentRun || currentRun.is_terminal) return;
+    if (activeReviewTick !== null) {
+      setActiveReviewTick(null);
+    }
+    await schedulerRef.current?.executeManualStep(ticks || 1);
 
-      // Update metrics snapshot
+    if (runToCompletion) {
+      setActionError(null);
       try {
-        const m = await defaultApiClient.getRunMetrics(currentRun.run_id);
-        setMetrics(m);
-      } catch {
-        // Ignored
+        await defaultApiClient.stepRun(currentRun.run_id, { run_to_completion: true });
+        const finalRun = await defaultApiClient.getRun(currentRun.run_id);
+        setCurrentRun(finalRun);
+        setPlaybackState("completed");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Run to completion failed";
+        setActionError(msg);
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Simulation step failed";
-      setActionError(msg);
     }
   };
 
   const handleCancelRun = async () => {
     if (!currentRun) return;
     setActionError(null);
+    schedulerRef.current?.stop();
     try {
       await defaultApiClient.cancelRun(currentRun.run_id, "Operator requested stop");
+      setPlaybackState("cancelled");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Cancellation failed";
       setActionError(msg);
     }
+  };
+
+  const handlePlay = () => {
+    if (activeReviewTick !== null) {
+      setActiveReviewTick(null);
+    }
+    schedulerRef.current?.play();
+  };
+
+  const handlePause = () => {
+    schedulerRef.current?.pause();
+  };
+
+  const handleResume = () => {
+    if (activeReviewTick !== null) {
+      setActiveReviewTick(null);
+    }
+    schedulerRef.current?.resume();
+  };
+
+  const handleSetSpeed = (nextSpeed: PlaybackSpeed) => {
+    setPlaybackSpeed(nextSpeed);
+    schedulerRef.current?.setSpeed(nextSpeed);
+  };
+
+  const handleSeekTick = (targetTick: number) => {
+    schedulerRef.current?.pause();
+    setActiveReviewTick(targetTick);
+    setPlaybackState("reviewing");
+  };
+
+  const handleReturnToLive = () => {
+    setActiveReviewTick(null);
+    setPlaybackState("paused");
   };
 
   const handleReconnect = () => {
@@ -341,14 +512,63 @@ export const App: React.FC = () => {
     }
   };
 
+  // 8. Determine Entities to Render (Historical Review vs. Live)
+  const renderedVehicles = useMemo(() => {
+    if (activeReviewTick !== null) {
+      const snap = historyBufferRef.current.getSnapshot(activeReviewTick);
+      if (snap) return snap.vehicles;
+    }
+    return vehicles;
+  }, [activeReviewTick, vehicles]);
+
+  const renderedPedestrians = useMemo(() => {
+    if (activeReviewTick !== null) {
+      const snap = historyBufferRef.current.getSnapshot(activeReviewTick);
+      if (snap) return snap.pedestrians;
+    }
+    return pedestrians;
+  }, [activeReviewTick, pedestrians]);
+
+  const renderedSignals = useMemo(() => {
+    if (activeReviewTick !== null) {
+      const snap = historyBufferRef.current.getSnapshot(activeReviewTick);
+      if (snap) return snap.signals;
+    }
+    return signals;
+  }, [activeReviewTick, signals]);
+
   // Find active route for selected vehicle
   const activeRoute = useMemo(() => {
     if (selectedEntity?.type === "vehicle" && selectedEntity.id) {
-      const v = vehicles.get(selectedEntity.id);
+      const v = renderedVehicles.get(selectedEntity.id);
       return v?.route;
     }
     return undefined;
-  }, [selectedEntity, vehicles]);
+  }, [selectedEntity, renderedVehicles]);
+
+  // Compute Timeline Metadata
+  const timelineRange: TimelineRange = useMemo(() => {
+    const earliest = historyBufferRef.current.getEarliestTick() ?? 0;
+    const latest = historyBufferRef.current.getLatestTick() ?? (currentRun?.current_tick ?? 0);
+    return {
+      earliestTick: earliest,
+      latestTick: Math.max(earliest, latest),
+      currentTick: currentRun?.current_tick ?? 0,
+      simulationTimeS: currentRun?.elapsed_time_s ?? 0,
+      maxTicks: selectedScenario?.max_ticks,
+      isLive: activeReviewTick === null,
+      activeReviewTick,
+      bufferedCount: historyBufferRef.current.size(),
+    };
+    // historyVersion dependency forces recalculation when buffer changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    currentRun?.current_tick,
+    currentRun?.elapsed_time_s,
+    selectedScenario?.max_ticks,
+    activeReviewTick,
+    historyVersion,
+  ]);
 
   return (
     <div className="app-container">
@@ -367,6 +587,9 @@ export const App: React.FC = () => {
             onSelectScenario={(id) => {
               setSelectedScenarioId(id);
               setCurrentRun(null);
+              setPlaybackState("idle");
+              historyBufferRef.current.clear();
+              setActiveReviewTick(null);
             }}
             onCreateRun={handleCreateRun}
             currentRun={currentRun}
@@ -380,9 +603,15 @@ export const App: React.FC = () => {
             <EntityInspector
               entityId={selectedEntity.id}
               entityType={selectedEntity.type}
-              vehicleState={selectedEntity.type === "vehicle" ? vehicles.get(selectedEntity.id) : null}
+              vehicleState={
+                selectedEntity.type === "vehicle"
+                  ? renderedVehicles.get(selectedEntity.id)
+                  : null
+              }
               pedestrianState={
-                selectedEntity.type === "pedestrian" ? pedestrians.get(selectedEntity.id) : null
+                selectedEntity.type === "pedestrian"
+                  ? renderedPedestrians.get(selectedEntity.id)
+                  : null
               }
               onClose={() => setSelectedEntity(null)}
             />
@@ -391,18 +620,40 @@ export const App: React.FC = () => {
           <MetricsPanel metrics={metrics} />
         </section>
 
-        {/* Center Main: 3D Simulation Viewport */}
+        {/* Center Main: 3D Simulation Viewport & Playback Bar */}
         <section className="viewport-col" aria-label="3D Simulation Viewport">
           <div className="viewport-wrapper">
             <SimulationViewer3D
               scenario={selectedScenario}
-              vehicles={vehicles}
-              pedestrians={pedestrians}
-              signals={signals}
+              vehicles={renderedVehicles}
+              pedestrians={renderedPedestrians}
+              signals={renderedSignals}
               activeRoute={activeRoute}
               selectedEntityId={selectedEntity?.id}
               onSelectEntity={(id, type) => setSelectedEntity({ id, type })}
               isLoading={isLoadingScenarios}
+              isReviewing={activeReviewTick !== null}
+              reviewTick={activeReviewTick}
+              onReturnToLive={handleReturnToLive}
+            />
+          </div>
+
+          {/* Interactive Playback Bar & Timeline Scrubber */}
+          <div className="playback-bar-wrapper" style={{ marginTop: "12px", marginBottom: "12px" }}>
+            <PlaybackBar
+              playbackState={playbackState}
+              speed={playbackSpeed}
+              timeline={timelineRange}
+              isTerminal={currentRun?.is_terminal ?? false}
+              canPlay={Boolean(currentRun && !currentRun.is_terminal)}
+              canStep={Boolean(currentRun && !currentRun.is_terminal)}
+              onPlay={handlePlay}
+              onPause={handlePause}
+              onResume={handleResume}
+              onStep={(ticks) => handleStepRun(ticks)}
+              onSetSpeed={handleSetSpeed}
+              onSeekTick={handleSeekTick}
+              onReturnToLive={handleReturnToLive}
             />
           </div>
 

@@ -32,7 +32,12 @@ from apps.core.telemetry.aggregation import MetricsAggregator
 from apps.core.telemetry.exceptions import DuplicateRunIdError, RunStateTransitionError
 from apps.core.telemetry.models import TelemetryConfig
 
-from .exceptions import DuplicateScenarioIdError, RunNotFoundError, ScenarioNotFoundError
+from .exceptions import (
+    ConcurrentStepExecutionError,
+    DuplicateScenarioIdError,
+    RunNotFoundError,
+    ScenarioNotFoundError,
+)
 
 logger = logging.getLogger("amapp.api")
 
@@ -369,11 +374,23 @@ class SimulationService:
                 run_id=run_id,
             )
 
-        if run_to_completion:
-            exec_result = runner.run_to_completion()
-        else:
-            accels_by_tick = [target_accels] if target_accels else None
-            exec_result = runner.run(ticks=ticks, target_accels_by_tick=accels_by_tick)
+        if not hasattr(runner, "_execution_lock"):
+            runner._execution_lock = threading.Lock()
+
+        if not runner._execution_lock.acquire(blocking=False):
+            raise ConcurrentStepExecutionError(
+                f"Simulation run '{run_id}' is already actively executing a step operation.",
+                run_id=run_id,
+            )
+
+        try:
+            if run_to_completion:
+                exec_result = runner.run_to_completion()
+            else:
+                accels_by_tick = [target_accels] if target_accels else None
+                exec_result = runner.run(ticks=ticks, target_accels_by_tick=accels_by_tick)
+        finally:
+            runner._execution_lock.release()
 
         agents = runner.world.get_agents()
         arrived_cnt = sum(1 for a in agents if a.is_arrived)

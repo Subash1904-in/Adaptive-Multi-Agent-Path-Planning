@@ -71,6 +71,9 @@ flowchart TB
 - **Django REST API Layer (`backend/apps/core/api/`):** **IMPLEMENTED & TESTED** in Phase 21 (REST endpoints under `/api/v1/`: scenario CRUD/validation, run lifecycle, discrete stepping, cancellation, telemetry, metrics, export, custom exception taxonomy, 1,053 tests passing).
 - **Transport Streaming (WebSockets via Django Channels):** **IMPLEMENTED & TESTED** in Phase 22 (WebSocket endpoint `/ws/v1/runs/{run_id}/`, Channels 4 + Daphne ASGI, 21 event types, bounded backpressure, replay, 1,095 tests passing).
 - **Frontend Dashboard & 3D Simulation Viewer (`frontend/`):** **IMPLEMENTED & TESTED** in Phase 23 (React 18, TypeScript, Three.js 3D viewport, REST API & WebSocket clients, metrics panel, event feed, 35 frontend tests passing).
+- **3D City and Road Rendering Pipeline (`frontend/src/features/scene3d/geometry.ts`):** **IMPLEMENTED & TESTED** in Phase 24 (Multi-lane markings, junction pads, zebra crosswalks, sidewalks/curbs, deterministic procedural buildings via Mulberry32 PRNG, day/night lighting modes, dual perspective/orthographic cameras, 62 frontend tests).
+- **Vehicle and Pedestrian Models, Animation & Temporal Interpolation (`frontend/src/features/scene3d/`):** **IMPLEMENTED & TESTED** in Phase 25 (Low-poly vehicle models, articulated walking pedestrian avatars, subtle emergency beacons, bounded temporal interpolation buffer with shortest-path heading lerp, 107 frontend tests).
+- **Interactive Simulation Playback, Timeline, and Step Controls (`frontend/src/features/playback/`, `apps.core.api`):** **IMPLEMENTED & TESTED** in Phase 26 (Play/Pause/Resume, single/multi-step forward, speed multipliers 0.5x-5x, bounded history buffer, timeline scrubber, live vs. review separation, concurrent step protection 409 Conflict, 126 frontend tests, 1,097 backend tests).
 - **Reinforcement Learning (`rl_engine/*`):** **PLANNED** (Phases 32–34).
 
 ---
@@ -1445,8 +1448,97 @@ To eliminate z-fighting across co-planar meshes, the viewport enforces a strict 
     $$x = (\text{lon} - \text{lon}_0) \times \frac{\pi}{180} \times R \times \cos(\text{lat}_0), \quad y = (\text{lat} - \text{lat}_0) \times \frac{\pi}{180} \times R$$
   - Gracefully falls back to default synthetic grid when OSM graph geometry is not serialized in public REST payloads, clearly documenting the missing contract without inventing arbitrary endpoints.
 
+---
 
+## 21. Vehicle and Pedestrian Models, Animation & Temporal Interpolation (`frontend/src/features/scene3d/`)
 
+Phase 25 enhances dynamic simulation entity rendering in Three.js with temporal smoothness, procedural avatars, and visual hierarchy.
 
+### 21.1 Reusable Low-Poly Vehicle Geometries (`models.ts`)
+1. **Procedural Vehicle Typologies**:
+   - `Sedan`: Streamlined aerodynamic profile ($L=4.5\text{m}, W=2.0\text{m}, H=1.4\text{m}$) with distinct cabin roofline, wheels, headlights, taillights, and forward arrow indicator.
+   - `Truck`: Heavy commercial flatbed with elevated cab ($L=7.2\text{m}, W=2.5\text{m}, H=2.8\text{m}$), twin rear dual axles, and industrial amber/graphite styling.
+   - `Bus`: Extended transit coach ($L=10.5\text{m}, W=2.6\text{m}, H=3.1\text{m}$) with panoramic window bands and multi-axle wheelbases.
+   - `Ambulance`: Emergency medical service vehicle ($L=5.8\text{m}, W=2.2\text{m}, H=2.4\text{m}$) with white/orange livery, red cross emblems on side panels, and roof beacon bar.
+   - `Fire Engine`: Emergency heavy apparatus ($L=8.5\text{m}, W=2.5\text{m}, H=2.9\text{m}$) in bold crimson with silver equipment ladders mounted on the roof.
+   - `Unknown Fallback`: Compact modern utility vehicle with high-visibility styling.
+2. **Model Asset Caching**:
+   - `ModelAssetCache` caches geometries and shared materials across instances to eliminate per-frame WebGL memory allocations.
 
+### 21.2 Subtle Emergency Beacons and Accessible Reduced Motion
+- **Alternating Beacons**: Blue and red flashing beacon lights ($2.5\text{ Hz}$) on active emergency vehicles.
+- **Accessibility (`prefers-reduced-motion`)**: Automatically disables flashing animations and displays steady, non-distracting glows.
 
+### 21.3 Low-Poly Pedestrian Avatars and Walking Gait
+- Articulated torso, head, and pivotable leg groups positioned at pedestrian coordinates.
+- Dynamic procedural leg swing driven by velocity ($v > 0.05\text{ m/s}$) to convey movement.
+- High-visibility amber styling when pedestrian is actively crossing crosswalk corridors.
+
+### 21.4 Pure Bounded Temporal Interpolation Engine (`interpolation.ts`)
+- Linear position lerp: $P(t) = P_0 + \alpha (P_1 - P_0)$.
+- Shortest-path angular heading lerp: Resolves shortest path across the $[0, 2\pi)$ circular boundary to eliminate artificial 360° visual flips.
+- Bounded extrapolation: Clamps forward prediction ($\le 0.15\text{s}$) when simulation halts.
+- Bounded sample ring: Retains at most 10 recent timestamped samples per entity.
+
+---
+
+## 22. Interactive Simulation Playback, Timeline, and Step Controls (`frontend/src/features/playback/`, `apps.core.api`)
+
+Phase 26 establishes interactive simulation steering, a visible timeline scrubber, bounded history retention, and concurrent request safety.
+
+### 22.1 Authoritative Backend Execution Model vs. Client-Driven Scheduling
+1. **Explicit Stepping Semantics**:
+   - The authoritative backend `ScenarioRunner` advances only when explicit step requests (`POST /api/v1/runs/{run_id}/step/` or WebSocket `{"type":"step"}`) are dispatched.
+   - There is no autonomous background timer thread in the Django application layer.
+   - "Play" is implemented as a client-side periodic stepping loop issuing bounded backend step calls.
+   - "Pause" halts the dispatch of step requests without mutating backend simulation state.
+2. **Cadence Multipliers (Speed Selection)**:
+   - Playback speed options ($0.5\times, 1\times, 2\times, 5\times$) alter the dispatch cadence of frontend HTTP requests:
+     $$\Delta t_{\text{dispatch}} = \frac{\Delta t_{\text{sim}}}{\text{Speed}}$$
+   - Target intervals: $0.5\times \to 200\text{ms}, 1\times \to 100\text{ms}, 2\times \to 50\text{ms}, 5\times \to 20\text{ms}$ (for default $\Delta t_{\text{sim}} = 0.1\text{s}$).
+   - **Simulation physics, kinematics formulas, and clock tick durations ($\Delta t_{\text{sim}}$) remain strictly authoritative and unchanged.**
+
+### 22.2 Playback Controller & Scheduler (`PlaybackScheduler.ts`)
+1. **Finite State Machine**:
+   - Supported states: `idle`, `connecting`, `ready`, `playing`, `paused`, `stepping`, `reviewing`, `completed`, `cancelled`, `failed`, `reconnecting`.
+   - Distinct from backend lifecycle status: A run can be `RUNNING` in the backend while local playback is `paused`.
+2. **Chained Timeout Execution & Tab Throttling Protection**:
+   - The scheduler uses chained `setTimeout` rather than `setInterval`.
+   - The next request is scheduled only *after* the previous HTTP response has completely resolved.
+   - If an API step call takes longer than the target interval, the scheduler waits for it to complete. Overlapping requests are strictly impossible.
+   - When the browser tab is throttled, requests simply slow down rather than accumulating an unsafe burst of queued calls.
+3. **Automatic Termination Handling**:
+   - Halts scheduling immediately if the backend reports a terminal state (`COMPLETED`, `CANCELLED`, `FAILED`, `LIMIT_REACHED`).
+
+### 22.3 Bounded Historical Telemetry Buffer (`historyBuffer.ts`)
+1. **Capacity Limit & Memory Footprint**:
+   - `SimulationHistoryBuffer` retains up to 500 historical frame snapshots per run in a bounded FIFO queue.
+2. **Deep-Cloned Snapshot Immutability**:
+   - When a frame is captured, vehicle and pedestrian states are deep-cloned into immutable records:
+     $$\text{snapshot} = \{ \text{tick}, \text{simTimeS}, \text{vehicles}, \text{pedestrians}, \text{signals}, \text{timestamp} \}$$
+   - Later live telemetry mutations do not mutate historical snapshots.
+3. **Deduplication & Monotonic Ordering**:
+   - Ingests updates from both REST step responses and WebSocket live streams.
+   - Updates with matching tick numbers overwrite previous incomplete records without creating duplicate entries.
+   - Snapshots are maintained in strictly ascending tick order using binary-search insertion.
+
+### 22.4 Separation of Live Simulation vs. Historical Review
+1. **Timeline Scrubber (`PlaybackBar.tsx`)**:
+   - Displays current tick, simulation time, buffer range $[\text{earliestTick}, \text{latestTick}]$, and a range slider.
+   - Dragging or clicking the slider transitions the UI into `reviewing` mode.
+   - Scrubbing is strictly a local viewport presentation state; it never calls backend step endpoints.
+2. **Viewport & Banner Indicators**:
+   - Live mode displays a green `LIVE STREAM` badge.
+   - Review mode displays a bright cyan `REVIEW (Tick N)` badge, a `Return to Live ➔` button in the HUD, and an informational banner across the top of the 3D viewport.
+   - Clicking `Return to Live ➔` immediately resumes rendering live incoming telemetry without mutating the runner.
+
+### 22.5 Backend Concurrency Protection (`apps.core.api.services`)
+1. **Non-Blocking Execution Lock**:
+   - `ScenarioRunner` instantiates a threading lock: `self._execution_lock = threading.Lock()`.
+   - `SimulationService.step_run` acquires the lock with `blocking=False`:
+     ```python
+     if not runner._execution_lock.acquire(blocking=False):
+         raise ConcurrentStepExecutionError("A step operation is already in progress for this run.")
+     ```
+   - Rejects concurrent HTTP step requests with HTTP 409 Conflict (`CONCURRENT_STEP_IN_PROGRESS`).
+   - Cleanly releases the lock in a `finally` block upon step completion or error.

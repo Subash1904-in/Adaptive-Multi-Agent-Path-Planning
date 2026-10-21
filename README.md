@@ -809,7 +809,16 @@ Phase 25 enhances dynamic simulation entity rendering in Three.js with temporal 
 - **Authoritative Boundary Preservation**: Rendering interpolation and animation cues are strictly presentation-only. Backend simulation time, collision detection, and routing decisions remain 100% authoritative.
 - **Lifecycle Cleanup**: Run switches and scene unmounts clear interpolation buffers and Three.js scene groups, completely preventing stale entity leakage.
 
-### 6.28 Troubleshooting
+### 6.28 Interactive Simulation Playback, Timeline, and Step Controls (Phase 26)
+Phase 26 establishes interactive simulation steering, a visible timeline scrubber, bounded history retention, and concurrent request protection:
+- **Interactive Playback Controller (`PlaybackScheduler`)**: Client-driven playback engine with Play/Pause/Resume, single-step (+1 tick), and multi-step (+10 ticks) controls. Automatically halts upon terminal states (`COMPLETED`, `CANCELLED`, `FAILED`, `LIMIT_REACHED`).
+- **Cadence Multipliers (Speed Multipliers)**: Configurable playback speeds ($0.5\times, 1\times, 2\times, 5\times$) that adjust the interval between client-issued step requests without modifying backend simulation physics, clock tick durations ($\Delta t_{\text{sim}}$), or vehicle kinematics.
+- **Request Overlap & Tab Throttling Protection**: Chained timeout scheduling guarantees the next request is dispatched only after the preceding HTTP response resolves, preventing request queue buildup and browser-tab throttling bursts.
+- **Bounded Historical Telemetry Buffer (`SimulationHistoryBuffer`)**: Local FIFO queue retaining up to 500 immutable, deep-cloned historical frame snapshots with binary-search sorted insertion and tick deduplication across REST and WebSocket streams.
+- **Distinct Live vs. Historical Review Mode**: Interactive range slider scrubber for exploring past snapshots without issuing backend step requests. Review mode features a cyan `REVIEW (Tick N)` badge, a `Return to Live ➔` button, and a 3D viewport banner.
+- **Backend Concurrency Safety**: Non-blocking runner execution lock (`runner._execution_lock.acquire(blocking=False)`) returning HTTP 409 Conflict (`CONCURRENT_STEP_IN_PROGRESS`) if concurrent step requests are dispatched.
+
+### 6.29 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -847,6 +856,7 @@ Phase 25 enhances dynamic simulation entity rendering in Three.js with temporal 
 - [docs/progress/PHASE_23.md](docs/progress/PHASE_23.md): Phase 23 frontend foundation and interactive 3D simulation viewer report.
 - [docs/progress/PHASE_24.md](docs/progress/PHASE_24.md): Phase 24 3D city, road network, and urban environment rendering report.
 - [docs/progress/PHASE_25.md](docs/progress/PHASE_25.md): Phase 25 vehicle and pedestrian models, animation, and temporal interpolation report.
+- [docs/progress/PHASE_26.md](docs/progress/PHASE_26.md): Phase 26 interactive simulation playback, timeline, and step controls report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

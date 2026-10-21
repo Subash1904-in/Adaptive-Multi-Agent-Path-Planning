@@ -144,6 +144,7 @@ Endpoints for initializing, stepping, cancelling, and inspecting scenario simula
   - **Error Handling:**
     - `404 Not Found` (`RUN_NOT_FOUND`).
     - `409 Conflict` (`LIFECYCLE_CONFLICT`): Attempting to step a run in a terminal state (`COMPLETED`, `CANCELLED`, `FAILED`, `LIMIT_REACHED`).
+    - `409 Conflict` (`CONCURRENT_STEP_IN_PROGRESS`): Attempting to dispatch a step request while a previous step execution is actively in progress on the runner's execution lock.
 
 - **`POST /api/v1/runs/{run_id}/cancel/`**
   - **Purpose:** Requests cooperative cancellation of an active simulation run.

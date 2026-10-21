@@ -263,3 +263,69 @@ class TestRunSteppingAndLifecycleEndpoints:
         assert response.status_code == status.HTTP_409_CONFLICT
         data = response.json()
         assert data["error"]["code"] == "LIFECYCLE_CONFLICT"
+
+    def test_concurrent_step_rejection_returns_409(self, client):
+        """Simultaneous step requests on the same runner reject concurrent attempts with 409."""
+        from apps.core.api.services import default_run_registry
+
+        client.post(
+            "/api/v1/runs/",
+            data={
+                "scenario_id": "scn_single_veh",
+                "run_id": "run_concurrent_test",
+                "max_ticks": 50,
+            },
+            format="json",
+        )
+        runner = default_run_registry.get("run_concurrent_test")
+        runner._execution_lock.acquire()
+        try:
+            response = client.post(
+                "/api/v1/runs/run_concurrent_test/step/",
+                data={"ticks": 1},
+                format="json",
+            )
+            assert response.status_code == status.HTTP_409_CONFLICT
+            data = response.json()
+            assert data["error"]["code"] == "CONCURRENT_STEP_IN_PROGRESS"
+            assert "run_concurrent_test" in data["error"]["message"]
+        finally:
+            runner._execution_lock.release()
+
+    def test_cancellation_during_active_runner_execution(self, client):
+        """Cancelling a run while in progress cleanly halts further tick progression."""
+        client.post(
+            "/api/v1/runs/",
+            data={
+                "scenario_id": "scn_single_veh",
+                "run_id": "run_cancel_midway",
+                "max_ticks": 100,
+            },
+            format="json",
+        )
+        # Step 3 ticks first
+        step_resp = client.post(
+            "/api/v1/runs/run_cancel_midway/step/",
+            data={"ticks": 3},
+            format="json",
+        )
+        assert step_resp.status_code == status.HTTP_200_OK
+        assert step_resp.json()["current_tick"] == 3
+
+        # Cancel run
+        cancel_resp = client.post(
+            "/api/v1/runs/run_cancel_midway/cancel/",
+            data={"reason": "Halt mid-experiment"},
+            format="json",
+        )
+        assert cancel_resp.status_code == status.HTTP_200_OK
+        assert cancel_resp.json()["lifecycle_state"] == "CANCELLED"
+
+        # Next step attempt is rejected as terminal
+        next_step = client.post(
+            "/api/v1/runs/run_cancel_midway/step/",
+            data={"ticks": 1},
+            format="json",
+        )
+        assert next_step.status_code == status.HTTP_409_CONFLICT
+        assert next_step.json()["error"]["code"] == "LIFECYCLE_CONFLICT"
