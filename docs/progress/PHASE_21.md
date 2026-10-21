@@ -199,3 +199,17 @@ Four dedicated test suites were implemented in `backend/apps/core/tests/`:
 ## 5. Educational Simulation Disclaimer
 
 > **IMPORTANT:** The AMAPP platform and its REST API layer are developed strictly for academic, educational, and research evaluation of multi-agent path planning, coordination, and cooperative autonomous vehicle algorithms. The platform is not certified, verified, or intended for safety-critical deployment in real-world physical autonomous vehicles.
+
+---
+
+## 6. Authoritative GitHub Actions CI Verification
+
+- **Commit SHA:** `41359f8`
+- **Workflow Run ID:** `39579964816`
+- **Run URL:** [https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39579964816](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39579964816)
+- **Status:** **Completed / Success (100% Green)**
+- **Completed Jobs:**
+  1. `Repository Hygiene & Documentation Integrity` (6s, ID `119154857181`) — Passed
+  2. `Frontend Lint, Typecheck & Build` (8s, ID `119154857480`) — Passed (graceful deferral)
+  3. `Backend Lint, Test & Coverage` (31s, ID `119154857510`) — Passed (1,053 tests passing, 95.77% coverage)
+
