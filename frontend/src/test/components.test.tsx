@@ -10,6 +10,7 @@ import { PlaybackBar } from "../features/playback/PlaybackBar";
 import type { RunMetrics, RunStatus, ScenarioSummary, VehicleState } from "../types/simulation";
 import type { WebSocketEventEnvelope } from "../types/websocket";
 import type { TimelineRange } from "../types/playback";
+import type { RouteSubsystemSnapshot } from "../types/routing";
 
 describe("Component Unit Tests", () => {
   describe("Header", () => {
@@ -351,6 +352,166 @@ describe("Component Unit Tests", () => {
       expect(screen.getByText("cw_node_r1_c1_north")).toBeInTheDocument();
       expect(screen.getByText("Tick #15 • 1.50s")).toBeInTheDocument();
     });
+
+    it("renders vehicle route telemetry, remaining distance, reroute reason, and candidate paths", () => {
+      const mockVehicle: VehicleState = {
+        vehicle_id: "veh_route_1",
+        vehicle_type: "standard",
+        position: { x: 10.0, y: 20.0 },
+        heading_rad: 0,
+        speed_mps: 12.0,
+        lifecycle_state: "en_route",
+        route_id: "route_alpha",
+        route: ["node_0", "node_1", "node_2"],
+        remaining_route_distance_m: 48.0,
+      };
+
+      const mockRouteSnapshot: RouteSubsystemSnapshot = {
+        tick: 15,
+        timestampS: 1.5,
+        activeRoutes: new Map([
+          [
+            "veh_route_1",
+            {
+              vehicleId: "veh_route_1",
+              routeId: "route_alpha",
+              nodeIds: ["node_0", "node_1", "node_2"],
+              edgeIds: ["edge_0_1", "edge_1_2"],
+              worldPoints: [
+                { x: 0, y: 0.12, z: 0 },
+                { x: 50, y: 0.12, z: 0 },
+                { x: 100, y: 0.12, z: 0 },
+              ],
+              totalDistanceM: 120.0,
+              remainingDistanceM: 48.0,
+              currentEdgeId: "edge_0_1",
+              currentNodeId: "node_0",
+              isRerouted: true,
+            },
+          ],
+        ]),
+        plannedRoutes: new Map(),
+        candidateRoutes: new Map([
+          [
+            "veh_route_1",
+            [
+              {
+                id: "cand_alt_1",
+                vehicleId: "veh_route_1",
+                nodeIds: ["node_0", "node_detour", "node_2"],
+                edgeIds: ["edge_0_detour", "edge_detour_2"],
+                worldPoints: [
+                  { x: 0, y: 0.12, z: 0 },
+                  { x: 50, y: 0.12, z: 50 },
+                  { x: 100, y: 0.12, z: 0 },
+                ],
+                objectiveCost: 95.0,
+                costImprovement: 25.0,
+                isAccepted: true,
+                evaluationTick: 15,
+              },
+            ],
+          ],
+        ]),
+        rerouteEvents: [
+          {
+            id: "reroute_veh_route_1_15_1",
+            vehicleId: "veh_route_1",
+            tick: 15,
+            simulationTimeS: 1.5,
+            decisionType: "reroute_accepted",
+            isAccepted: true,
+            oldRouteId: "route_orig",
+            newRouteId: "route_alpha",
+            reason: "High traffic congestion detected on edge E1",
+            hasExplicitReason: true,
+            currentCost: 120.0,
+            candidateCost: 95.0,
+            costImprovement: 25.0,
+            candidateNodeIds: ["node_0", "node_detour", "node_2"],
+            candidateEdgeIds: ["edge_0_detour", "edge_detour_2"],
+            markerPosition: { x: 10.0, y: 0.5, z: 20.0 },
+          },
+        ],
+      };
+
+      const onSelectCandidate = vi.fn();
+      render(
+        <EntityInspector
+          entityId="veh_route_1"
+          entityType="vehicle"
+          vehicleState={mockVehicle}
+          routeSnapshot={mockRouteSnapshot}
+          onClose={vi.fn()}
+          onSelectCandidate={onSelectCandidate}
+        />
+      );
+
+      // Routing Header & Provenance
+      expect(screen.getByText("Routing & Path Telemetry")).toBeInTheDocument();
+      expect(screen.getByText("Authoritative Telemetry")).toBeInTheDocument();
+
+      // Route ID and Distances
+      expect(screen.getByText("route_alpha")).toBeInTheDocument();
+      expect(screen.getByText("120 m")).toBeInTheDocument();
+      expect(screen.getByText("48 m")).toBeInTheDocument();
+
+      // Progress Bar: (1 - 48 / 120) * 100 = 60%
+      expect(screen.getByText("60%")).toBeInTheDocument();
+      expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "60");
+
+      // ETA disclaimer
+      expect(screen.getByText("Estimated Arrival:")).toBeInTheDocument();
+
+      // Path nodes
+      expect(screen.getByText("node_0 → node_1 → node_2")).toBeInTheDocument();
+
+      // Reroute Evaluation Card
+      expect(screen.getByText("Last Reroute Evaluation")).toBeInTheDocument();
+      expect(screen.getByText("reroute_accepted")).toBeInTheDocument();
+      expect(screen.getByText("Tick #15 (1.50s)")).toBeInTheDocument();
+      expect(screen.getByText("route_orig → route_alpha")).toBeInTheDocument();
+      expect(screen.getByText("High traffic congestion detected on edge E1")).toBeInTheDocument();
+      expect(screen.getByText("Authoritative Backend Decision Reason")).toBeInTheDocument();
+      expect(screen.getByText("120")).toBeInTheDocument();
+      expect(screen.getByText("95")).toBeInTheDocument();
+      expect(screen.getByText("25")).toBeInTheDocument();
+
+      // Candidate Paths
+      expect(screen.getByText("Evaluated Candidate Paths (1)")).toBeInTheDocument();
+      expect(screen.getByText("cand_alt_1")).toBeInTheDocument();
+      expect(screen.getByText("node_0 → node_detour → node_2")).toBeInTheDocument();
+
+      // Inspect Candidate Button
+      const inspectBtn = screen.getByRole("button", { name: /inspect candidate path cand_alt_1/i });
+      fireEvent.click(inspectBtn);
+      expect(onSelectCandidate).toHaveBeenCalledWith("cand_alt_1");
+    });
+
+    it("displays honest unprovided fallbacks when route distance telemetry is absent", () => {
+      const mockVehicle: VehicleState = {
+        vehicle_id: "veh_no_telemetry",
+        vehicle_type: "standard",
+        position: { x: 0, y: 0 },
+        heading_rad: 0,
+        speed_mps: 5.0,
+        lifecycle_state: "en_route",
+      };
+
+      render(
+        <EntityInspector
+          entityId="veh_no_telemetry"
+          entityType="vehicle"
+          vehicleState={mockVehicle}
+          routeSnapshot={null}
+          onClose={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText("Routing & Path Telemetry")).toBeInTheDocument();
+      expect(screen.getByText("Unavailable")).toBeInTheDocument();
+      expect(screen.getAllByText("Not provided by backend")).toHaveLength(2);
+    });
   });
 
   describe("SimulationViewer3D", () => {
@@ -516,6 +677,70 @@ describe("Component Unit Tests", () => {
       const closeLegendBtn = screen.getByRole("button", { name: /dismiss v2v legend panel/i });
       fireEvent.click(closeLegendBtn);
       expect(screen.queryByLabelText("V2V Visual Legend and Network State")).not.toBeInTheDocument();
+    });
+
+    it("renders Route overlay HUD toggles and opens collapsible Route Legend", () => {
+      render(
+        <SimulationViewer3D
+          scenario={null}
+          vehicles={new Map()}
+          pedestrians={new Map()}
+          signals={new Map()}
+        />
+      );
+
+      // Verify Route Controls Toolbar
+      expect(screen.getByRole("toolbar", { name: "Route Overlay Controls" })).toBeInTheDocument();
+
+      // Active Route toggle
+      const activeBtn = screen.getByRole("button", { name: /hide active route$/i });
+      expect(activeBtn).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(activeBtn);
+      expect(screen.getByRole("button", { name: /show active route$/i })).toHaveAttribute("aria-pressed", "false");
+
+      // Planned Route toggle
+      const plannedBtn = screen.getByRole("button", { name: /hide planned route$/i });
+      expect(plannedBtn).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(plannedBtn);
+      expect(screen.getByRole("button", { name: /show planned route$/i })).toHaveAttribute("aria-pressed", "false");
+
+      // Candidate Paths toggle
+      const candBtn = screen.getByRole("button", { name: /hide candidate paths/i });
+      expect(candBtn).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(candBtn);
+      expect(screen.getByRole("button", { name: /show candidate paths/i })).toHaveAttribute("aria-pressed", "false");
+
+      // Reroute Markers toggle
+      const markersBtn = screen.getByRole("button", { name: /hide reroute markers/i });
+      expect(markersBtn).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(markersBtn);
+      expect(screen.getByRole("button", { name: /show reroute markers/i })).toHaveAttribute("aria-pressed", "false");
+
+      // Reset Routes Defaults button
+      const resetRoutesBtn = screen.getByRole("button", { name: /reset route overlays to defaults/i });
+      fireEvent.click(resetRoutesBtn);
+      expect(screen.getByRole("button", { name: /hide active route$/i })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: /hide planned route$/i })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: /hide candidate paths/i })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: /hide reroute markers/i })).toHaveAttribute("aria-pressed", "true");
+
+      // Route Legend Toggle
+      const legendBtn = screen.getByRole("button", { name: /open route legend/i });
+      expect(screen.queryByLabelText("Route Visual Legend and Alternative Paths")).not.toBeInTheDocument();
+
+      fireEvent.click(legendBtn);
+      expect(screen.getByLabelText("Route Visual Legend and Alternative Paths")).toBeInTheDocument();
+      expect(screen.getByText("Active Route (Authoritative Path)")).toBeInTheDocument();
+      expect(screen.getByText("Planned Route (Baseline Comparison)")).toBeInTheDocument();
+      expect(screen.getByText("Alternative Candidate (Evaluated)")).toBeInTheDocument();
+      expect(screen.getByText("Inspected Candidate Path")).toBeInTheDocument();
+      expect(screen.getByText("Accepted Reroute Decision")).toBeInTheDocument();
+      expect(screen.getByText("Rejected / Insufficient Benefit")).toBeInTheDocument();
+
+      // Dismiss route legend
+      const dismissBtn = screen.getByRole("button", { name: /dismiss route legend panel/i });
+      fireEvent.click(dismissBtn);
+      expect(screen.queryByLabelText("Route Visual Legend and Alternative Paths")).not.toBeInTheDocument();
     });
   });
 

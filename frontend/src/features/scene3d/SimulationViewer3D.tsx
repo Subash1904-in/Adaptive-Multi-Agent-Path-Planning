@@ -46,6 +46,9 @@ import {
 import { V2VOverlayManager } from "./v2vOverlay";
 import type { V2VLink, V2VOverlayOptions, V2VSubsystemSnapshot } from "../../types/v2v";
 import { DEFAULT_V2V_OVERLAY_OPTIONS } from "../../types/v2v";
+import { RouteOverlayManager } from "./routeOverlay";
+import type { RouteOverlayOptions, RouteSubsystemSnapshot } from "../../types/routing";
+import { DEFAULT_ROUTE_OVERLAY_OPTIONS } from "../../types/routing";
 import type { PlaybackSpeed } from "../../types/playback";
 
 export interface SimulationViewer3DProps {
@@ -61,6 +64,9 @@ export interface SimulationViewer3DProps {
   reviewTick?: number | null;
   onReturnToLive?: () => void;
   communicationSnapshot?: V2VSubsystemSnapshot | null;
+  routeSnapshot?: RouteSubsystemSnapshot | null;
+  selectedCandidateId?: string | null;
+  onSelectCandidate?: (candidateId: string | null) => void;
   playbackSpeed?: PlaybackSpeed;
   isPaused?: boolean;
 }
@@ -78,6 +84,9 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
   reviewTick = null,
   onReturnToLive,
   communicationSnapshot = null,
+  routeSnapshot = null,
+  selectedCandidateId = null,
+  onSelectCandidate: _onSelectCandidate,
   playbackSpeed = 1,
   isPaused = false,
 }) => {
@@ -94,6 +103,10 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
   const [v2vOptions, setV2vOptions] = useState<V2VOverlayOptions>(DEFAULT_V2V_OVERLAY_OPTIONS);
   const [showV2VLegend, setShowV2VLegend] = useState<boolean>(false);
 
+  // Route Overlay Settings & Legend State
+  const [routeOptions, setRouteOptions] = useState<RouteOverlayOptions>(DEFAULT_ROUTE_OVERLAY_OPTIONS);
+  const [showRouteLegend, setShowRouteLegend] = useState<boolean>(false);
+
   // Three.js internal references
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -108,6 +121,12 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
   const isPausedRef = useRef<boolean>(isPaused);
   const v2vOptionsRef = useRef<V2VOverlayOptions>(v2vOptions);
   const vehiclesRef = useRef<Map<string, VehicleState>>(vehicles);
+
+  // Route Overlay Reference
+  const routeOverlayRef = useRef<RouteOverlayManager | null>(null);
+  const routeSnapshotRef = useRef<RouteSubsystemSnapshot | null | undefined>(routeSnapshot);
+  const routeOptionsRef = useRef<RouteOverlayOptions>(routeOptions);
+  const selectedCandidateIdRef = useRef<string | null | undefined>(selectedCandidateId);
 
   useEffect(() => {
     vehiclesRef.current = vehicles;
@@ -128,6 +147,24 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
   useEffect(() => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
+
+  useEffect(() => {
+    routeOptionsRef.current = routeOptions;
+    routeOverlayRef.current?.setOptions(routeOptions);
+  }, [routeOptions]);
+
+  useEffect(() => {
+    routeSnapshotRef.current = routeSnapshot;
+    routeOverlayRef.current?.update(
+      routeSnapshot,
+      selectedEntityId,
+      selectedCandidateId
+    );
+  }, [routeSnapshot, selectedEntityId, selectedCandidateId]);
+
+  useEffect(() => {
+    selectedCandidateIdRef.current = selectedCandidateId;
+  }, [selectedCandidateId]);
 
   // Lighting references
   const ambientLightRef = useRef<THREE.AmbientLight | null>(null);
@@ -324,6 +361,12 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     v2vOverlayRef.current = v2vOverlay;
     scene.add(v2vOverlay.rootGroup);
 
+    // Route Visualization Overlay Group
+    const routeOverlay = new RouteOverlayManager();
+    routeOverlay.setOptions(routeOptionsRef.current);
+    routeOverlayRef.current = routeOverlay;
+    scene.add(routeOverlay.rootGroup);
+
     // Initial camera placement
     handleResetCamera();
 
@@ -413,6 +456,15 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         );
       }
 
+      // 4. Update Route visualization overlay animations
+      if (routeOverlayRef.current) {
+        routeOverlayRef.current.tick(
+          delta,
+          playbackSpeedRef.current ?? 1,
+          isPausedRef.current ?? false
+        );
+      }
+
       if (rendererRef.current && sceneRef.current) {
         const activeCam =
           projectionMode === "perspective"
@@ -474,6 +526,12 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         scene.remove(v2vOverlayRef.current.rootGroup);
         v2vOverlayRef.current.dispose();
         v2vOverlayRef.current = null;
+      }
+
+      if (routeOverlayRef.current) {
+        scene.remove(routeOverlayRef.current.rootGroup);
+        routeOverlayRef.current.dispose();
+        routeOverlayRef.current = null;
       }
 
       if (rendererRef.current) {
@@ -892,6 +950,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     latestSimTimeRef.current = 0;
     simTimeRef.current = 0;
     v2vOverlayRef.current?.clear();
+    routeOverlayRef.current?.clear();
     prevDeliveredRef.current = 0;
     prevDroppedRef.current = 0;
   }, [scenario?.metadata?.id]);
@@ -1587,6 +1646,254 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
             <div>Channel State: <span style={{ fontWeight: 600, color: communicationSnapshot?.networkState.channelState === "bad" ? "#ef4444" : communicationSnapshot?.networkState.channelState === "good" ? "#10b981" : "#94a3b8" }}>{communicationSnapshot?.networkState.channelState ? communicationSnapshot.networkState.channelState.toUpperCase() : "Unavailable"}</span></div>
             <div>Packet Delivery Ratio: <span style={{ fontWeight: 600, color: "#38bdf8" }}>{communicationSnapshot?.networkState.packetDeliveryRatio !== null && communicationSnapshot?.networkState.packetDeliveryRatio !== undefined ? `${(communicationSnapshot.networkState.packetDeliveryRatio * 100).toFixed(1)}%` : "Unavailable"}</span></div>
             <div>In-Transit Queue: <span style={{ fontWeight: 600, color: "#f8fafc" }}>{communicationSnapshot?.networkState.inTransitCount ?? 0}</span></div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating HUD: Adaptive Routing Controls */}
+      <div
+        className="viewport-hud-route-controls"
+        role="toolbar"
+        aria-label="Route Overlay Controls"
+        style={{
+          position: "absolute",
+          top: "105px",
+          right: "16px",
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "flex-end",
+          gap: "8px",
+          zIndex: 5,
+          maxWidth: "480px",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            const next = !routeOptions.showActiveRoutes;
+            setRouteOptions((prev) => ({ ...prev, showActiveRoutes: next }));
+            routeOverlayRef.current?.setOptions({ showActiveRoutes: next });
+          }}
+          className={`hud-button hud-route-toggle ${routeOptions.showActiveRoutes ? "active" : ""}`}
+          aria-pressed={routeOptions.showActiveRoutes}
+          aria-label={routeOptions.showActiveRoutes ? "Hide Active Route" : "Show Active Route"}
+          title={routeOptions.showActiveRoutes ? "Hide Active Route" : "Show Active Route"}
+          style={{
+            backgroundColor: routeOptions.showActiveRoutes ? "#0e7490" : "#1e293b",
+            color: "#f8fafc",
+            border: "1px solid #334155",
+            borderRadius: "6px",
+            padding: "5px 10px",
+            fontSize: "0.8rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          🛣️ Active {routeOptions.showActiveRoutes ? "ON" : "OFF"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const next = !routeOptions.showPlannedRoutes;
+            setRouteOptions((prev) => ({ ...prev, showPlannedRoutes: next }));
+            routeOverlayRef.current?.setOptions({ showPlannedRoutes: next });
+          }}
+          className={`hud-button hud-route-toggle ${routeOptions.showPlannedRoutes ? "active" : ""}`}
+          aria-pressed={routeOptions.showPlannedRoutes}
+          aria-label={routeOptions.showPlannedRoutes ? "Hide Planned Route" : "Show Planned Route"}
+          title={routeOptions.showPlannedRoutes ? "Hide Planned Route" : "Show Planned Route"}
+          style={{
+            backgroundColor: routeOptions.showPlannedRoutes ? "#0e7490" : "#1e293b",
+            color: "#f8fafc",
+            border: "1px solid #334155",
+            borderRadius: "6px",
+            padding: "5px 10px",
+            fontSize: "0.8rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          🗺️ Planned {routeOptions.showPlannedRoutes ? "ON" : "OFF"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const next = !routeOptions.showCandidateRoutes;
+            setRouteOptions((prev) => ({ ...prev, showCandidateRoutes: next }));
+            routeOverlayRef.current?.setOptions({ showCandidateRoutes: next });
+          }}
+          className={`hud-button hud-route-toggle ${routeOptions.showCandidateRoutes ? "active" : ""}`}
+          aria-pressed={routeOptions.showCandidateRoutes}
+          aria-label={routeOptions.showCandidateRoutes ? "Hide Candidate Paths" : "Show Candidate Paths"}
+          title={routeOptions.showCandidateRoutes ? "Hide Candidate Paths" : "Show Candidate Paths"}
+          style={{
+            backgroundColor: routeOptions.showCandidateRoutes ? "#0e7490" : "#1e293b",
+            color: "#f8fafc",
+            border: "1px solid #334155",
+            borderRadius: "6px",
+            padding: "5px 10px",
+            fontSize: "0.8rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          🔀 Candidates {routeOptions.showCandidateRoutes ? "ON" : "OFF"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const next = !routeOptions.showRerouteMarkers;
+            setRouteOptions((prev) => ({ ...prev, showRerouteMarkers: next }));
+            routeOverlayRef.current?.setOptions({ showRerouteMarkers: next });
+          }}
+          className={`hud-button hud-route-toggle ${routeOptions.showRerouteMarkers ? "active" : ""}`}
+          aria-pressed={routeOptions.showRerouteMarkers}
+          aria-label={routeOptions.showRerouteMarkers ? "Hide Reroute Markers" : "Show Reroute Markers"}
+          title={routeOptions.showRerouteMarkers ? "Hide Reroute Markers" : "Show Reroute Markers"}
+          style={{
+            backgroundColor: routeOptions.showRerouteMarkers ? "#0e7490" : "#1e293b",
+            color: "#f8fafc",
+            border: "1px solid #334155",
+            borderRadius: "6px",
+            padding: "5px 10px",
+            fontSize: "0.8rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          📍 Markers {routeOptions.showRerouteMarkers ? "ON" : "OFF"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setRouteOptions(DEFAULT_ROUTE_OVERLAY_OPTIONS);
+            routeOverlayRef.current?.setOptions(DEFAULT_ROUTE_OVERLAY_OPTIONS);
+          }}
+          className="hud-button"
+          aria-label="Reset Route Overlays to Defaults"
+          title="Reset Route Overlays to Defaults"
+          style={{
+            backgroundColor: "#1e293b",
+            color: "#cbd5e1",
+            border: "1px solid #334155",
+            borderRadius: "6px",
+            padding: "5px 10px",
+            fontSize: "0.8rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          Reset Routes
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setShowRouteLegend((s) => !s)}
+          className={`hud-button ${showRouteLegend ? "active" : ""}`}
+          aria-expanded={showRouteLegend}
+          aria-controls="route-legend-panel"
+          aria-label={showRouteLegend ? "Close Route Legend" : "Open Route Legend"}
+          title={showRouteLegend ? "Close Route Legend" : "Open Route Legend"}
+          style={{
+            backgroundColor: showRouteLegend ? "#0369a1" : "#1e293b",
+            color: "#f8fafc",
+            border: "1px solid #0284c7",
+            borderRadius: "6px",
+            padding: "5px 10px",
+            fontSize: "0.8rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          📖 Route Legend
+        </button>
+      </div>
+
+      {/* Collapsible Route Visual Legend */}
+      {showRouteLegend && (
+        <div
+          id="route-legend-panel"
+          className="viewport-route-legend-panel"
+          role="region"
+          aria-label="Route Visual Legend and Alternative Paths"
+          style={{
+            position: "absolute",
+            top: "150px",
+            right: "16px",
+            backgroundColor: "rgba(15, 23, 42, 0.95)",
+            backdropFilter: "blur(8px)",
+            border: "1px solid #0284c7",
+            borderRadius: "8px",
+            padding: "12px 16px",
+            fontSize: "0.78rem",
+            color: "#e2e8f0",
+            fontFamily: "Space Grotesk, sans-serif",
+            zIndex: 6,
+            maxWidth: "320px",
+            boxShadow: "0 6px 16px rgba(0,0,0,0.6)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+            <span style={{ fontWeight: 700, color: "#38bdf8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Route Visual Legend
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowRouteLegend(false)}
+              aria-label="Dismiss Route Legend Panel"
+              style={{
+                background: "none",
+                border: "none",
+                color: "#94a3b8",
+                cursor: "pointer",
+                fontWeight: "bold",
+                fontSize: "0.9rem",
+              }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "20px", height: "3px", backgroundColor: "#06b6d4", display: "inline-block" }} />
+              <span>Active Route (Authoritative Path)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "20px", height: "3px", borderTop: "2px dashed #94a3b8", display: "inline-block" }} />
+              <span>Planned Route (Baseline Comparison)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "20px", height: "3px", borderTop: "2px dashed #a855f7", display: "inline-block" }} />
+              <span>Alternative Candidate (Evaluated)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "20px", height: "3px", backgroundColor: "#f43f5e", display: "inline-block" }} />
+              <span>Inspected Candidate Path</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "10px", height: "10px", transform: "rotate(45deg)", backgroundColor: "#10b981", display: "inline-block" }} />
+              <span>Accepted Reroute Decision</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "10px", height: "10px", transform: "rotate(45deg)", backgroundColor: "#f59e0b", display: "inline-block" }} />
+              <span>Rejected / Insufficient Benefit</span>
+            </div>
           </div>
         </div>
       )}

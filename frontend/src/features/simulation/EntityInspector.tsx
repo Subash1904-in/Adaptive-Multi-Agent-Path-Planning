@@ -1,4 +1,5 @@
 import React from "react";
+import type { RouteSubsystemSnapshot } from "../../types/routing";
 import type { PedestrianState, VehicleState } from "../../types/simulation";
 import { determineVehicleModelType } from "../scene3d/models";
 
@@ -9,6 +10,9 @@ export interface EntityInspectorProps {
   pedestrianState?: PedestrianState | null;
   onClose: () => void;
   isStale?: boolean;
+  routeSnapshot?: RouteSubsystemSnapshot | null;
+  selectedCandidateId?: string | null;
+  onSelectCandidate?: (candidateId: string | null) => void;
 }
 
 export const EntityInspector: React.FC<EntityInspectorProps> = ({
@@ -18,6 +22,9 @@ export const EntityInspector: React.FC<EntityInspectorProps> = ({
   pedestrianState,
   onClose,
   isStale: propIsStale,
+  routeSnapshot,
+  selectedCandidateId,
+  onSelectCandidate,
 }) => {
   if (!entityId || !entityType) return null;
 
@@ -161,12 +168,192 @@ export const EntityInspector: React.FC<EntityInspectorProps> = ({
             </div>
           )}
 
-          {/* Remaining Route for Vehicles */}
-          {isVehicle && vehicleState?.route && vehicleState.route.length > 0 && (
-            <div className="inspector-route-box">
-              <span className="field-label">Remaining Route:</span>
-              <span className="route-nodes">{vehicleState.route.join(" → ")}</span>
-            </div>
+          {/* Route Progress, Alternatives, and Rerouting Explanations */}
+          {isVehicle && (
+            (() => {
+              const activeRoute = routeSnapshot?.activeRoutes.get(entityId);
+              const candidates = routeSnapshot?.candidateRoutes.get(entityId) || [];
+              const vehicleReroutes = (routeSnapshot?.rerouteEvents || []).filter(
+                (e) => e.vehicleId === entityId
+              );
+              const latestReroute = vehicleReroutes[vehicleReroutes.length - 1];
+
+              const totalDist = activeRoute?.totalDistanceM ?? null;
+              const rawRem =
+                activeRoute?.remainingDistanceM ??
+                vehicleState?.remaining_route_distance_m ??
+                null;
+              const remainingDist =
+                rawRem != null && Number.isFinite(rawRem) ? Number(rawRem.toFixed(1)) : null;
+
+              const progressRatio =
+                totalDist != null && remainingDist != null && totalDist > 0
+                  ? Math.max(0, Math.min(100, Math.round((1 - remainingDist / totalDist) * 100)))
+                  : null;
+
+              const routeNodes = activeRoute?.nodeIds || vehicleState?.route || [];
+              const routeId = activeRoute?.routeId || vehicleState?.route_id || "Unassigned";
+
+              return (
+                <div className="inspector-routing-section">
+                  <div className="inspector-section-header">
+                    <h4>Routing & Path Telemetry</h4>
+                    <span className="provenance-tag">Authoritative Telemetry</span>
+                  </div>
+
+                  <div className="inspector-row">
+                    <span className="field-label">Active Route ID:</span>
+                    <span className="field-value font-mono">{routeId}</span>
+                  </div>
+
+                  {/* Route Distances */}
+                  <div className="inspector-row">
+                    <span className="field-label">Total Distance:</span>
+                    <span className="field-value">
+                      {totalDist != null ? `${totalDist} m` : "Unavailable"}
+                    </span>
+                  </div>
+
+                  <div className="inspector-row">
+                    <span className="field-label">Remaining Distance:</span>
+                    <span className="field-value highlight-cyan">
+                      {remainingDist != null ? `${remainingDist} m` : "Not provided by backend"}
+                    </span>
+                  </div>
+
+                  {/* Progress Ratio Bar */}
+                  {progressRatio != null && (
+                    <div className="inspector-progress-block">
+                      <div className="inspector-progress-labels">
+                        <span>Route Progress:</span>
+                        <span>{progressRatio}%</span>
+                      </div>
+                      <div className="inspector-progress-track" role="progressbar" aria-valuenow={progressRatio} aria-valuemin={0} aria-valuemax={100}>
+                        <div
+                          className="inspector-progress-fill"
+                          style={{ width: `${progressRatio}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ETA Notice (Strict data provenance: AMAPP does not synthesize speculative ETAs) */}
+                  <div className="inspector-row">
+                    <span className="field-label">Estimated Arrival:</span>
+                    <span className="field-value text-muted italic">Not provided by backend</span>
+                  </div>
+
+                  {/* Route Nodes Sequence */}
+                  {routeNodes.length > 0 && (
+                    <div className="inspector-route-box">
+                      <span className="field-label">Active Path Nodes ({routeNodes.length}):</span>
+                      <span className="route-nodes font-mono">{routeNodes.join(" → ")}</span>
+                    </div>
+                  )}
+
+                  {/* Rerouting Decision & Explanation */}
+                  {latestReroute && (
+                    <div className="inspector-reroute-card">
+                      <div className="reroute-card-header">
+                        <span className="reroute-title">Last Reroute Evaluation</span>
+                        <span
+                          className={`reroute-badge ${
+                            latestReroute.isAccepted ? "badge-accepted" : "badge-rejected"
+                          }`}
+                        >
+                          {latestReroute.decisionType}
+                        </span>
+                      </div>
+
+                      <div className="inspector-row text-xs">
+                        <span className="field-label">Decision Tick:</span>
+                        <span className="field-value">
+                          Tick #{latestReroute.tick} ({latestReroute.simulationTimeS.toFixed(2)}s)
+                        </span>
+                      </div>
+
+                      {latestReroute.oldRouteId && latestReroute.newRouteId && (
+                        <div className="inspector-row text-xs">
+                          <span className="field-label">Route Transition:</span>
+                          <span className="field-value font-mono">
+                            {latestReroute.oldRouteId} → {latestReroute.newRouteId}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Recorded Reason */}
+                      <div className="reroute-reason-box">
+                        <span className="reason-label">Recorded Reason:</span>
+                        <p className="reason-text">{latestReroute.reason}</p>
+                        <span className="provenance-subtext">
+                          {latestReroute.hasExplicitReason
+                            ? "Authoritative Backend Decision Reason"
+                            : "System Neutral Telemetry Record"}
+                        </span>
+                      </div>
+
+                      {/* Cost Comparison (where supplied by backend) */}
+                      {latestReroute.currentCost != null && latestReroute.candidateCost != null && (
+                        <div className="cost-comparison-grid">
+                          <div className="cost-col">
+                            <span className="cost-label">Current Cost:</span>
+                            <span className="cost-val">{latestReroute.currentCost}</span>
+                          </div>
+                          <div className="cost-col">
+                            <span className="cost-label">Candidate Cost:</span>
+                            <span className="cost-val">{latestReroute.candidateCost}</span>
+                          </div>
+                          {latestReroute.costImprovement != null && (
+                            <div className="cost-col">
+                              <span className="cost-label">Improvement:</span>
+                              <span className="cost-val highlight-green">
+                                {latestReroute.costImprovement}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Evaluated Alternative Candidates (Only when supplied by backend) */}
+                  {candidates.length > 0 && (
+                    <div className="inspector-candidates-card">
+                      <div className="candidates-header">
+                        <h5>Evaluated Candidate Paths ({candidates.length})</h5>
+                      </div>
+                      {candidates.map((cand) => {
+                        const isSelected = selectedCandidateId === cand.id;
+                        return (
+                          <div key={cand.id} className={`candidate-item ${isSelected ? "selected" : ""}`}>
+                            <div className="candidate-item-row">
+                              <span className="candidate-id font-mono">{cand.id}</span>
+                              <button
+                                type="button"
+                                className={`btn-inspect-cand ${isSelected ? "active" : ""}`}
+                                onClick={() => onSelectCandidate?.(isSelected ? null : cand.id)}
+                                aria-label={`${isSelected ? "Deselect" : "Inspect"} candidate path ${cand.id}`}
+                              >
+                                {isSelected ? "Inspecting" : "Inspect 3D"}
+                              </button>
+                            </div>
+                            <div className="candidate-nodes font-mono text-xs">
+                              {cand.nodeIds.join(" → ")}
+                            </div>
+                            {cand.objectiveCost != null && (
+                              <div className="candidate-cost-text text-xs">
+                                Evaluated Cost: {cand.objectiveCost}
+                                {cand.costImprovement != null ? ` (Diff: ${cand.costImprovement})` : ""}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()
           )}
         </div>
       ) : (

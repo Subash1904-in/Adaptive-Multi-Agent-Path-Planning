@@ -206,7 +206,11 @@ export interface VehicleState {
   lifecycle_state: string;
   vehicle_type?: "standard" | "emergency";
   route?: string[];
+  route_id?: string | null;
   current_edge_id?: string;
+  current_node_id?: string | null;
+  target_node_id?: string | null;
+  remaining_route_distance_m?: number | null;
   is_emergency?: boolean;
   model_type?: "sedan" | "truck" | "bus" | "ambulance" | "fire_engine" | "unknown";
   emergency_type?: "ambulance" | "fire_engine" | "police";

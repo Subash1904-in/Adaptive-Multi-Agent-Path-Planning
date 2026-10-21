@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 27 (Implement V2V Communication Links, Message Animations, and Network-State Overlays)  
+**Current Phase:** Phase 28 (Adaptive Routing Visualization, Route Alternatives, and Rerouting Explanations)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 27 (V2V Communication Links, Message Animations, and Network-State Overlays):* Phase 27 delivers an interactive Three.js 3D V2V communication layer grounded in authoritative backend telemetry. It visualizes active and stale communication links from `neighbor_tables` with canonical deduplication, renders verified communication range discs and rings around inspected vehicles (displaying "Unavailable" if unconfigured), bounds message transmission pulses and drop indicators with pause-freezing and speed scaling, renders network degradation overlays (channel state, packet loss, partitions, PDR), provides an accessible HUD toggle toolbar and collapsible V2V visual legend, and integrates deep-cloned communication states into the historical playback scrubber. 147 frontend tests passing, 1,097 backend tests passing (95.67% coverage).
+> *Note on Phase 28 (Adaptive Routing Visualization, Route Alternatives, and Rerouting Explanations):* Phase 28 delivers an interactive Three.js 3D routing visualization layer grounded in authoritative backend telemetry. It renders active routes ($y=0.12\text{m}$) and baseline planned paths, evaluates and highlights alternative candidate paths, displays 3D rotating rerouting diamond markers with recorded reasons and cost comparisons, adds comprehensive routing telemetry and candidate inspection to `EntityInspector`, integrates with deep-cloned historical playback buffers, and provides accessible HUD toggles and a collapsible Route Legend. 166 frontend tests, 1,097 backend tests passing (95.67% coverage).
 
 ---
 
@@ -23,15 +23,15 @@
 | **FR-03** | Real-World Map Integration | `backend/apps/core/graph/`, `frontend/src/features/scene3d/` | Phase 04, 05, 24 | `TESTED` | Phase 04 & 05 Foundation Tested (`test_osm_*.py`, `test_road_graph.py`); Phase 24 Frontend OSM Adapter Tested (`geometry.test.ts`) |
 | **FR-04** | Traffic and Pedestrian Simulation | `backend/apps/core/signals/`, `backend/apps/core/pedestrians/`, `backend/apps/core/safety/` | Phase 09, 17, 25, 29 | `TESTED` | Phase 09 Signals & Phase 17 Pedestrians Tested (`test_signals_*.py`, `test_pedestrian_*.py`) |
 | **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/`, `backend/apps/core/telemetry/` | Phase 06, 07, 08, 10, 20, 30, 31 | `TESTED` | Phase 06–10 & Phase 20 Metrics Aggregation & Export Tested (`test_routing_*.py`, `test_runner_metrics_aggregation.py`, `test_runner_determinism_and_export.py`) |
-| **FR-06** | Decentralized Vehicle Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/`, `sim_engine/agents/` | Phase 11, 12, 13, 14 | `NOT STARTED` | Phase 11–14 Protocol, Discovery, Neighbors, Knowledge & Outages Tested (`test_communication_*.py`, `test_coordination_*.py`) |
-| **FR-07** | Adaptive Path Planning | `backend/apps/core/routing/`, `sim_engine/planning/` | Phase 06, 15, 28 | `NOT STARTED` | Phase 06 & 15 Baseline & Adaptive Rerouting Tested (`test_routing_*.py`) |
+| **FR-06** | Decentralized Vehicle Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/` | Phase 11, 12, 13, 14 | `TESTED` | Phase 11–14 Protocol, Discovery, Neighbors, Knowledge & Outages Tested (`test_communication_*.py`, `test_coordination_*.py`) |
+| **FR-07** | Adaptive Path Planning | `backend/apps/core/routing/`, `frontend/src/features/scene3d/`, `frontend/src/features/simulation/` | Phase 06, 15, 28 | `TESTED` | Phase 06 & 15 Dynamic Rerouting & Phase 28 Three.js Route/Candidate Overlays Tested (`test_routing_*.py`, `routing.test.ts`, `components.test.tsx`) |
 | **FR-08** | AI-Based Decision-Making | `backend/apps/core/decision/`, `backend/apps/core/routing/adapter.py` | Phase 19, 34 | `TESTED` | Phase 19 Pluggable Rule-Based AI Decision Policies Tested (`test_decision_*.py`: 43 tests passing) |
 | **FR-09** | Collision Detection and Avoidance | `backend/apps/core/safety/` | Phase 16, 17, 37 | `TESTED` | Phase 16 V2V & Phase 17 Vehicle-Pedestrian Collision Avoidance Tested (`test_safety_*.py`, `test_pedestrian_safety_and_collisions.py`) |
 | **FR-10** | Emergency Vehicle Priority | `backend/apps/core/emergency/`, `backend/apps/core/simulation/` | Phase 18, 25, 29 | `TESTED` | Phase 18 Emergency Priority, Corridors, Yielding & Signals Tested (`test_emergency_*.py`: 60 tests passing) |
 | **FR-11** | Communication Range Detection | `backend/apps/core/communication/discovery.py`, `backend/apps/core/communication/neighbors.py`, `frontend/src/features/scene3d/` | Phase 11, 12, 14, 27 | `TESTED` | Phase 11, 12, 14 Spatial Discovery & Phase 27 3D Range Disc Visualization Tested (`test_communication_discovery.py`, `v2v.test.ts`) |
 | **FR-12** | Communication Failure Handling | `backend/apps/core/communication/network.py`, `backend/apps/core/communication/neighbors.py`, `frontend/src/features/scene3d/` | Phase 11, 12, 14, 27 | `TESTED` | Phase 11, 12, 14 Degradation & Phase 27 Channel State / Drop Indicators Tested (`test_communication_impairment.py`, `v2v.test.ts`) |
 | **FR-13** | AI Model Training Using Reinforcement Learning | `rl_engine/` | Phase 32, 33, 34 | `NOT STARTED` | Pending Phase 32 |
-| **FR-14** | Real-Time 3D Visualization and Interactive Dashboard | `backend/apps/core/api/`, `backend/apps/core/realtime/`, `frontend/` | Phase 21–30 | `IN PROGRESS` | Phases 21–27 Complete (147 frontend tests, 1,097 backend tests passing; Playback controls, timeline scrubber, 3D city/models, and Three.js V2V layer fully integrated; Phase 28 Adaptive Routing Visualization Next) |
+| **FR-14** | Real-Time 3D Visualization and Interactive Dashboard | `backend/apps/core/api/`, `backend/apps/core/realtime/`, `frontend/` | Phase 21–30 | `IN PROGRESS` | Phases 21–28 Complete (166 frontend tests, 1,097 backend tests passing; Playback controls, timeline scrubber, 3D city/models, Three.js V2V layer, and Adaptive Routing Overlays fully integrated; Phase 29 Traffic Incidents Next) |
 
 
 
@@ -86,19 +86,19 @@
 
 ### FR-06: Decentralized Vehicle Communication
 - **Requirement Statement:** Enable vehicles to communicate directly without depending on a central communication controller; support independent information sharing and coordination between vehicles.
-- **Target Phases:** Phase 11 (V2V message protocol), Phase 12 (Communication range and peer discovery), Phase 13 (Decentralized V2V coordination).
-- **Components:** `sim_engine/v2v/protocol.py`, `sim_engine/agents/knowledge_base.py`
-- **Verification Plan:** Multi-agent test proving vehicles communicate in peer-to-peer fashion without centralized dispatch or global oracle knowledge.
-- **Current Status:** `NOT STARTED`
+- **Target Phases:** Phase 11 (V2V message protocol), Phase 12 (Dynamic neighbor tables & loss detection), Phase 13 (Decentralized V2V coordination), Phase 14 (Communication latency & packet loss).
+- **Components:** `backend/apps/core/communication/`, `backend/apps/core/coordination/`
+- **Verification Plan:** Multi-agent test proving vehicles communicate in peer-to-peer fashion without centralized dispatch or global oracle knowledge, maintaining private knowledge stores and neighbor tables (`test_communication_*.py`, `test_coordination_*.py`).
+- **Current Status:** `TESTED`
 
 ---
 
 ### FR-07: Adaptive Path Planning
 - **Requirement Statement:** Implement dynamic route planning using algorithms such as A*; automatically calculate alternative routes during traffic congestion, accidents, or road blockages.
 - **Target Phases:** Phase 06 (Route planning baseline), Phase 15 (Adaptive rerouting), Phase 28 (Adaptive routing visualization).
-- **Components:** `sim_engine/planning/dynamic_astar.py`, `sim_engine/planning/cost_field.py`
-- **Verification Plan:** Rerouting tests verifying an agent recalculates path when downstream edges receive hazard flags via V2V or sensor detection.
-- **Current Status:** `NOT STARTED`
+- **Components:** `backend/apps/core/routing/`, `frontend/src/features/scene3d/routeOverlay.ts`, `frontend/src/features/scene3d/routeAdapter.ts`, `frontend/src/features/simulation/EntityInspector.tsx`
+- **Verification Plan:** Dynamic edge cost evaluation, hysteresis & cooldown tests, safe route suffix replacement; Three.js active route overlay, candidate alternative path rendering, rotating 3D reroute markers, and authoritative telemetry inspector (`test_routing_*.py`, `routing.test.ts`, `components.test.tsx`).
+- **Current Status:** `TESTED`
 
 ---
 

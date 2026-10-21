@@ -34,6 +34,23 @@ import {
   createV2VSubsystemSnapshot,
   extractV2VNetworkState,
 } from "../features/scene3d/v2vAdapter";
+import type {
+  ActiveRoute,
+  PlannedRoute,
+  RerouteEvent,
+  RouteSubsystemSnapshot,
+} from "../types/routing";
+import {
+  computeRouteDistance,
+  createRouteSubsystemSnapshot,
+  deduplicateRerouteEvents,
+  extractActiveRoute,
+  extractCandidateRoutes,
+  extractPlannedRoute,
+  extractRerouteEvent,
+  resolveRouteWorldPoints,
+} from "../features/scene3d/routeAdapter";
+import { extractRoadNetworkFromScenario } from "../features/scene3d/geometry";
 
 export const App: React.FC = () => {
   // Scenario & Run State
@@ -52,6 +69,8 @@ export const App: React.FC = () => {
   const [telemetryEvents, setTelemetryEvents] = useState<WebSocketEventEnvelope[]>([]);
   const [latestGap, setLatestGap] = useState<TelemetryGapPayload | null>(null);
   const [liveV2VSnapshot, setLiveV2VSnapshot] = useState<V2VSubsystemSnapshot | null>(null);
+  const [liveRouteSnapshot, setLiveRouteSnapshot] = useState<RouteSubsystemSnapshot | null>(null);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
 
   // Playback & Historical Review State
   const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
@@ -143,6 +162,25 @@ export const App: React.FC = () => {
             }
           }
           setSignals(initSignals);
+
+          // Initialize initial planned and active routes from scenario
+          const geom = extractRoadNetworkFromScenario(scn);
+          const initPlanned = new Map<string, PlannedRoute>();
+          const initActive = new Map<string, ActiveRoute>();
+          for (const v of scn.vehicles) {
+            const pl = extractPlannedRoute(v.vehicle_id, scn, geom);
+            if (pl) initPlanned.set(v.vehicle_id, pl);
+            const act = extractActiveRoute(v.vehicle_id, null, scn, geom);
+            if (act) initActive.set(v.vehicle_id, act);
+          }
+          setLiveRouteSnapshot(
+            createRouteSubsystemSnapshot({
+              tick: 0,
+              timestampS: 0,
+              activeRoutes: initActive,
+              plannedRoutes: initPlanned,
+            })
+          );
         }
       } catch (err) {
         console.warn("Failed to load scenario details:", err);
@@ -194,6 +232,104 @@ export const App: React.FC = () => {
               return currentVehicles;
             });
           }
+
+          // Ingest vehicle route attributes from world.snapshot
+          const rawVehicles = Array.isArray(p.vehicles) ? p.vehicles : [];
+          if (rawVehicles.length > 0) {
+            setLiveRouteSnapshot((prev) => {
+              if (!prev) return null;
+              const nextActive = new Map(prev.activeRoutes);
+              for (const rv of rawVehicles) {
+                const vRecord = rv as Record<string, unknown>;
+                const vId = String(vRecord.vehicle_id || "");
+                if (vId && nextActive.has(vId)) {
+                  const existing = nextActive.get(vId)!;
+                  const rem = typeof vRecord.remaining_route_distance_m === "number"
+                    ? Number((vRecord.remaining_route_distance_m as number).toFixed(2))
+                    : existing.remainingDistanceM;
+                  const edgeId = typeof vRecord.current_edge_id === "string" ? vRecord.current_edge_id : existing.currentEdgeId;
+                  const nodeId = typeof vRecord.current_node_id === "string" ? vRecord.current_node_id : existing.currentNodeId;
+                  nextActive.set(vId, {
+                    ...existing,
+                    remainingDistanceM: rem,
+                    currentEdgeId: edgeId,
+                    currentNodeId: nodeId,
+                  });
+                }
+              }
+              return {
+                ...prev,
+                tick: event.tick,
+                timestampS: event.timestamp_s,
+                activeRoutes: nextActive,
+              };
+            });
+          }
+          break;
+        }
+
+        case "route.changed": {
+          const geom = selectedScenarioRef.current
+            ? extractRoadNetworkFromScenario(selectedScenarioRef.current)
+            : null;
+          setVehicles((currVehicles) => {
+            const vPositions = new Map<string, { x: number; y: number }>();
+            for (const [vId, vState] of currVehicles.entries()) {
+              vPositions.set(vId, vState.position);
+            }
+            const rEv = extractRerouteEvent(p, event.tick, event.timestamp_s, geom, vPositions);
+            const candRoutes = extractCandidateRoutes(p, event.tick, geom);
+            if (rEv) {
+              setLiveRouteSnapshot((prev) => {
+                const nextActive = new Map(prev?.activeRoutes || []);
+                const nextPlanned = new Map(prev?.plannedRoutes || []);
+                const nextCandidates = new Map(prev?.candidateRoutes || []);
+                const nextEvents = deduplicateRerouteEvents(prev?.rerouteEvents || [], [rEv], 100);
+
+                if (candRoutes.length > 0) {
+                  nextCandidates.set(rEv.vehicleId, candRoutes);
+                }
+
+                if (rEv.isAccepted && rEv.candidateNodeIds.length >= 2) {
+                  const existingActive = nextActive.get(rEv.vehicleId);
+                  const updatedPoints = resolveRouteWorldPoints(rEv.candidateNodeIds, geom);
+                  nextActive.set(rEv.vehicleId, {
+                    vehicleId: rEv.vehicleId,
+                    routeId: rEv.newRouteId || `${rEv.vehicleId}_rerouted_t${rEv.tick}`,
+                    nodeIds: [...rEv.candidateNodeIds],
+                    edgeIds: [...rEv.candidateEdgeIds],
+                    worldPoints: updatedPoints,
+                    totalDistanceM: computeRouteDistance(rEv.candidateNodeIds, geom),
+                    remainingDistanceM: existingActive?.remainingDistanceM ?? null,
+                    currentEdgeId: existingActive?.currentEdgeId ?? null,
+                    currentNodeId: existingActive?.currentNodeId ?? null,
+                    isRerouted: true,
+                  });
+                }
+
+                return createRouteSubsystemSnapshot({
+                  tick: event.tick,
+                  timestampS: event.timestamp_s,
+                  activeRoutes: nextActive,
+                  plannedRoutes: nextPlanned,
+                  candidateRoutes: nextCandidates,
+                  rerouteEvents: nextEvents,
+                });
+              });
+
+              // Synchronize vehicle state route if accepted
+              if (rEv.isAccepted && rEv.candidateNodeIds.length >= 2 && currVehicles.has(rEv.vehicleId)) {
+                const nextVMap = new Map(currVehicles);
+                const v = nextVMap.get(rEv.vehicleId)!;
+                nextVMap.set(rEv.vehicleId, {
+                  ...v,
+                  route: [...rEv.candidateNodeIds],
+                });
+                return nextVMap;
+              }
+            }
+            return currVehicles;
+          });
           break;
         }
 
@@ -372,10 +508,11 @@ export const App: React.FC = () => {
         signals,
         metrics,
         communication: liveV2VSnapshot,
+        routing: liveRouteSnapshot,
       });
       setHistoryVersion((v) => v + 1);
     }
-  }, [currentRun, vehicles, pedestrians, signals, metrics, liveV2VSnapshot]);
+  }, [currentRun, vehicles, pedestrians, signals, metrics, liveV2VSnapshot, liveRouteSnapshot]);
 
   // 5. Playback Stepping Core Callback
   const executeStep = useCallback(
@@ -430,6 +567,77 @@ export const App: React.FC = () => {
                 commSnapshot: prev?.networkState ? { ...prev.networkState } : undefined,
               })
             );
+            return currVehicles;
+          });
+        }
+
+        // Ingest routing decisions from tick_result if present
+        if (Array.isArray(tickRes?.routing_decisions) && tickRes.routing_decisions.length > 0) {
+          const geom = selectedScenarioRef.current
+            ? extractRoadNetworkFromScenario(selectedScenarioRef.current)
+            : null;
+          setVehicles((currVehicles) => {
+            const vPositions = new Map<string, { x: number; y: number }>();
+            for (const [vId, vState] of currVehicles.entries()) {
+              vPositions.set(vId, vState.position);
+            }
+            const newEvents: RerouteEvent[] = [];
+            for (const rawDec of tickRes.routing_decisions as Record<string, unknown>[]) {
+              const rEv = extractRerouteEvent(rawDec, nextTick, nextSimTime, geom, vPositions);
+              if (rEv) newEvents.push(rEv);
+            }
+
+            if (newEvents.length > 0) {
+              setLiveRouteSnapshot((prev) => {
+                const nextActive = new Map(prev?.activeRoutes || []);
+                const nextPlanned = new Map(prev?.plannedRoutes || []);
+                const nextCandidates = new Map(prev?.candidateRoutes || []);
+                const nextEvents = deduplicateRerouteEvents(prev?.rerouteEvents || [], newEvents, 100);
+
+                for (const rEv of newEvents) {
+                  const cands = extractCandidateRoutes(
+                    {
+                      vehicle_id: rEv.vehicleId,
+                      candidate_node_ids: rEv.candidateNodeIds,
+                      candidate_edge_ids: rEv.candidateEdgeIds,
+                      candidate_cost: rEv.candidateCost,
+                      cost_improvement: rEv.costImprovement,
+                      decision_type: rEv.decisionType,
+                    },
+                    nextTick,
+                    geom
+                  );
+                  if (cands.length > 0) {
+                    nextCandidates.set(rEv.vehicleId, cands);
+                  }
+                  if (rEv.isAccepted && rEv.candidateNodeIds.length >= 2) {
+                    const existingActive = nextActive.get(rEv.vehicleId);
+                    const updatedPoints = resolveRouteWorldPoints(rEv.candidateNodeIds, geom);
+                    nextActive.set(rEv.vehicleId, {
+                      vehicleId: rEv.vehicleId,
+                      routeId: rEv.newRouteId || `${rEv.vehicleId}_rerouted_t${rEv.tick}`,
+                      nodeIds: [...rEv.candidateNodeIds],
+                      edgeIds: [...rEv.candidateEdgeIds],
+                      worldPoints: updatedPoints,
+                      totalDistanceM: computeRouteDistance(rEv.candidateNodeIds, geom),
+                      remainingDistanceM: existingActive?.remainingDistanceM ?? null,
+                      currentEdgeId: existingActive?.currentEdgeId ?? null,
+                      currentNodeId: existingActive?.currentNodeId ?? null,
+                      isRerouted: true,
+                    });
+                  }
+                }
+
+                return createRouteSubsystemSnapshot({
+                  tick: nextTick,
+                  timestampS: nextSimTime,
+                  activeRoutes: nextActive,
+                  plannedRoutes: nextPlanned,
+                  candidateRoutes: nextCandidates,
+                  rerouteEvents: nextEvents,
+                });
+              });
+            }
             return currVehicles;
           });
         }
@@ -497,6 +705,29 @@ export const App: React.FC = () => {
       setSelectedEntity(null);
       setLiveV2VSnapshot(null);
 
+      // Build initial route subsystem snapshot
+      let initRouteSnapshot: RouteSubsystemSnapshot | null = null;
+      if (selectedScenarioRef.current) {
+        const scn = selectedScenarioRef.current;
+        const geom = extractRoadNetworkFromScenario(scn);
+        const initPlanned = new Map<string, PlannedRoute>();
+        const initActive = new Map<string, ActiveRoute>();
+        for (const v of scn.vehicles) {
+          const pl = extractPlannedRoute(v.vehicle_id, scn, geom);
+          if (pl) initPlanned.set(v.vehicle_id, pl);
+          const act = extractActiveRoute(v.vehicle_id, null, scn, geom);
+          if (act) initActive.set(v.vehicle_id, act);
+        }
+        initRouteSnapshot = createRouteSubsystemSnapshot({
+          tick: run.current_tick,
+          timestampS: run.elapsed_time_s,
+          activeRoutes: initActive,
+          plannedRoutes: initPlanned,
+        });
+      }
+      setLiveRouteSnapshot(initRouteSnapshot);
+      setSelectedCandidateId(null);
+
       // Record tick 0 baseline snapshot
       historyBufferRef.current.addSnapshot({
         tick: run.current_tick,
@@ -507,6 +738,7 @@ export const App: React.FC = () => {
         signals: new Map(),
         metrics: null,
         communication: null,
+        routing: initRouteSnapshot,
       });
       setHistoryVersion((v) => v + 1);
 
@@ -632,6 +864,15 @@ export const App: React.FC = () => {
     return liveV2VSnapshot;
   }, [activeReviewTick, liveV2VSnapshot]);
 
+  // Determine Route Subsystem Snapshot (Historical Review vs. Live)
+  const renderedRouteSnapshot = useMemo(() => {
+    if (activeReviewTick !== null) {
+      const snap = historyBufferRef.current.getSnapshot(activeReviewTick);
+      if (snap) return snap.routing ?? null;
+    }
+    return liveRouteSnapshot;
+  }, [activeReviewTick, liveRouteSnapshot]);
+
   // Find active route for selected vehicle
   const activeRoute = useMemo(() => {
     if (selectedEntity?.type === "vehicle" && selectedEntity.id) {
@@ -686,6 +927,8 @@ export const App: React.FC = () => {
               historyBufferRef.current.clear();
               setActiveReviewTick(null);
               setLiveV2VSnapshot(null);
+              setLiveRouteSnapshot(null);
+              setSelectedCandidateId(null);
             }}
             onCreateRun={handleCreateRun}
             currentRun={currentRun}
@@ -710,6 +953,9 @@ export const App: React.FC = () => {
                   : null
               }
               onClose={() => setSelectedEntity(null)}
+              routeSnapshot={renderedRouteSnapshot}
+              selectedCandidateId={selectedCandidateId}
+              onSelectCandidate={setSelectedCandidateId}
             />
           )}
 
@@ -732,6 +978,9 @@ export const App: React.FC = () => {
               reviewTick={activeReviewTick}
               onReturnToLive={handleReturnToLive}
               communicationSnapshot={renderedV2VSnapshot}
+              routeSnapshot={renderedRouteSnapshot}
+              selectedCandidateId={selectedCandidateId}
+              onSelectCandidate={setSelectedCandidateId}
               playbackSpeed={playbackSpeed}
               isPaused={playbackState === "paused" || playbackState === "reviewing"}
             />

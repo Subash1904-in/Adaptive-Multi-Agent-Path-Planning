@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 27 (V2V Communication Links, Message Animations, and Network-State Overlays)
+- **Current Phase:** Phase 28 (Adaptive Routing Visualization, Route Alternatives, and Rerouting Explanations)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 28 (Adaptive Routing Visualization) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 29 (Traffic Incidents and Scenario Controls) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-21
 
 
@@ -43,8 +43,8 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 25** | **Vehicle and Pedestrian Models, Animation & Temporal Interpolation** | **COMPLETED** | Reusable low-poly vehicle models (sedan, truck, bus, ambulance, fire engine, unknown fallback), pedestrian avatar & walking animation, subtle emergency beacons, bounded temporal interpolation buffer with shortest-path heading lerp, entity inspector enhancements, 107 frontend tests, 1,095 backend tests. |
 | **Phase 26** | **Live simulation controls** | **COMPLETED** | Interactive simulation playback, Play/Pause/Resume, single/multi-step forward, speed multipliers (0.5x, 1x, 2x, 5x), bounded history buffer, timeline scrubber, live vs. review separation, concurrent step protection (409 Conflict), 126 frontend tests, 1,097 backend tests. |
 | **Phase 27** | **V2V visualization** | **COMPLETED** | Three.js V2V communication layer: active/stale links from neighbor tables, message transit pulses, verified range disc, degradation overlays (channel state, packet loss, partitions), HUD toggles, collapsible legend, 147 frontend tests, 1,097 backend tests. |
-| **Phase 28** | **Adaptive routing visualization** | **Pending** | Active routes vs alternative routes, animated reroutes, decision reasons, agent inspector panel. |
-| **Phase 29** | Traffic incidents and scenario controls | Pending | UI controls for closures, accidents, obstacles, signals, emergency triggers via backend APIs. |
+| **Phase 28** | **Adaptive routing visualization** | **COMPLETED** | Interactive Three.js routing layer: active routes at $y=0.12\text{m}$, baseline planned paths, candidate alternative paths, rotating 3D reroute markers, decision reasons, cost comparisons, EntityInspector routing telemetry, HUD toggles, collapsible legend, 166 frontend tests, 1,097 backend tests. |
+| **Phase 29** | **Traffic incidents and scenario controls** | **Pending** | UI controls for closures, accidents, obstacles, signals, emergency triggers via backend APIs. |
 | **Phase 30** | Operational metrics dashboard | Pending | Live metric cards & charts (trips, travel time, throughput, collisions, near misses, PDR). |
 | **Phase 31** | Benchmarking framework | Pending | Repeatable experiments comparing A*, static baseline, adaptive policy; CSV & JSON export. |
 | **Phase 32** | Reinforcement-learning environment | Pending | Gymnasium-compatible route-selection environment, bounded observation/action spaces, reward balancing. |
@@ -259,14 +259,14 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Domain Models, Values & Codecs (`test_domain_*.py`):** 105 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
 - **Total Backend:** **1,097 passed, 0 failed**, **95.67% line coverage** (exceeds 80% threshold).
-- **Frontend Unit & Component Suites:** **147 passed across 8 test suites** (`v2v.test.ts`: 20 passed; `components.test.tsx`: 20 passed; `playback.test.ts`: 14 passed; `interpolation.test.ts`: 25 passed; `models.test.ts`: 18 passed; `geometry.test.ts`: 34 passed; `api-client.test.ts`: 8 passed; `websocket-client.test.ts`: 8 passed).
+- **Frontend Unit & Component Suites:** **166 passed across 9 test suites** (`routing.test.ts`: 16 passed; `components.test.tsx`: 23 passed; `v2v.test.ts`: 20 passed; `playback.test.ts`: 14 passed; `interpolation.test.ts`: 25 passed; `models.test.ts`: 18 passed; `geometry.test.ts`: 34 passed; `api-client.test.ts`: 8 passed; `websocket-client.test.ts`: 8 passed).
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Full Django REST API layer operational under `/api/v1/`. Scenario execution stepping protected by non-blocking lock returning 409 Conflict on overlapping calls. Frontend playback controller drives simulation progression via bounded, non-overlapping step scheduling. Interactive Three.js V2V visualization layer renders active links, verified range rings, bounded message pulses, and network degradation overlays.
+- **Notes:** Full Django REST API layer operational under `/api/v1/`. Scenario execution stepping protected by non-blocking lock returning 409 Conflict on overlapping calls. Frontend playback controller drives simulation progression via bounded, non-overlapping step scheduling. Interactive Three.js route visualization layer renders active dynamic paths at $y = 0.12\text{m}$, baseline planned routes, candidate alternative paths, 3D rotating rerouting diamond markers, authoritative decision reasons, cost comparisons, EntityInspector routing telemetry, and historical playback scrubbing.
 - **Educational Disclaimer:** This simulation is developed solely for educational and research purposes and is NOT certified for physical vehicle deployment.
 
 ---
@@ -301,5 +301,5 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 9. Exact Next Steps
-1. Await user prompt for **Phase 28: Adaptive Routing Visualization**.
-2. Implement rendering of planned routes vs active routes, candidate path comparisons, reroute decision explanation markers, and enhanced agent inspector panel.
+1. Await user prompt for **Phase 29: Traffic Incidents and Scenario Controls**.
+2. Implement interactive controls for road closures, accidents, obstacles, signal phase overrides, and dynamic emergency corridors via backend REST endpoints.

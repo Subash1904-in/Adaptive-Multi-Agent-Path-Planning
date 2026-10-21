@@ -1583,3 +1583,66 @@ Phase 26 establishes interactive simulation steering, a visible timeline scrubbe
 2. **Collapsible Legend Panel**:
    - Displays clear visual indicators for Active Link (green line), Stale Link (orange dashed line), Message Pulse (cyan sphere), Range Ring (cyan circle), Dropped Packet (red cross), and Channel State (Good/Bad).
    - Unambiguous dismissal button with `aria-label="Dismiss V2V Legend Panel"`.
+
+---
+
+## 24. Adaptive Routing Visualization, Route Alternatives & Rerouting Explanations (Phase 28)
+
+### 24.1 Presentation Layer Architecture & Non-Fabrication Principle
+1. **Authoritative Grounding**:
+   - `routeAdapter.ts` serves as a pure extraction layer translating backend simulation events (`route.changed`, `world.snapshot`) and REST step responses (`stepRun.routing_decisions`) into typed frontend domain models (`ActiveRoute`, `PlannedRoute`, `CandidateRoute`, `RerouteEvent`).
+   - Active routes read directly from `VehicleState.route` or `VehicleSnapshot.route`.
+   - Planned baseline routes extracted from `ScenarioDefinition.vehicles[i].route`.
+   - Candidate alternative paths extracted strictly from `RerouteDecision.candidate_node_ids` and `RerouteDecision.candidate_edge_ids`. If absent, zero candidate lines are drawn.
+   - Remaining distance reads strictly from `VehicleState.remaining_route_distance_m`. If null or missing, displays `"Not provided by backend"` without synthetic estimation.
+   - Estimated Arrival (ETA) explicitly marked `"Not provided by backend"` with explanatory notes; AMAPP does not synthesize speculative travel times.
+   - Decision reasons preserve authoritative backend text strings (`reason`). Neutral system text (`"Route updated at tick N"`) is used only when the backend supplies an empty reason (`hasExplicitReason: false`).
+
+### 24.2 Three.js Elevation Layering & Route Overlay Manager (`routeOverlay.ts`)
+1. **Elimination of Z-Fighting**:
+   - Multi-layered planar network elevation hierarchy:
+     - Drivable asphalt surface: $y = 0.0\,\text{m}$ (world coordinates)
+     - Multi-lane road markings: $y = 0.035\,\text{m}$
+     - Curbs and sidewalks: $y = 0.06\,\text{m}$
+     - V2V communication range disc: $y = 0.08\,\text{m}$
+     - **Active & Candidate Route Lines:** $y = 0.12\,\text{m}$
+     - **Reroute Decision 3D Markers:** $y = 0.5\,\text{m}$
+2. **Visual Hierarchy & Styling**:
+   - Active dynamic routes: Solid bright cyan (`#06b6d4`, width 2.5px).
+   - Planned baseline routes: Dashed slate gray (`#94a3b8`, width 1.5px, dashSize 2.0, gapSize 1.5).
+   - Evaluated candidate paths: Dashed purple (`#a855f7`, width 1.5px, dashSize 2.0, gapSize 1.5).
+   - Inspected candidate path: Solid bright rose/magenta (`#f43f5e`, width 3.0px) triggered via inspector button.
+   - Accepted reroute marker: Emerald green (`#10b981`) 3D octahedron/diamond.
+   - Rejected reroute marker: Amber (`#f59e0b`) 3D octahedron/diamond.
+3. **Dynamic Buffer Management & Resource Disposal**:
+   - Pre-allocated vertex buffers updated in-place via `setPoints()` on `LineGeometry` / `BufferGeometry`.
+   - Complete disposal of materials, geometries, and child meshes upon overlay reset, vehicle deselection, or component unmount.
+
+### 24.3 Agent Inspector Routing Telemetry (`EntityInspector.tsx`)
+1. **Dynamic Progress & Authoritative Metrics**:
+   - Displays Active Route ID, Total Route Distance, Remaining Distance (with cyan highlight), and Progress Ratio Bar:
+     $$\text{Progress} = \max\left(0, \min\left(100, \left(1 - \frac{d_{\text{rem}}}{d_{\text{total}}}\right) \times 100\right)\right)$$
+   - Full node traversal sequence with arrow connectors (`node_0 → node_1 → node_2`).
+2. **Reroute Decision Cards**:
+   - Renders last reroute evaluation card with decision type badge (`reroute_accepted`, `insufficient_benefit`, `cooldown_active`).
+   - Decision tick and simulation timestamp.
+   - Route transition: $\text{Route}_{\text{old}} \to \text{Route}_{\text{new}}$.
+   - Recorded explanation with provenance subtext ("Authoritative Backend Decision Reason" vs "System Neutral Telemetry Record").
+   - Cost comparison grid: Current cost, candidate cost, and cost improvement.
+3. **Interactive Candidate Path Inspector**:
+   - Candidate list showing evaluated paths, evaluated costs, and cost differences.
+   - Interactive "Inspect 3D" button activating bright magenta 3D path highlight in the Three.js viewport.
+
+### 24.4 Viewport HUD Controls & Collapsible Route Legend
+1. **Adaptive Route Overlay HUD**:
+   - Dedicated glassmorphism toolbar with `aria-label="Route Overlay Controls"`.
+   - Toggles for `🛣️ Active`, `🗺️ Planned`, `🔀 Candidates`, `📍 Markers`, and `Reset Routes`.
+2. **Collapsible Route Visual Legend**:
+   - Toggle button `📖 Route Legend` opening an accessible legend panel with visual color swatches.
+   - Dedicated close button with `aria-label="Dismiss Route Legend Panel"`.
+
+### 24.5 Historical Playback & Immutability Integration
+1. **Snapshot Extension & Deep Cloning**:
+   - `SimulationFrameSnapshot` extended with `routing?: RouteSubsystemSnapshot | null`.
+   - `SimulationHistoryBuffer.addSnapshot` deep-clones all Maps and arrays inside `RouteSubsystemSnapshot`.
+   - Timeline scrubbing in historical review mode accurately renders past route paths, candidate evaluations, and reroute markers without mutating runner state.

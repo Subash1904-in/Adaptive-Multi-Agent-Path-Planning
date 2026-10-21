@@ -101,6 +101,56 @@ export class SimulationHistoryBuffer {
       };
     }
 
+    let clonedRouting: import("../../types/routing").RouteSubsystemSnapshot | null = null;
+    if (raw.routing) {
+      const clonedActive = new Map<string, import("../../types/routing").ActiveRoute>();
+      for (const [k, v] of raw.routing.activeRoutes.entries()) {
+        clonedActive.set(k, {
+          ...v,
+          nodeIds: [...v.nodeIds],
+          edgeIds: [...v.edgeIds],
+          worldPoints: v.worldPoints.map((pt) => ({ ...pt })),
+        });
+      }
+      const clonedPlanned = new Map<string, import("../../types/routing").PlannedRoute>();
+      for (const [k, v] of raw.routing.plannedRoutes.entries()) {
+        clonedPlanned.set(k, {
+          ...v,
+          nodeIds: [...v.nodeIds],
+          edgeIds: [...v.edgeIds],
+          worldPoints: v.worldPoints.map((pt) => ({ ...pt })),
+        });
+      }
+      const clonedCandidates = new Map<string, import("../../types/routing").CandidateRoute[]>();
+      for (const [k, arr] of raw.routing.candidateRoutes.entries()) {
+        clonedCandidates.set(
+          k,
+          arr.map((c) => ({
+            ...c,
+            nodeIds: [...c.nodeIds],
+            edgeIds: [...c.edgeIds],
+            worldPoints: c.worldPoints.map((pt) => ({ ...pt })),
+          }))
+        );
+      }
+      const clonedEvents = raw.routing.rerouteEvents.map((ev) => ({
+        ...ev,
+        candidateNodeIds: [...ev.candidateNodeIds],
+        candidateEdgeIds: [...ev.candidateEdgeIds],
+        markerPosition: ev.markerPosition ? { ...ev.markerPosition } : null,
+        diagnostics: ev.diagnostics ? { ...ev.diagnostics } : undefined,
+      }));
+
+      clonedRouting = {
+        tick: raw.routing.tick,
+        timestampS: raw.routing.timestampS,
+        activeRoutes: clonedActive,
+        plannedRoutes: clonedPlanned,
+        candidateRoutes: clonedCandidates,
+        rerouteEvents: clonedEvents,
+      };
+    }
+
     const immutableSnapshot: SimulationFrameSnapshot = {
       tick: raw.tick,
       simulation_time_s: raw.simulation_time_s,
@@ -110,6 +160,7 @@ export class SimulationHistoryBuffer {
       signals: clonedSignals,
       metrics: raw.metrics ? { ...raw.metrics } : null,
       communication: clonedComm,
+      routing: clonedRouting,
     };
 
     // 2. Check if tick already exists (deduplication)

@@ -827,7 +827,17 @@ Phase 27 establishes a real-time, interactive Three.js 3D visualization layer fo
 - **Accessible HUD Toggles & Legend**: Glassmorphism viewport overlay controls (`🔗 Links`, `📡 Range`, `✨ Pulses`, `⚠️ Degradation`, `Reset V2V`, `📖 V2V Legend`) with WCAG-compliant `aria-pressed` states and a collapsible V2V Visual Legend panel.
 - **Historical Playback Synchronization**: Extended `SimulationFrameSnapshot` with deep-cloned communication state, allowing operators to scrub through timeline history and inspect past V2V network states.
 
-### 6.30 Troubleshooting
+### 6.30 Adaptive Routing Visualization, Route Alternatives, and Rerouting Explanations (Phase 28)
+Phase 28 builds an interactive Three.js 3D route visualization and explanation layer grounded strictly in authoritative backend telemetry:
+- **Z-Fighting Elimination**: All active routes and candidate paths rendered at elevation $y = 0.12\,\text{m}$ (above asphalt at $0.0$, markings at $0.035$, sidewalks at $0.06$, and V2V range discs at $0.08$). Reroute diamond markers placed at $y = 0.5\,\text{m}$.
+- **Planned Baseline vs. Active Dynamic Routes**: Baseline planned paths rendered as dashed slate gray lines (`#94a3b8`); active dynamic routes rendered as solid cyan lines (`#06b6d4`, width 2.5px).
+- **Alternative Candidate Paths (Strict Non-Fabrication)**: Evaluated candidate paths rendered as dashed purple lines (`#a855f7`) only when supplied by the backend routing engine. Interactive "Inspect 3D" button in `EntityInspector` highlights the chosen candidate path in solid bright magenta (`#f43f5e`).
+- **3D Reroute Decision Markers & Explanations**: Rotating octahedron diamond markers rendered at locations where reroutes occurred: emerald green (`#10b981`) for accepted reroutes, amber (`#f59e0b`) for rejected or insufficient benefit decisions. Displays authoritative backend decision reasons and cost comparisons.
+- **Agent Inspector Routing Telemetry**: Displays active route ID, total route distance, remaining distance (`remaining_route_distance_m`), dynamic progress ratio bar, node sequence traversal, rerouting history card, and candidate inspection buttons. Renders `"Not provided by backend"` when remaining distance or ETA is not supplied.
+- **Accessible HUD Toggles & Legend**: Dedicated HUD overlay buttons (`🛣️ Active`, `🗺️ Planned`, `🔀 Candidates`, `📍 Markers`, `Reset Routes`, `📖 Route Legend`) with WCAG-compliant `aria-pressed` states and a collapsible Route Visual Legend panel.
+- **Historical Playback Synchronization**: Extended `SimulationFrameSnapshot` with deep-cloned routing state, allowing operators to scrub through timeline history and inspect past route configurations and reroute events.
+
+### 6.31 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -867,6 +877,7 @@ Phase 27 establishes a real-time, interactive Three.js 3D visualization layer fo
 - [docs/progress/PHASE_25.md](docs/progress/PHASE_25.md): Phase 25 vehicle and pedestrian models, animation, and temporal interpolation report.
 - [docs/progress/PHASE_26.md](docs/progress/PHASE_26.md): Phase 26 interactive simulation playback, timeline, and step controls report.
 - [docs/progress/PHASE_27.md](docs/progress/PHASE_27.md): Phase 27 V2V communication links, message animations, and network-state overlays report.
+- [docs/progress/PHASE_28.md](docs/progress/PHASE_28.md): Phase 28 adaptive routing visualization, route alternatives, and rerouting explanations report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

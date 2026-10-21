@@ -318,12 +318,13 @@ All server-to-client broadcasts conform strictly to a standardized envelope form
 
 #### 2. High-Frequency State Events (Sampled / Backpressure-Droppable)
 - **`simulation.snapshot`**: Full world state at step boundary. Payload: `{"vehicles": [...], "traffic_signals": [...], "pedestrians": [...]}`.
-- **`vehicle.state`**: Kinematic vehicle update. Payload: `{"vehicle_id": "veh_01", "position": {"x": 12.4, "y": 0.0}, "speed_mps": 8.5, "heading_rad": 1.57, "lifecycle_state": "en_route"}`.
+- **`vehicle.state`**: Kinematic vehicle update. Payload: `{"vehicle_id": "veh_01", "position": {"x": 12.4, "y": 0.0}, "speed_mps": 8.5, "heading_rad": 1.57, "lifecycle_state": "en_route", "route_id": "route_01", "route": ["n0", "n1", "n2"], "remaining_route_distance_m": 48.5, "current_node_id": "n0", "target_node_id": "n1"}`.
 - **`traffic_signals.update`**: Phase change for signals. Payload: `{"signal_id": "sig_01", "node_id": "int_01", "state": "GREEN", "time_to_green_s": 0.0, "time_to_red_s": 25.0}`.
 
 #### 3. Subsystem Domain Events (Event-Driven)
 - **`safety.event`**: Conflict detection, near-miss, or emergency deceleration override. Payload: `{"event_type": "near_miss", "vehicle_id": "veh_01", "other_id": "veh_02", "ttc_s": 1.4, "action": "emergency_brake"}`.
 - **`routing.reroute`**: Dynamic reroute decision evaluated. Payload: `{"vehicle_id": "veh_01", "decision": "accept", "reason": "avoid_closure", "new_route": [...]}`.
+- **`route.changed`**: Dynamic route update notification with explanation telemetry. Payload: `{"vehicle_id": "veh_01", "old_route_id": "r_old", "new_route_id": "r_new", "route": ["n0", "n_detour", "n2"], "decision_type": "reroute_accepted", "reason": "High traffic congestion detected on edge E1", "current_cost": 120.0, "candidate_cost": 95.0, "cost_improvement": 25.0, "candidate_node_ids": ["n0", "n_detour", "n2"]}`.
 - **`communication.message`**: V2V packet transmitted or delivered. Triggers frontend 3D message transit pulse animations. Payload: `{"message_id": "msg_01", "sender_id": "veh_01", "message_type": "heartbeat", "receivers": ["veh_02"]}`.
 - **`communication.impairment`**: Packet loss, degradation, or link outage. Triggers frontend 3D drop indicators and network degradation highlights. Payload: `{"outage_type": "partition", "affected_nodes": ["veh_01", "veh_02"], "burst_loss": false, "pdr": 0.95}`.
 - **`communication.event`**: General V2V event envelope emitted during stepping. Carries sender/receiver coordinates, packet status (`delivered`, `dropped_distance`, `dropped_burst`), and latency.
