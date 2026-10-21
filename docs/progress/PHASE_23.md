@@ -208,13 +208,29 @@ All frontend checks execute locally and in CI:
 
 | Attribute | Verified Value |
 |---|---|
-| **Git Commit SHA** | [Pending push] |
-| **Workflow Run URL** | [Pending push] |
-| **Repo Hygiene Job** | PASSED |
-| **Backend Quality Job** | PASSED (1,095 tests, 95.66% coverage) |
-| **Frontend Quality Job** | PASSED (lint, typecheck, 35 tests, build) |
+| **Git Commit SHA** | `0a13283` |
+| **Workflow Run URL** | [Run 39598366054](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39598366054) |
+| **Repo Hygiene Job** | PASSED (3s, Job ID 119216259211) |
+| **Backend Quality Job** | PASSED (54s, Job ID 119216259410 — 1,095 tests passed, 95.66% line coverage) |
+| **Frontend Quality Job** | PASSED (19s, Job ID 119216259406 — npm ci, lint, typecheck, 35 tests, production build) |
 
-*(Note: Run URL and commit SHA will be updated upon push to origin/main).*
+### 8.1 Failures Encountered & Root-Cause Resolutions
+1. **API Client Base URL Normalization:**
+   - *Symptom:* `SimulationApiClient` failed assertion when supplied with multiple trailing slashes (e.g. `http://example.com/api/v1///`).
+   - *Root Cause:* `raw.endsWith("/") ? raw.slice(0, -1) : raw` only removed the single final character.
+   - *Fix:* Replaced with regex replacement `raw.replace(/\/+$/, "")`.
+2. **WebSocket Client Flapping Loop Defense:**
+   - *Symptom:* Rapid disconnect and reconnect tests did not escalate to `ERROR` state at `maxReconnectAttempts`.
+   - *Root Cause:* `onopen` handler reset `reconnectAttempts = 0` immediately upon handshake, allowing flapping connections to loop indefinitely.
+   - *Fix:* Added a 5-second stable connection window timer before resetting `reconnectAttempts` to 0.
+3. **Component Async Stepping Tests:**
+   - *Symptom:* Component test clicked `step +10` immediately after `step +1`, finding button disabled.
+   - *Root Cause:* `handleStep` executes asynchronously, toggling `isSubmitting`. React batches state updates in microtasks.
+   - *Fix:* Wrapped button assertions in `await waitFor(() => expect(btn).toBeEnabled())`.
+4. **Missing `frontend/src/lib/` in Initial GitHub Actions Run:**
+   - *Symptom:* CI `frontend-quality` failed with `Cannot find module '../lib/api/client'`.
+   - *Root Cause:* Root `.gitignore` line 21 contained `lib/` without a leading `/`, unintentionally matching `frontend/src/lib/`. While present locally, the directory was not staged in git.
+   - *Fix:* Updated `.gitignore` to use `/lib/` and `/lib64/` with explicit `!frontend/src/lib/` un-ignore rule, staged `frontend/src/lib/api/client.ts` and `frontend/src/lib/websocket/client.ts`, and verified 100% green CI run `39598366054`.
 
 ---
 
