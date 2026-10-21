@@ -191,12 +191,12 @@ Phase 30 delivers a comprehensive, operator-facing Operational Metrics Dashboard
 ## 7. CI Workflow Verification (GitHub Actions)
 
 - **Workflow File:** `.github/workflows/ci.yml`
-- **Verified Run URL:** *(Pending push and workflow execution)*
-- **Commit SHA:** *(Pending commit)*
+- **Verified Run URL:** [https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39683261309](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39683261309)
+- **Commit SHA:** `c2cee96` (`feat(phase-30): operational metrics dashboard, live KPIs, and simulation analytics`)
 - **Individual Job Outcomes:**
-  - `repo-hygiene`: Passed (Mandatory files verified including `docs/progress/PHASE_30.md`, 0 secrets detected).
-  - `backend-quality`: Passed (Ruff clean, Django checks clean, 1,118 pytest tests passed, 95.60% coverage $\ge 80\%$).
-  - `frontend-quality`: Passed (`npm ci`, ESLint clean, `tsc --noEmit` clean, 192 Vitest tests passed, Vite production build clean).
+  - `repo-hygiene` (ID `119510830697`): Passed in 5s. Verified presence of all mandatory documentation files (including `docs/progress/PHASE_30.md`) and scanned workspace for prohibited binaries and secrets (0 detected).
+  - `backend-quality` (ID `119510830962`): Passed in 1m2s. Installed runtime and development dependencies, verified environment (Python 3.11.17, Django 5.1.15, DRF 3.15.2, Channels 4.2.0, Daphne 4.1.2), passed Ruff linting, passed Django system checks (`System check identified no issues (0 silenced)`), and executed full automated test suite with coverage: **1,118 passed in 27.92s**, **95.59% line coverage** (exceeds mandatory 80% threshold).
+  - `frontend-quality` (ID `119510831059`): Passed in 26s. Executed reproducible `npm ci`, passed ESLint (`npm run lint`), passed strict TypeScript compilation (`npm run typecheck`), executed full frontend test suite (**192 passed across 11 test suites in 4.89s**), and completed Vite production build in 1.91s (`dist/index.html` 0.86 kB, `dist/assets/index-GLkr2raU.css` 24.67 kB, `dist/assets/index-BZUEJm_Q.js` 806.34 kB).
 
 ---
 
