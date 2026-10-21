@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 26 (Implement Interactive Simulation Playback, Timeline, and Step Controls)  
+**Current Phase:** Phase 27 (Implement V2V Communication Links, Message Animations, and Network-State Overlays)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 26 (Interactive Simulation Playback, Timeline, and Step Controls):* Phase 26 delivers an interactive simulation playback controller (`PlaybackScheduler`), Play/Pause/Resume steering, single-step (+1 tick) and bounded multi-step (+10 ticks), playback speed multipliers (0.5x, 1x, 2x, 5x) governing client request cadence without mutating backend physics, a bounded 500-snapshot history buffer (`SimulationHistoryBuffer`), interactive timeline scrubber slider, clean separation between live stream and historical review modes, and backend non-blocking concurrency protection rejecting overlapping step requests with HTTP 409 Conflict. 126 frontend tests passing, 1,097 backend tests passing (95.67% coverage).
+> *Note on Phase 27 (V2V Communication Links, Message Animations, and Network-State Overlays):* Phase 27 delivers an interactive Three.js 3D V2V communication layer grounded in authoritative backend telemetry. It visualizes active and stale communication links from `neighbor_tables` with canonical deduplication, renders verified communication range discs and rings around inspected vehicles (displaying "Unavailable" if unconfigured), bounds message transmission pulses and drop indicators with pause-freezing and speed scaling, renders network degradation overlays (channel state, packet loss, partitions, PDR), provides an accessible HUD toggle toolbar and collapsible V2V visual legend, and integrates deep-cloned communication states into the historical playback scrubber. 147 frontend tests passing, 1,097 backend tests passing (95.67% coverage).
 
 ---
 
@@ -18,7 +18,7 @@
 
 | Req # | Requirement Name | Implementation Modules | Target Phases | Current Status | Test Coverage |
 |---|---|---|---|---|---|
-| **FR-01** | Vehicle-to-Vehicle (V2V) Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/` | Phase 11, 12, 13, 14, 27 | `NOT STARTED` | Phase 11–14 Protocol, Neighbors, Coordination & Degradation Tested (`test_communication_*.py`, `test_coordination_*.py`) |
+| **FR-01** | Vehicle-to-Vehicle (V2V) Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/`, `frontend/src/features/scene3d/` | Phase 11, 12, 13, 14, 27 | `TESTED` | Phase 11–14 Backend Protocol & Phase 27 Three.js Link/Message Overlays Tested (`test_communication_*.py`, `test_coordination_*.py`, `v2v.test.ts`) |
 | **FR-02** | Multi-Agent Autonomous Vehicle Environment | `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 07, 08, 10, 20, 25 | `TESTED` | Phase 07, 08, 10, 20 Tested (`test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`, `test_runner_*.py`) |
 | **FR-03** | Real-World Map Integration | `backend/apps/core/graph/`, `frontend/src/features/scene3d/` | Phase 04, 05, 24 | `TESTED` | Phase 04 & 05 Foundation Tested (`test_osm_*.py`, `test_road_graph.py`); Phase 24 Frontend OSM Adapter Tested (`geometry.test.ts`) |
 | **FR-04** | Traffic and Pedestrian Simulation | `backend/apps/core/signals/`, `backend/apps/core/pedestrians/`, `backend/apps/core/safety/` | Phase 09, 17, 25, 29 | `TESTED` | Phase 09 Signals & Phase 17 Pedestrians Tested (`test_signals_*.py`, `test_pedestrian_*.py`) |
@@ -28,10 +28,10 @@
 | **FR-08** | AI-Based Decision-Making | `backend/apps/core/decision/`, `backend/apps/core/routing/adapter.py` | Phase 19, 34 | `TESTED` | Phase 19 Pluggable Rule-Based AI Decision Policies Tested (`test_decision_*.py`: 43 tests passing) |
 | **FR-09** | Collision Detection and Avoidance | `backend/apps/core/safety/` | Phase 16, 17, 37 | `TESTED` | Phase 16 V2V & Phase 17 Vehicle-Pedestrian Collision Avoidance Tested (`test_safety_*.py`, `test_pedestrian_safety_and_collisions.py`) |
 | **FR-10** | Emergency Vehicle Priority | `backend/apps/core/emergency/`, `backend/apps/core/simulation/` | Phase 18, 25, 29 | `TESTED` | Phase 18 Emergency Priority, Corridors, Yielding & Signals Tested (`test_emergency_*.py`: 60 tests passing) |
-| **FR-11** | Communication Range Detection | `backend/apps/core/communication/discovery.py`, `backend/apps/core/communication/neighbors.py` | Phase 11, 12, 14, 27 | `NOT STARTED` | Phase 11, 12, 14 Spatial Discovery, Tables & Distance Loss Tested (`test_communication_discovery.py`, `test_communication_impairment.py`) |
-| **FR-12** | Communication Failure Handling | `backend/apps/core/communication/network.py`, `backend/apps/core/communication/neighbors.py` | Phase 11, 12, 14, 27 | `NOT STARTED` | Phase 11, 12, 14 Latency, Loss, Burst Channels, Outages & Recovery Tested (`test_communication_latency.py`, `test_communication_impairment.py`, `test_communication_degradation_integration.py`) |
+| **FR-11** | Communication Range Detection | `backend/apps/core/communication/discovery.py`, `backend/apps/core/communication/neighbors.py`, `frontend/src/features/scene3d/` | Phase 11, 12, 14, 27 | `TESTED` | Phase 11, 12, 14 Spatial Discovery & Phase 27 3D Range Disc Visualization Tested (`test_communication_discovery.py`, `v2v.test.ts`) |
+| **FR-12** | Communication Failure Handling | `backend/apps/core/communication/network.py`, `backend/apps/core/communication/neighbors.py`, `frontend/src/features/scene3d/` | Phase 11, 12, 14, 27 | `TESTED` | Phase 11, 12, 14 Degradation & Phase 27 Channel State / Drop Indicators Tested (`test_communication_impairment.py`, `v2v.test.ts`) |
 | **FR-13** | AI Model Training Using Reinforcement Learning | `rl_engine/` | Phase 32, 33, 34 | `NOT STARTED` | Pending Phase 32 |
-| **FR-14** | Real-Time 3D Visualization and Interactive Dashboard | `backend/apps/core/api/`, `backend/apps/core/realtime/`, `frontend/` | Phase 21–30 | `IN PROGRESS` | Phases 21–26 Complete (126 frontend tests, 1,097 backend tests passing; Playback controls, timeline scrubber, buffer, 3D city/models fully integrated) |
+| **FR-14** | Real-Time 3D Visualization and Interactive Dashboard | `backend/apps/core/api/`, `backend/apps/core/realtime/`, `frontend/` | Phase 21–30 | `IN PROGRESS` | Phases 21–27 Complete (147 frontend tests, 1,097 backend tests passing; Playback controls, timeline scrubber, 3D city/models, and Three.js V2V layer fully integrated; Phase 28 Adaptive Routing Visualization Next) |
 
 
 
@@ -42,9 +42,9 @@
 ### FR-01: Vehicle-to-Vehicle (V2V) Communication
 - **Requirement Statement:** Establish communication between nearby autonomous vehicles; enable vehicles to exchange traffic information, accident alerts, obstacles, and route updates.
 - **Target Phases:** Phase 11 (V2V message protocol), Phase 13 (Decentralized V2V coordination), Phase 27 (V2V visualization).
-- **Components:** `sim_engine/v2v/message.py`, `sim_engine/v2v/channel.py`, `sim_engine/v2v/dispatcher.py`
-- **Verification Plan:** Unit tests for packet serialization, broadcast routing, and message queue delivery between neighboring vehicles within range.
-- **Current Status:** `NOT STARTED`
+- **Components:** `backend/apps/core/communication/`, `backend/apps/core/coordination/`, `frontend/src/features/scene3d/v2vOverlay.ts`, `frontend/src/features/scene3d/v2vAdapter.ts`, `frontend/src/types/v2v.ts`
+- **Verification Plan:** Unit tests for packet serialization, broadcast routing, and message queue delivery between neighboring vehicles within range; Three.js active/stale link rendering, canonical link deduplication, and message pulse transit animations (`test_communication_*.py`, `test_coordination_*.py`, `v2v.test.ts`).
+- **Current Status:** `TESTED`
 
 ---
 
@@ -132,18 +132,18 @@
 ### FR-11: Communication Range Detection
 - **Requirement Statement:** Implement configurable vehicle communication ranges; automatically establish communication when vehicles enter the specified communication radius.
 - **Target Phases:** Phase 12 (Communication range and peer discovery), Phase 27 (V2V visualization).
-- **Components:** `sim_engine/v2v/proximity.py`, `sim_engine/core/spatial_index.py`
-- **Verification Plan:** Geometric radius tests confirming messages pass only when Euclidean distance $d \le R_{\text{comm}}$ and are dropped when $d > R_{\text{comm}}$.
-- **Current Status:** `NOT STARTED`
+- **Components:** `backend/apps/core/communication/discovery.py`, `backend/apps/core/communication/neighbors.py`, `frontend/src/features/scene3d/v2vOverlay.ts`, `frontend/src/features/scene3d/v2vAdapter.ts`
+- **Verification Plan:** Geometric radius tests confirming messages pass only when Euclidean distance $d \le R_{\text{comm}}$ and are dropped when $d > R_{\text{comm}}$; Three.js ground-level communication range disc ($y=0.08\text{m}$) and perimeter ring rendering around inspected vehicles with "Unavailable" fallback when unconfigured (`test_communication_discovery.py`, `test_communication_impairment.py`, `v2v.test.ts`).
+- **Current Status:** `TESTED`
 
 ---
 
 ### FR-12: Communication Failure Handling
 - **Requirement Statement:** Detect communication failures, delayed messages, and packet loss; implement fallback mechanisms to maintain safe vehicle operation during communication failures.
 - **Target Phases:** Phase 14 (Communication failures and recovery), Phase 27 (V2V visualization).
-- **Components:** `sim_engine/v2v/channel_noise.py`, `sim_engine/agents/fallback_policy.py`
-- **Verification Plan:** Injected packet loss/latency test suite ensuring vehicle safely decelerates or relies on onboard sensor envelope when V2V links degrade.
-- **Current Status:** `NOT STARTED`
+- **Components:** `backend/apps/core/communication/network.py`, `backend/apps/core/communication/neighbors.py`, `frontend/src/features/scene3d/v2vOverlay.ts`, `frontend/src/features/scene3d/v2vAdapter.ts`
+- **Verification Plan:** Injected packet loss/latency test suite ensuring vehicle safely decelerates or relies on onboard sensor envelope when V2V links degrade; Three.js network degradation overlays visualizing stale links (dashed amber), dropped packet warning markers (red crosses), channel state (Good/Bad), and network partitions (`test_communication_latency.py`, `test_communication_impairment.py`, `v2v.test.ts`).
+- **Current Status:** `TESTED`
 
 ---
 
@@ -159,7 +159,8 @@
 ### FR-14: Real-Time 3D Visualization and Interactive Dashboard
 - **Requirement Statement:** Develop a web-based dashboard using Django and Three.js; visualize realistic roads, buildings, autonomous vehicles, pedestrians, and traffic conditions; display real-time vehicle movements, V2V communication, route changes, and AI decisions.
 - **Target Phases:** Phase 21 (Django REST API), Phase 22 (Real-time WebSocket streaming), Phase 23 (Frontend scaffold), Phase 24 (3D city and road rendering), Phase 25 (Vehicle and pedestrian visualization), Phase 26 (Live simulation controls), Phase 27 (V2V visualization), Phase 28 (Adaptive routing visualization), Phase 29 (Traffic incidents and scenario controls), Phase 30 (Operational metrics dashboard).
-- **Components:** `backend/apps/core/realtime/`, `backend/apps/core/api/`, `frontend/src/features/scene3d/` (`SimulationViewer3D.tsx`, `geometry.ts`, `models.ts`, `interpolation.ts`), `frontend/src/features/playback/` (`playbackScheduler.ts`, `historyBuffer.ts`, `PlaybackBar.tsx`), `frontend/src/features/simulation/EntityInspector.tsx`
-- **Verification Plan:** WebSocket frame serialization tests, client connection lifecycle tests, Three.js mesh rendering verification, temporal interpolation unit tests, playback scheduler tests (fake timers, cadence scaling, non-overlapping requests, terminal stopping), history buffer tests (deep-cloning, deduplication, binary search ordering, bounded retention), and component tests (`websocket-client.test.ts`, `api-client.test.ts`, `geometry.test.ts`, `interpolation.test.ts`, `models.test.ts`, `playback.test.ts`, `components.test.tsx`: 126 tests passing).
-- **Current Status:** `IN PROGRESS (Phases 21, 22, 23, 24, 25, and 26 COMPLETED & TESTED; Phase 27 V2V Visualization Next)`
+- **Components:** `backend/apps/core/realtime/`, `backend/apps/core/api/`, `frontend/src/features/scene3d/` (`SimulationViewer3D.tsx`, `geometry.ts`, `models.ts`, `interpolation.ts`, `v2vOverlay.ts`, `v2vAdapter.ts`), `frontend/src/features/playback/` (`playbackScheduler.ts`, `historyBuffer.ts`, `PlaybackBar.tsx`), `frontend/src/features/simulation/EntityInspector.tsx`
+- **Verification Plan:** WebSocket frame serialization tests, client connection lifecycle tests, Three.js mesh rendering verification, temporal interpolation unit tests, playback scheduler tests (fake timers, cadence scaling, non-overlapping requests, terminal stopping), history buffer tests (deep-cloning, deduplication, binary search ordering, bounded retention), V2V overlay unit tests (range extraction, link deduplication, bounded animation queues, pause freezing, history buffer immutability), and component tests (`websocket-client.test.ts`, `api-client.test.ts`, `geometry.test.ts`, `interpolation.test.ts`, `models.test.ts`, `playback.test.ts`, `v2v.test.ts`, `components.test.tsx`: 147 tests passing).
+- **Current Status:** `IN PROGRESS (Phases 21–27 COMPLETED & TESTED; 147 frontend tests, 1,097 backend tests passing; Phase 28 Adaptive Routing Visualization Next)`
+
 

@@ -9,6 +9,7 @@ import type {
   TrafficSignalState,
   VehicleState,
 } from "./simulation";
+import type { V2VSubsystemSnapshot } from "./v2v";
 
 export type PlaybackState =
   | "idle"
@@ -31,6 +32,7 @@ export interface SimulationFrameSnapshot {
   pedestrians: Map<string, PedestrianState>;
   signals: Map<string, TrafficSignalState>;
   metrics?: RunMetrics | null;
+  communication?: V2VSubsystemSnapshot | null;
 }
 
 export interface TimelineRange {

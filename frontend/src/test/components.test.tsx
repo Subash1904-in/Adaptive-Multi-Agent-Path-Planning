@@ -436,6 +436,87 @@ describe("Component Unit Tests", () => {
       fireEvent.click(returnBtn);
       expect(handleReturnToLive).toHaveBeenCalledTimes(1);
     });
+
+    it("renders V2V HUD overlay toggles and opens collapsible V2V legend with actual metrics", () => {
+      const mockCommSnap = {
+        tick: 20,
+        timestampS: 2.0,
+        rangeM: 50.0,
+        links: [
+          { id: "v1<->v2", vehicleA: "v1", vehicleB: "v2", status: "active" as const },
+        ],
+        networkState: {
+          enabled: true,
+          rangeM: 50.0,
+          channelState: "good" as const,
+          activePartitions: [["v1", "v2"]],
+          totalBroadcasts: 20,
+          totalDelivered: 19,
+          totalDropped: 1,
+          inTransitCount: 0,
+          packetDeliveryRatio: 0.95,
+          recentDrops: {
+            outOfRange: 0,
+            packetLoss: 1,
+            burstLoss: 0,
+            linkOutage: 0,
+            partition: 0,
+            unavailable: 0,
+            expired: 0,
+            duplicate: 0,
+            invalid: 0,
+          },
+        },
+      };
+
+      render(
+        <SimulationViewer3D
+          scenario={null}
+          vehicles={new Map()}
+          pedestrians={new Map()}
+          signals={new Map()}
+          communicationSnapshot={mockCommSnap}
+        />
+      );
+
+      // Verify V2V Controls Toolbar
+      expect(screen.getByRole("toolbar", { name: "V2V Overlay Controls" })).toBeInTheDocument();
+
+      // Test Links toggle
+      const linksBtn = screen.getByRole("button", { name: /hide v2v links/i });
+      expect(linksBtn).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(linksBtn);
+      expect(screen.getByRole("button", { name: /show v2v links/i })).toHaveAttribute("aria-pressed", "false");
+
+      // Test Range toggle
+      const rangeBtn = screen.getByRole("button", { name: /hide range ring/i });
+      expect(rangeBtn).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(rangeBtn);
+      expect(screen.getByRole("button", { name: /show range ring/i })).toHaveAttribute("aria-pressed", "false");
+
+      // Test Reset V2V Defaults button
+      const resetV2vBtn = screen.getByRole("button", { name: /reset v2v overlays to defaults/i });
+      fireEvent.click(resetV2vBtn);
+      expect(screen.getByRole("button", { name: /hide v2v links/i })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: /hide range ring/i })).toHaveAttribute("aria-pressed", "true");
+
+      // Test V2V Legend Toggle
+      const legendToggleBtn = screen.getByRole("button", { name: /open v2v legend/i });
+      expect(screen.queryByLabelText("V2V Visual Legend and Network State")).not.toBeInTheDocument();
+
+      fireEvent.click(legendToggleBtn);
+      expect(screen.getByLabelText("V2V Visual Legend and Network State")).toBeInTheDocument();
+      expect(screen.getByText("Active Neighbor Link (Confirmed)")).toBeInTheDocument();
+      expect(screen.getByText("Stale / Degraded Link (Timeout)")).toBeInTheDocument();
+      expect(screen.getByText("Radio Range: 50.0 m")).toBeInTheDocument();
+      expect(screen.getByText("GOOD")).toBeInTheDocument();
+      expect(screen.getByText("95.0%")).toBeInTheDocument();
+
+      // Close legend via X button
+      const closeLegendBtn = screen.getByRole("button", { name: /dismiss v2v legend panel/i });
+      fireEvent.click(closeLegendBtn);
+      expect(screen.queryByLabelText("V2V Visual Legend and Network State")).not.toBeInTheDocument();
+    });
   });
 
   describe("PlaybackBar", () => {

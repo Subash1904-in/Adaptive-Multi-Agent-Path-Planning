@@ -43,6 +43,10 @@ import {
   EntityInterpolationBuffer,
   simHeadingToWorldRotationY,
 } from "./interpolation";
+import { V2VOverlayManager } from "./v2vOverlay";
+import type { V2VLink, V2VOverlayOptions, V2VSubsystemSnapshot } from "../../types/v2v";
+import { DEFAULT_V2V_OVERLAY_OPTIONS } from "../../types/v2v";
+import type { PlaybackSpeed } from "../../types/playback";
 
 export interface SimulationViewer3DProps {
   scenario: ScenarioDefinition | null;
@@ -56,6 +60,9 @@ export interface SimulationViewer3DProps {
   isReviewing?: boolean;
   reviewTick?: number | null;
   onReturnToLive?: () => void;
+  communicationSnapshot?: V2VSubsystemSnapshot | null;
+  playbackSpeed?: PlaybackSpeed;
+  isPaused?: boolean;
 }
 
 export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
@@ -70,6 +77,9 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
   isReviewing = false,
   reviewTick = null,
   onReturnToLive,
+  communicationSnapshot = null,
+  playbackSpeed = 1,
+  isPaused = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -80,12 +90,44 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
   const [showBuildings, setShowBuildings] = useState<boolean>(true);
   const [webglError, setWebglError] = useState<string | null>(null);
 
+  // V2V Overlay Settings & Legend State
+  const [v2vOptions, setV2vOptions] = useState<V2VOverlayOptions>(DEFAULT_V2V_OVERLAY_OPTIONS);
+  const [showV2VLegend, setShowV2VLegend] = useState<boolean>(false);
+
   // Three.js internal references
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const perspectiveCameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const orthographicCameraRef = useRef<THREE.OrthographicCamera | null>(null);
   const animFrameIdRef = useRef<number | null>(null);
+
+  // V2V Overlay Reference
+  const v2vOverlayRef = useRef<V2VOverlayManager | null>(null);
+  const communicationSnapshotRef = useRef<V2VSubsystemSnapshot | null | undefined>(communicationSnapshot);
+  const playbackSpeedRef = useRef<PlaybackSpeed>(playbackSpeed);
+  const isPausedRef = useRef<boolean>(isPaused);
+  const v2vOptionsRef = useRef<V2VOverlayOptions>(v2vOptions);
+  const vehiclesRef = useRef<Map<string, VehicleState>>(vehicles);
+
+  useEffect(() => {
+    vehiclesRef.current = vehicles;
+  }, [vehicles]);
+
+  useEffect(() => {
+    v2vOptionsRef.current = v2vOptions;
+  }, [v2vOptions]);
+
+  useEffect(() => {
+    communicationSnapshotRef.current = communicationSnapshot;
+  }, [communicationSnapshot]);
+
+  useEffect(() => {
+    playbackSpeedRef.current = playbackSpeed;
+  }, [playbackSpeed]);
+
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
 
   // Lighting references
   const ambientLightRef = useRef<THREE.AmbientLight | null>(null);
@@ -276,6 +318,12 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     scene.add(roadGroupRef.current);
     scene.add(buildingsGroupRef.current);
 
+    // V2V Communication Overlay Group
+    const v2vOverlay = new V2VOverlayManager();
+    v2vOverlay.setOptions(v2vOptionsRef.current);
+    v2vOverlayRef.current = v2vOverlay;
+    scene.add(v2vOverlay.rootGroup);
+
     // Initial camera placement
     handleResetCamera();
 
@@ -335,6 +383,36 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         }
       }
 
+      // 3. Update V2V communication overlay
+      if (v2vOverlayRef.current) {
+        const commSnap = communicationSnapshotRef.current;
+        const getVehicleWorldPos = (id: string): THREE.Vector3 | null => {
+          const mesh = vehicleMeshesRef.current.get(id);
+          if (mesh) return mesh.position;
+          const interp = interpolationBufferRef.current.getInterpolatedState(id, renderTime, 0.5);
+          if (interp) return new THREE.Vector3(interp.world_position.x, interp.world_position.y, interp.world_position.z);
+          const v = vehiclesRef.current.get(id);
+          if (v) {
+            const wp = simToWorldCoordinates(v.position.x, v.position.y, 0.5);
+            return new THREE.Vector3(wp.x, wp.y, wp.z);
+          }
+          return null;
+        };
+
+        v2vOverlayRef.current.updateLinks(commSnap?.links ?? [], getVehicleWorldPos);
+        v2vOverlayRef.current.updateRangeRing(
+          selectedEntityIdRef.current,
+          commSnap?.rangeM ?? null,
+          getVehicleWorldPos
+        );
+        v2vOverlayRef.current.updateAnimations(
+          delta,
+          playbackSpeedRef.current ?? 1,
+          isPausedRef.current ?? false,
+          prefersReducedMotion
+        );
+      }
+
       if (rendererRef.current && sceneRef.current) {
         const activeCam =
           projectionMode === "perspective"
@@ -391,6 +469,12 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
       pedestrianMeshes.clear();
       interpolationBuffer.clear();
       disposeModelAssets();
+
+      if (v2vOverlayRef.current) {
+        scene.remove(v2vOverlayRef.current.rootGroup);
+        v2vOverlayRef.current.dispose();
+        v2vOverlayRef.current = null;
+      }
 
       if (rendererRef.current) {
         rendererRef.current.dispose();
@@ -807,7 +891,68 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     interpolationBufferRef.current.clear();
     latestSimTimeRef.current = 0;
     simTimeRef.current = 0;
+    v2vOverlayRef.current?.clear();
+    prevDeliveredRef.current = 0;
+    prevDroppedRef.current = 0;
   }, [scenario?.metadata?.id]);
+
+  // Message pulse & drop animation trigger tracking
+  const prevDeliveredRef = useRef<number>(0);
+  const prevDroppedRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!communicationSnapshot) return;
+    const { totalDelivered, totalDropped } = communicationSnapshot.networkState;
+    const links = communicationSnapshot.links;
+
+    // Trigger delivery pulse along a confirmed active link
+    if (totalDelivered > prevDeliveredRef.current && prevDeliveredRef.current > 0 && links.length > 0) {
+      const activeLinks = links.filter((l: V2VLink) => l.status === "active");
+      const candLinks = activeLinks.length > 0 ? activeLinks : links;
+      const link = candLinks[Math.floor(Math.random() * candLinks.length)];
+      const posA = vehicleMeshesRef.current.get(link.vehicleA)?.position;
+      const posB = vehicleMeshesRef.current.get(link.vehicleB)?.position;
+      if (posA && posB) {
+        v2vOverlayRef.current?.triggerAnimation({
+          id: `pulse_${Date.now()}_${Math.random()}`,
+          type: "delivery",
+          senderId: link.vehicleA,
+          receiverId: link.vehicleB,
+          startWorldPos: { x: posA.x, y: posA.y, z: posA.z },
+          endWorldPos: { x: posB.x, y: posB.y, z: posB.z },
+          progress: 0,
+          durationS: 0.8,
+          elapsedS: 0,
+          timestampS: communicationSnapshot.timestampS,
+        });
+      }
+    }
+    prevDeliveredRef.current = totalDelivered;
+
+    // Trigger dropped packet marker at transmission location
+    if (totalDropped > prevDroppedRef.current && prevDroppedRef.current > 0) {
+      const vId = selectedEntityId && vehicleMeshesRef.current.has(selectedEntityId)
+        ? selectedEntityId
+        : vehicleMeshesRef.current.keys().next().value;
+      if (vId) {
+        const mesh = vehicleMeshesRef.current.get(vId);
+        if (mesh) {
+          v2vOverlayRef.current?.triggerAnimation({
+            id: `drop_${Date.now()}_${Math.random()}`,
+            type: "dropped",
+            senderId: vId,
+            startWorldPos: { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z },
+            progress: 0,
+            durationS: 1.0,
+            elapsedS: 0,
+            timestampS: communicationSnapshot.timestampS,
+            dropReason: "packet_loss",
+          });
+        }
+      }
+    }
+    prevDroppedRef.current = totalDropped;
+  }, [communicationSnapshot, selectedEntityId]);
 
   // 11. Update Traffic Signals
   useEffect(() => {
@@ -1195,6 +1340,256 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           Reset View
         </button>
       </div>
+
+      {/* Floating HUD: V2V Overlay Controls */}
+      <div
+        className="viewport-hud-v2v-controls"
+        role="toolbar"
+        aria-label="V2V Overlay Controls"
+        style={{
+          position: "absolute",
+          top: "60px",
+          right: "16px",
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "flex-end",
+          gap: "8px",
+          zIndex: 5,
+          maxWidth: "480px",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            const next = !v2vOptions.showLinks;
+            setV2vOptions((prev) => ({ ...prev, showLinks: next }));
+            v2vOverlayRef.current?.setOptions({ showLinks: next });
+          }}
+          className={`hud-button hud-v2v-toggle ${v2vOptions.showLinks ? "active" : ""}`}
+          aria-pressed={v2vOptions.showLinks}
+          aria-label={v2vOptions.showLinks ? "Hide V2V Links" : "Show V2V Links"}
+          title={v2vOptions.showLinks ? "Hide V2V Links" : "Show V2V Links"}
+          style={{
+            backgroundColor: v2vOptions.showLinks ? "#0891b2" : "#1e293b",
+            color: "#f8fafc",
+            border: "1px solid #334155",
+            borderRadius: "6px",
+            padding: "5px 10px",
+            fontSize: "0.8rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          🔗 Links {v2vOptions.showLinks ? "ON" : "OFF"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const next = !v2vOptions.showRangeRing;
+            setV2vOptions((prev) => ({ ...prev, showRangeRing: next }));
+            v2vOverlayRef.current?.setOptions({ showRangeRing: next });
+          }}
+          className={`hud-button hud-v2v-toggle ${v2vOptions.showRangeRing ? "active" : ""}`}
+          aria-pressed={v2vOptions.showRangeRing}
+          aria-label={v2vOptions.showRangeRing ? "Hide Range Ring" : "Show Range Ring"}
+          title={v2vOptions.showRangeRing ? "Hide Range Ring" : "Show Range Ring"}
+          style={{
+            backgroundColor: v2vOptions.showRangeRing ? "#0891b2" : "#1e293b",
+            color: "#f8fafc",
+            border: "1px solid #334155",
+            borderRadius: "6px",
+            padding: "5px 10px",
+            fontSize: "0.8rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          📡 Range {v2vOptions.showRangeRing ? "ON" : "OFF"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const next = !v2vOptions.showAnimations;
+            setV2vOptions((prev) => ({ ...prev, showAnimations: next }));
+            v2vOverlayRef.current?.setOptions({ showAnimations: next });
+          }}
+          className={`hud-button hud-v2v-toggle ${v2vOptions.showAnimations ? "active" : ""}`}
+          aria-pressed={v2vOptions.showAnimations}
+          aria-label={v2vOptions.showAnimations ? "Hide Message Animations" : "Show Message Animations"}
+          title={v2vOptions.showAnimations ? "Hide Message Animations" : "Show Message Animations"}
+          style={{
+            backgroundColor: v2vOptions.showAnimations ? "#0891b2" : "#1e293b",
+            color: "#f8fafc",
+            border: "1px solid #334155",
+            borderRadius: "6px",
+            padding: "5px 10px",
+            fontSize: "0.8rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          ✨ Pulses {v2vOptions.showAnimations ? "ON" : "OFF"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const next = !v2vOptions.showDegradation;
+            setV2vOptions((prev) => ({ ...prev, showDegradation: next }));
+            v2vOverlayRef.current?.setOptions({ showDegradation: next });
+          }}
+          className={`hud-button hud-v2v-toggle ${v2vOptions.showDegradation ? "active" : ""}`}
+          aria-pressed={v2vOptions.showDegradation}
+          aria-label={v2vOptions.showDegradation ? "Hide Degradation Overlays" : "Show Degradation Overlays"}
+          title={v2vOptions.showDegradation ? "Hide Degradation Overlays" : "Show Degradation Overlays"}
+          style={{
+            backgroundColor: v2vOptions.showDegradation ? "#0891b2" : "#1e293b",
+            color: "#f8fafc",
+            border: "1px solid #334155",
+            borderRadius: "6px",
+            padding: "5px 10px",
+            fontSize: "0.8rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          ⚠️ Degradation {v2vOptions.showDegradation ? "ON" : "OFF"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setV2vOptions(DEFAULT_V2V_OVERLAY_OPTIONS);
+            v2vOverlayRef.current?.setOptions(DEFAULT_V2V_OVERLAY_OPTIONS);
+          }}
+          className="hud-button"
+          aria-label="Reset V2V Overlays to Defaults"
+          title="Reset V2V Overlays to Defaults"
+          style={{
+            backgroundColor: "#1e293b",
+            color: "#cbd5e1",
+            border: "1px solid #334155",
+            borderRadius: "6px",
+            padding: "5px 10px",
+            fontSize: "0.8rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          Reset V2V
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setShowV2VLegend((s) => !s)}
+          className={`hud-button ${showV2VLegend ? "active" : ""}`}
+          aria-expanded={showV2VLegend}
+          aria-controls="v2v-legend-panel"
+          aria-label={showV2VLegend ? "Close V2V Legend" : "Open V2V Legend"}
+          title={showV2VLegend ? "Close V2V Legend" : "Open V2V Legend"}
+          style={{
+            backgroundColor: showV2VLegend ? "#0f766e" : "#1e293b",
+            color: "#f8fafc",
+            border: "1px solid #14b8a6",
+            borderRadius: "6px",
+            padding: "5px 10px",
+            fontSize: "0.8rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+          }}
+        >
+          📖 V2V Legend
+        </button>
+      </div>
+
+      {/* Collapsible V2V Visual Legend */}
+      {showV2VLegend && (
+        <div
+          id="v2v-legend-panel"
+          className="viewport-v2v-legend-panel"
+          role="region"
+          aria-label="V2V Visual Legend and Network State"
+          style={{
+            position: "absolute",
+            top: "105px",
+            right: "16px",
+            backgroundColor: "rgba(15, 23, 42, 0.95)",
+            backdropFilter: "blur(8px)",
+            border: "1px solid #0891b2",
+            borderRadius: "8px",
+            padding: "12px 16px",
+            fontSize: "0.78rem",
+            color: "#e2e8f0",
+            fontFamily: "Space Grotesk, sans-serif",
+            zIndex: 6,
+            maxWidth: "320px",
+            boxShadow: "0 6px 16px rgba(0,0,0,0.6)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+            <span style={{ fontWeight: 700, color: "#22d3ee", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              V2V Visual Legend
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowV2VLegend(false)}
+              aria-label="Dismiss V2V Legend Panel"
+              style={{
+                background: "none",
+                border: "none",
+                color: "#94a3b8",
+                cursor: "pointer",
+                fontWeight: "bold",
+                fontSize: "0.9rem",
+              }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "20px", height: "3px", backgroundColor: "#06b6d4", display: "inline-block" }} />
+              <span>Active Neighbor Link (Confirmed)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "20px", height: "3px", borderTop: "2px dashed #f59e0b", display: "inline-block" }} />
+              <span>Stale / Degraded Link (Timeout)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #22d3ee", display: "inline-block" }} />
+              <span>Radio Range: {communicationSnapshot?.rangeM !== null && communicationSnapshot?.rangeM !== undefined ? `${communicationSnapshot.rangeM.toFixed(1)} m` : "Unavailable"}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "#38bdf8", display: "inline-block" }} />
+              <span>Message Transmission Pulse</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "10px", height: "10px", backgroundColor: "#ef4444", display: "inline-block" }} />
+              <span>Dropped / Lost Packet Marker</span>
+            </div>
+          </div>
+
+          <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px solid #334155", fontSize: "0.75rem", color: "#94a3b8" }}>
+            <div>Channel State: <span style={{ fontWeight: 600, color: communicationSnapshot?.networkState.channelState === "bad" ? "#ef4444" : communicationSnapshot?.networkState.channelState === "good" ? "#10b981" : "#94a3b8" }}>{communicationSnapshot?.networkState.channelState ? communicationSnapshot.networkState.channelState.toUpperCase() : "Unavailable"}</span></div>
+            <div>Packet Delivery Ratio: <span style={{ fontWeight: 600, color: "#38bdf8" }}>{communicationSnapshot?.networkState.packetDeliveryRatio !== null && communicationSnapshot?.networkState.packetDeliveryRatio !== undefined ? `${(communicationSnapshot.networkState.packetDeliveryRatio * 100).toFixed(1)}%` : "Unavailable"}</span></div>
+            <div>In-Transit Queue: <span style={{ fontWeight: 600, color: "#f8fafc" }}>{communicationSnapshot?.networkState.inTransitCount ?? 0}</span></div>
+          </div>
+        </div>
+      )}
 
       {/* Floating HUD: Scene Legend */}
       <div

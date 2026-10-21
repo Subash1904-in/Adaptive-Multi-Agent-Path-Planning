@@ -818,7 +818,16 @@ Phase 26 establishes interactive simulation steering, a visible timeline scrubbe
 - **Distinct Live vs. Historical Review Mode**: Interactive range slider scrubber for exploring past snapshots without issuing backend step requests. Review mode features a cyan `REVIEW (Tick N)` badge, a `Return to Live ➔` button, and a 3D viewport banner.
 - **Backend Concurrency Safety**: Non-blocking runner execution lock (`runner._execution_lock.acquire(blocking=False)`) returning HTTP 409 Conflict (`CONCURRENT_STEP_IN_PROGRESS`) if concurrent step requests are dispatched.
 
-### 6.29 Troubleshooting
+### 6.29 V2V Communication Links, Message Animations, and Network-State Overlays (Phase 27)
+Phase 27 establishes a real-time, interactive Three.js 3D visualization layer for Vehicle-to-Vehicle (V2V) communications:
+- **Authoritative Link Rendering**: Visualizes active communication links in emerald green (`#10b981`) and stale links in dashed amber (`#f59e0b`) extracted directly from vehicle `neighbor_tables`. Unordered pairs $(A, B)$ are canonicalized to prevent redundant geometry allocation.
+- **Verified Communication Range Disc**: Displays a semi-transparent planar circle ($y=0.08\,\text{m}$) and outer perimeter ring tracking the inspected vehicle with the exact radius ($R_{\text{comm}} = 50.0\,\text{m}$) configured in backend scenario parameters. Displays `"Unavailable"` if range is unconfigured.
+- **Bounded Message Pulse Animations**: Translates luminous spherical wave pulses along Euclidean vectors between sender and receiver agents. Enforces a bounded queue of 20 concurrent pulses and 10 drop indicators with pause-freezing and dynamic playback speed scaling.
+- **Network Degradation Overlays**: Visualizes Gilbert-Elliott two-state channel conditions (`GOOD`/`BAD`), packet loss counts (distance vs. burst), active partitions, and overall Packet Delivery Ratio (PDR).
+- **Accessible HUD Toggles & Legend**: Glassmorphism viewport overlay controls (`🔗 Links`, `📡 Range`, `✨ Pulses`, `⚠️ Degradation`, `Reset V2V`, `📖 V2V Legend`) with WCAG-compliant `aria-pressed` states and a collapsible V2V Visual Legend panel.
+- **Historical Playback Synchronization**: Extended `SimulationFrameSnapshot` with deep-cloned communication state, allowing operators to scrub through timeline history and inspect past V2V network states.
+
+### 6.30 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -857,6 +866,7 @@ Phase 26 establishes interactive simulation steering, a visible timeline scrubbe
 - [docs/progress/PHASE_24.md](docs/progress/PHASE_24.md): Phase 24 3D city, road network, and urban environment rendering report.
 - [docs/progress/PHASE_25.md](docs/progress/PHASE_25.md): Phase 25 vehicle and pedestrian models, animation, and temporal interpolation report.
 - [docs/progress/PHASE_26.md](docs/progress/PHASE_26.md): Phase 26 interactive simulation playback, timeline, and step controls report.
+- [docs/progress/PHASE_27.md](docs/progress/PHASE_27.md): Phase 27 V2V communication links, message animations, and network-state overlays report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

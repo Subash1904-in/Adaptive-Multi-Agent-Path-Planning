@@ -29,6 +29,11 @@ import type {
   WebSocketConnectionStatus,
   WebSocketEventEnvelope,
 } from "../types/websocket";
+import type { V2VSubsystemSnapshot } from "../types/v2v";
+import {
+  createV2VSubsystemSnapshot,
+  extractV2VNetworkState,
+} from "../features/scene3d/v2vAdapter";
 
 export const App: React.FC = () => {
   // Scenario & Run State
@@ -46,6 +51,7 @@ export const App: React.FC = () => {
   const [signals, setSignals] = useState<Map<string, TrafficSignalState>>(new Map());
   const [telemetryEvents, setTelemetryEvents] = useState<WebSocketEventEnvelope[]>([]);
   const [latestGap, setLatestGap] = useState<TelemetryGapPayload | null>(null);
+  const [liveV2VSnapshot, setLiveV2VSnapshot] = useState<V2VSubsystemSnapshot | null>(null);
 
   // Playback & Historical Review State
   const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
@@ -55,6 +61,11 @@ export const App: React.FC = () => {
 
   const historyBufferRef = useRef<SimulationHistoryBuffer>(new SimulationHistoryBuffer(500));
   const schedulerRef = useRef<PlaybackScheduler | null>(null);
+  const selectedScenarioRef = useRef<ScenarioDefinition | null>(selectedScenario);
+
+  useEffect(() => {
+    selectedScenarioRef.current = selectedScenario;
+  }, [selectedScenario]);
 
   // Selection
   const [selectedEntity, setSelectedEntity] = useState<{
@@ -163,6 +174,56 @@ export const App: React.FC = () => {
         case "telemetry.gap":
           setLatestGap(p as unknown as TelemetryGapPayload);
           break;
+
+        case "world.snapshot": {
+          const commRaw = p.communication as Record<string, unknown> | undefined;
+          if (commRaw) {
+            setVehicles((currentVehicles) => {
+              const vPositions = new Map<string, { x: number; y: number }>();
+              for (const [vId, vState] of currentVehicles.entries()) {
+                vPositions.set(vId, vState.position);
+              }
+              const snap = createV2VSubsystemSnapshot({
+                tick: event.tick,
+                timestampS: event.timestamp_s,
+                commSnapshot: commRaw,
+                scenario: selectedScenarioRef.current,
+                vehiclePositions: vPositions,
+              });
+              setLiveV2VSnapshot(snap);
+              return currentVehicles;
+            });
+          }
+          break;
+        }
+
+        case "communication.event": {
+          setLiveV2VSnapshot((prev) => {
+            if (!prev) {
+              return createV2VSubsystemSnapshot({
+                tick: event.tick,
+                timestampS: event.timestamp_s,
+                commMetrics: p,
+                scenario: selectedScenarioRef.current,
+              });
+            }
+            const nextState = extractV2VNetworkState(undefined, p, selectedScenarioRef.current);
+            return {
+              ...prev,
+              tick: event.tick,
+              timestampS: event.timestamp_s,
+              networkState: {
+                ...prev.networkState,
+                totalBroadcasts: nextState.totalBroadcasts || prev.networkState.totalBroadcasts,
+                totalDelivered: nextState.totalDelivered || prev.networkState.totalDelivered,
+                totalDropped: nextState.totalDropped || prev.networkState.totalDropped,
+                packetDeliveryRatio: nextState.packetDeliveryRatio ?? prev.networkState.packetDeliveryRatio,
+                recentDrops: nextState.recentDrops,
+              },
+            };
+          });
+          break;
+        }
 
         case "vehicle.state": {
           const vId = String(p.vehicle_id);
@@ -310,10 +371,11 @@ export const App: React.FC = () => {
         pedestrians,
         signals,
         metrics,
+        communication: liveV2VSnapshot,
       });
       setHistoryVersion((v) => v + 1);
     }
-  }, [currentRun, vehicles, pedestrians, signals, metrics]);
+  }, [currentRun, vehicles, pedestrians, signals, metrics, liveV2VSnapshot]);
 
   // 5. Playback Stepping Core Callback
   const executeStep = useCallback(
@@ -327,7 +389,7 @@ export const App: React.FC = () => {
         const nextTick = Number(res.current_tick ?? (currentRun.current_tick + ticks));
         const nextSimTime = Number(
           res.elapsed_time_s ??
-            currentRun.elapsed_time_s + ticks * (selectedScenario?.time_step_s ?? 0.1)
+            currentRun.elapsed_time_s + ticks * (selectedScenarioRef.current?.time_step_s ?? 0.1)
         );
         const nextLifecycle = String(res.lifecycle_state || "RUNNING") as RunStatus["lifecycle_state"];
         const isTerm = Boolean(
@@ -350,6 +412,28 @@ export const App: React.FC = () => {
           };
         });
 
+        // Ingest communication metrics from tick_result if present
+        const tickRes = (res.tick_result || res.last_tick_result) as Record<string, unknown> | undefined;
+        if (tickRes?.communication_metrics) {
+          setVehicles((currVehicles) => {
+            const vPositions = new Map<string, { x: number; y: number }>();
+            for (const [vId, vState] of currVehicles.entries()) {
+              vPositions.set(vId, vState.position);
+            }
+            setLiveV2VSnapshot((prev) =>
+              createV2VSubsystemSnapshot({
+                tick: nextTick,
+                timestampS: nextSimTime,
+                commMetrics: tickRes.communication_metrics,
+                scenario: selectedScenarioRef.current,
+                vehiclePositions: vPositions,
+                commSnapshot: prev?.networkState ? { ...prev.networkState } : undefined,
+              })
+            );
+            return currVehicles;
+          });
+        }
+
         if (isTerm) {
           if (nextLifecycle === "COMPLETED" || nextLifecycle === "LIMIT_REACHED") {
             setPlaybackState("completed");
@@ -368,7 +452,7 @@ export const App: React.FC = () => {
         return false;
       }
     },
-    [currentRun, selectedScenario?.time_step_s]
+    [currentRun]
   );
 
   // 6. Playback Scheduler Lifecycle Management
@@ -411,6 +495,7 @@ export const App: React.FC = () => {
       setTelemetryEvents([]);
       setLatestGap(null);
       setSelectedEntity(null);
+      setLiveV2VSnapshot(null);
 
       // Record tick 0 baseline snapshot
       historyBufferRef.current.addSnapshot({
@@ -421,6 +506,7 @@ export const App: React.FC = () => {
         pedestrians: new Map(),
         signals: new Map(),
         metrics: null,
+        communication: null,
       });
       setHistoryVersion((v) => v + 1);
 
@@ -537,6 +623,15 @@ export const App: React.FC = () => {
     return signals;
   }, [activeReviewTick, signals]);
 
+  // Determine V2V Subsystem Snapshot (Historical Review vs. Live)
+  const renderedV2VSnapshot = useMemo(() => {
+    if (activeReviewTick !== null) {
+      const snap = historyBufferRef.current.getSnapshot(activeReviewTick);
+      if (snap) return snap.communication ?? null;
+    }
+    return liveV2VSnapshot;
+  }, [activeReviewTick, liveV2VSnapshot]);
+
   // Find active route for selected vehicle
   const activeRoute = useMemo(() => {
     if (selectedEntity?.type === "vehicle" && selectedEntity.id) {
@@ -590,6 +685,7 @@ export const App: React.FC = () => {
               setPlaybackState("idle");
               historyBufferRef.current.clear();
               setActiveReviewTick(null);
+              setLiveV2VSnapshot(null);
             }}
             onCreateRun={handleCreateRun}
             currentRun={currentRun}
@@ -635,6 +731,9 @@ export const App: React.FC = () => {
               isReviewing={activeReviewTick !== null}
               reviewTick={activeReviewTick}
               onReturnToLive={handleReturnToLive}
+              communicationSnapshot={renderedV2VSnapshot}
+              playbackSpeed={playbackSpeed}
+              isPaused={playbackState === "paused" || playbackState === "reviewing"}
             />
           </div>
 

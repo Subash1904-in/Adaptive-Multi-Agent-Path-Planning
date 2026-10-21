@@ -84,6 +84,23 @@ export class SimulationHistoryBuffer {
       clonedSignals.set(id, { ...s });
     }
 
+    let clonedComm: import("../../types/v2v").V2VSubsystemSnapshot | null = null;
+    if (raw.communication) {
+      clonedComm = {
+        timestampS: raw.communication.timestampS,
+        tick: raw.communication.tick,
+        rangeM: raw.communication.rangeM,
+        links: raw.communication.links.map((link) => ({ ...link })),
+        networkState: {
+          ...raw.communication.networkState,
+          activePartitions: raw.communication.networkState.activePartitions
+            ? raw.communication.networkState.activePartitions.map((p) => [...p])
+            : null,
+          recentDrops: { ...raw.communication.networkState.recentDrops },
+        },
+      };
+    }
+
     const immutableSnapshot: SimulationFrameSnapshot = {
       tick: raw.tick,
       simulation_time_s: raw.simulation_time_s,
@@ -92,6 +109,7 @@ export class SimulationHistoryBuffer {
       pedestrians: clonedPedestrians,
       signals: clonedSignals,
       metrics: raw.metrics ? { ...raw.metrics } : null,
+      communication: clonedComm,
     };
 
     // 2. Check if tick already exists (deduplication)

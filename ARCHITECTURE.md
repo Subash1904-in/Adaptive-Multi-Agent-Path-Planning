@@ -74,6 +74,7 @@ flowchart TB
 - **3D City and Road Rendering Pipeline (`frontend/src/features/scene3d/geometry.ts`):** **IMPLEMENTED & TESTED** in Phase 24 (Multi-lane markings, junction pads, zebra crosswalks, sidewalks/curbs, deterministic procedural buildings via Mulberry32 PRNG, day/night lighting modes, dual perspective/orthographic cameras, 62 frontend tests).
 - **Vehicle and Pedestrian Models, Animation & Temporal Interpolation (`frontend/src/features/scene3d/`):** **IMPLEMENTED & TESTED** in Phase 25 (Low-poly vehicle models, articulated walking pedestrian avatars, subtle emergency beacons, bounded temporal interpolation buffer with shortest-path heading lerp, 107 frontend tests).
 - **Interactive Simulation Playback, Timeline, and Step Controls (`frontend/src/features/playback/`, `apps.core.api`):** **IMPLEMENTED & TESTED** in Phase 26 (Play/Pause/Resume, single/multi-step forward, speed multipliers 0.5x-5x, bounded history buffer, timeline scrubber, live vs. review separation, concurrent step protection 409 Conflict, 126 frontend tests, 1,097 backend tests).
+- **V2V Communication Links, Message Animations, and Network-State Overlays (`frontend/src/features/scene3d/v2vOverlay.ts`, `v2vAdapter.ts`, `types/v2v.ts`):** **IMPLEMENTED & TESTED** in Phase 27 (Active/stale links from authoritative neighbor tables, canonical link deduplication, verified range disc around inspected vehicles, bounded message transit pulse queue with pause-freezing, network degradation overlays, accessible HUD toggles and collapsible legend, 147 frontend tests, 1,097 backend tests).
 - **Reinforcement Learning (`rl_engine/*`):** **PLANNED** (Phases 32–34).
 
 ---
@@ -1542,3 +1543,43 @@ Phase 26 establishes interactive simulation steering, a visible timeline scrubbe
      ```
    - Rejects concurrent HTTP step requests with HTTP 409 Conflict (`CONCURRENT_STEP_IN_PROGRESS`).
    - Cleanly releases the lock in a `finally` block upon step completion or error.
+
+---
+
+## 23. V2V Communication Visualization Architecture (Phase 27)
+
+### 23.1 Pure Telemetry Extraction (`v2vAdapter.ts`)
+1. **Authoritative Grounding**:
+   - Link discovery: Extracted directly from `neighbor_tables` of each vehicle in the world snapshot.
+   - Status derivation: Neighbor status `'active'` yields an active link; status `'stale'` yields a stale link.
+   - Canonical Link Deduplication: Unordered pairs $(A, B)$ are keyed by $\min(A, B) \leftrightarrow \max(A, B)$ to guarantee a single rendered segment per communication pair.
+   - Verified Range: Extracted strictly from `worldSnapshot.communication.range_m` or `scenario.communication_config.range_m`. If absent, returns `null` and displays `"Unavailable"` to avoid fabricating defaults.
+   - Degradation Extraction: Reads Gilbert-Elliott two-state channel metrics (`GOOD`/`BAD`), packet loss counts (distance vs burst), active partitions, and overall PDR.
+
+### 23.2 High-Performance Three.js Overlay Manager (`v2vOverlay.ts`)
+1. **Geometry and Buffer Reuse**:
+   - Link lines: Uses a single `LineSegments` mesh with a pre-allocated dynamic vertex buffer. Vertex coordinates are updated in-place per frame based on current vehicle positions, setting `needsUpdate = true` without object recreation.
+   - Colors: Active links rendered in emerald green (`#10b981`, opacity 0.7); stale links rendered in dashed amber (`#f59e0b`, opacity 0.5).
+   - Range Visualization: Horizontally oriented planar `CircleGeometry` (semi-transparent fill, opacity 0.08) and `RingGeometry` (outer boundary, opacity 0.6) rendered at elevation $y = 0.08\,\text{m}$ to prevent z-fighting with asphalt.
+2. **Bounded Pulse and Drop Animation Queues**:
+   - Message Transmission Pulses: Translates luminous spheres along Euclidean vectors between sender and receiver. Bounded to a maximum capacity of 20 concurrent pulses.
+   - Drop Indicators: Temporary red warning crosses positioned at sender locations when packet drops occur. Bounded to a maximum capacity of 10 concurrent indicators.
+   - Pause-Freezing: Clamps $\Delta t = 0$ when playback is paused or in review mode, freezing animations in place.
+   - Speed Scaling: Progress steps scale with the active playback speed multiplier ($0.5\times, 1\times, 2\times, 5\times$).
+3. **Resource Disposal**:
+   - Complete GPU disposal (`geometry.dispose()`, `material.dispose()`) on scene unmount, vehicle deselection, or run change.
+
+### 23.3 Playback Integration & Historical Immutability
+1. **Snapshot Extension**:
+   - `SimulationFrameSnapshot` contains `communication?: V2VSubsystemSnapshot | null`.
+   - Deep-cloned upon ingestion in `SimulationHistoryBuffer` to ensure historical scrubbing reflects past V2V states without reference mutation.
+2. **Review Mode Synchronization**:
+   - When scrubbing historical ticks, the 3D viewport renders the historical link topology and network state while freezing real-time message pulse animations.
+
+### 23.4 Accessible Viewport HUD & Legend Controls
+1. **HUD Toggle Toolbar**:
+   - Glassmorphism buttons for Links, Range, Pulses, Degradation, Reset Defaults, and Legend.
+   - Uses WCAG-compliant `aria-pressed`, `aria-label`, and keyboard accessibility.
+2. **Collapsible Legend Panel**:
+   - Displays clear visual indicators for Active Link (green line), Stale Link (orange dashed line), Message Pulse (cyan sphere), Range Ring (cyan circle), Dropped Packet (red cross), and Channel State (Good/Bad).
+   - Unambiguous dismissal button with `aria-label="Dismiss V2V Legend Panel"`.

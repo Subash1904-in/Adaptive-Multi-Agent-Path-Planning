@@ -931,3 +931,31 @@ body {
   font-family: var(--font-mono);
 }
 
+/* V2V Communication Overlays & Controls */
+.viewport-hud-v2v-controls {
+  pointer-events: auto;
+}
+
+.hud-v2v-toggle {
+  transition: all 0.2s ease-in-out;
+}
+
+.hud-v2v-toggle:hover {
+  filter: brightness(1.15);
+}
+
+.hud-v2v-toggle.active {
+  box-shadow: 0 0 8px rgba(8, 145, 178, 0.6);
+}
+
+.viewport-v2v-legend-panel {
+  animation: fadeIn 0.15s ease-out;
+  border: 1px solid rgba(8, 145, 178, 0.4);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+

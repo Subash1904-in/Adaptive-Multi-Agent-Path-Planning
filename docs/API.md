@@ -324,8 +324,9 @@ All server-to-client broadcasts conform strictly to a standardized envelope form
 #### 3. Subsystem Domain Events (Event-Driven)
 - **`safety.event`**: Conflict detection, near-miss, or emergency deceleration override. Payload: `{"event_type": "near_miss", "vehicle_id": "veh_01", "other_id": "veh_02", "ttc_s": 1.4, "action": "emergency_brake"}`.
 - **`routing.reroute`**: Dynamic reroute decision evaluated. Payload: `{"vehicle_id": "veh_01", "decision": "accept", "reason": "avoid_closure", "new_route": [...]}`.
-- **`communication.message`**: V2V packet transmitted or delivered. Payload: `{"message_id": "msg_01", "sender_id": "veh_01", "message_type": "heartbeat", "receivers": ["veh_02"]}`.
-- **`communication.impairment`**: Packet loss, degradation, or link outage. Payload: `{"outage_type": "partition", "affected_nodes": ["veh_01", "veh_02"]}`.
+- **`communication.message`**: V2V packet transmitted or delivered. Triggers frontend 3D message transit pulse animations. Payload: `{"message_id": "msg_01", "sender_id": "veh_01", "message_type": "heartbeat", "receivers": ["veh_02"]}`.
+- **`communication.impairment`**: Packet loss, degradation, or link outage. Triggers frontend 3D drop indicators and network degradation highlights. Payload: `{"outage_type": "partition", "affected_nodes": ["veh_01", "veh_02"], "burst_loss": false, "pdr": 0.95}`.
+- **`communication.event`**: General V2V event envelope emitted during stepping. Carries sender/receiver coordinates, packet status (`delivered`, `dropped_distance`, `dropped_burst`), and latency.
 - **`coordination.report`**: Congestion or road closure dissemination. Payload: `{"report_id": "rep_01", "report_type": "congestion", "edge_id": "edge_north", "confidence": 0.85}`.
 - **`pedestrian.state`**: Pedestrian corridor crossing update. Payload: `{"pedestrian_id": "ped_01", "crosswalk_id": "cw_01", "lifecycle_state": "crossing"}`.
 - **`emergency.event`**: Emergency vehicle corridor request or activation. Payload: `{"vehicle_id": "amb_01", "emergency_type": "ambulance", "priority_level": 2, "corridor": [...]}`.
