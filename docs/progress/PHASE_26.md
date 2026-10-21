@@ -187,14 +187,14 @@ Supported speeds: $0.5\times, 1\times, 2\times, 5\times$.
 
 ## 8. CI Pipeline Execution & Evidence
 
-- **Authoritative CI Run URL:** [https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39626359052](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39626359052)
-- **Commit SHA:** `78dc65d836371ad52b21cf571fe43fe5b5a79ee3` (Short: `78dc65d`)
+- **Authoritative CI Run URL:** [https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39626387100](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39626387100)
+- **Commit SHA:** `0329943f327771f22497eb1df39265215d86fe2e` (Short: `0329943`)
 - **Workflow:** `CI Pipeline` (`.github/workflows/ci.yml`)
 - **Trigger:** `push` on branch `main`
 - **Job Statuses:**
-  - `repo-hygiene`: **SUCCESS** (4s) — Verified presence of all mandatory documentation and phase reports from `PHASE_01.md` through `PHASE_26.md`; zero secret leaks or prohibited files detected.
-  - `backend-quality`: **SUCCESS** (54s) — Ruff linting clean, Django system checks clean (0 silenced), full test suite executed: **1,097 passed in 23.41s**, **95.67% line coverage** (exceeds 80% threshold).
-  - `frontend-quality`: **SUCCESS** (23s) — Reproducible `npm ci`, ESLint clean (0 errors, 0 warnings), strict TypeScript typecheck clean (`tsc --noEmit`), **126 Vitest unit tests passed across 7 test suites**, Vite production bundle build clean in 1.61s.
+  - `repo-hygiene` (ID `119312621586`): **SUCCESS** (6s) — Verified presence of all mandatory documentation and phase reports from `PHASE_01.md` through `PHASE_26.md`; zero secret leaks or prohibited files detected.
+  - `backend-quality` (ID `119312621119`): **SUCCESS** (59s) — Ruff linting clean, Django system checks clean (0 silenced), full test suite executed: **1,097 passed in 26.82s**, **95.65% line coverage** (exceeds 80% threshold).
+  - `frontend-quality` (ID `119312621524`): **SUCCESS** (28s) — Reproducible `npm ci`, ESLint clean (0 errors, 0 warnings), strict TypeScript typecheck clean (`tsc --noEmit`), **126 Vitest unit tests passed across 7 test suites**, Vite production bundle build clean in 1.99s (`dist/index.html`, `dist/assets/index-BdUaIQ0q.css`, `dist/assets/index-CrkUYtVu.js`).
 
 ---
 
