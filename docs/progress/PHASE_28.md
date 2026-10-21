@@ -228,14 +228,14 @@ export interface RouteSubsystemSnapshot {
 
 ## 8. CI Pipeline Execution & Evidence
 
-- **Authoritative CI Run URL:** [To be recorded after commit and push]
-- **Commit SHA:** [To be recorded after commit and push]
+- **Authoritative CI Run URL:** [https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39649745918](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39649745918)
+- **Commit SHA:** `5e6e9aa0dfa7b695123d1445772cae66b3b246a4` (Short: `5e6e9aa`)
 - **Workflow:** `CI Pipeline` (`.github/workflows/ci.yml`)
 - **Trigger:** `push` on branch `main`
 - **Job Statuses:**
-  - `repo-hygiene`: SUCCESS — Verified presence of all mandatory documentation and phase reports from `PHASE_01.md` through `PHASE_28.md`; zero secret leaks or prohibited files detected.
-  - `backend-quality`: SUCCESS — Ruff linting clean, Django system checks clean (0 silenced), full test suite executed: **1,097 passed**, **95.67% line coverage** (exceeds 80% threshold).
-  - `frontend-quality`: SUCCESS — Reproducible `npm ci`, ESLint clean (0 errors, 0 warnings), strict TypeScript typecheck clean (`tsc --noEmit`), **166 Vitest unit & component tests passed across 9 test suites**, Vite production bundle build clean.
+  - `repo-hygiene` (ID `119394637646`): **SUCCESS** (4s) — Verified presence of all mandatory documentation and phase reports from `PHASE_01.md` through `PHASE_28.md`; zero secret leaks or prohibited files detected.
+  - `backend-quality` (ID `119394637926`): **SUCCESS** (54s) — Ruff linting clean, Django system checks clean (0 silenced), full test suite executed: **1,097 passed**, **95.67% line coverage** (exceeds 80% threshold).
+  - `frontend-quality` (ID `119394638045`): **SUCCESS** (26s) — Reproducible `npm ci`, ESLint clean (0 errors, 0 warnings), strict TypeScript typecheck clean (`tsc --noEmit`), **166 Vitest unit & component tests passed across 9 test suites**, Vite production bundle build clean.
 
 ---
 
