@@ -215,9 +215,7 @@ class TestYieldingPolicyDecisions:
         assert decision.action == YieldActionType.STOP_BEFORE_INTERSECTION
         assert "red signal" in decision.reason.lower()
 
-    def test_yielding_vehicle_does_not_enter_occupied_crosswalk(
-        self, standard_agent
-    ) -> None:
+    def test_yielding_vehicle_does_not_enter_occupied_crosswalk(self, standard_agent) -> None:
         """A vehicle must NOT enter a crosswalk occupied by crossing pedestrians while yielding."""
         policy = YieldingPolicy()
         ped = PedestrianAgent(
@@ -257,9 +255,7 @@ class TestYieldingPolicyDecisions:
 class TestTrafficSignalPriorityAndPedestrianProtection:
     """Tests for signal priority overrides and pedestrian crossing clearance invariants."""
 
-    def test_grant_signal_priority_when_no_pedestrians(
-        self, test_grid, signal_controller
-    ) -> None:
+    def test_grant_signal_priority_when_no_pedestrians(self, test_grid, signal_controller) -> None:
         mgr = EmergencyPriorityManager(test_grid)
         mgr.register_emergency_vehicle("amb_01")
         req = mgr.activate_emergency("amb_01", EmergencyType.AMBULANCE, "node_r0_c2", 0.0)

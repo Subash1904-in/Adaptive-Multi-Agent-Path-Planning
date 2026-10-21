@@ -168,10 +168,7 @@ class InvalidLatencyError(CommunicationValidationError):
     """Raised when latency configuration parameters are invalid (negative, non-finite, inverted)."""
 
     def __init__(self, min_latency: Any, max_latency: Any, message: Optional[str] = None) -> None:
-        msg = (
-            message
-            or f"Invalid latency parameters: min={min_latency}, max={max_latency}."
-        )
+        msg = message or f"Invalid latency parameters: min={min_latency}, max={max_latency}."
         super().__init__(
             msg,
             field="latency",
@@ -243,4 +240,3 @@ class PartitionBlockedError(CommunicationError):
         )
         self.sender_id = sender_id
         self.receiver_id = receiver_id
-

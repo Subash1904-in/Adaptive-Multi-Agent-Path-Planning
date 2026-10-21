@@ -43,9 +43,7 @@ class PedestrianMetrics:
         self.waiting_count = sum(
             1 for a in agents if a.state == PedestrianLifecycleState.WAITING_TO_CROSS
         )
-        self.crossing_count = sum(
-            1 for a in agents if a.state == PedestrianLifecycleState.CROSSING
-        )
+        self.crossing_count = sum(1 for a in agents if a.state == PedestrianLifecycleState.CROSSING)
         self.arrived_count = sum(1 for a in agents if a.state == PedestrianLifecycleState.ARRIVED)
         self.total_waiting_time_s = sum(a.waiting_time_s for a in agents)
 

@@ -332,6 +332,7 @@ class V2VMessagePacket:
             ) from exc
         return cls.from_dict(data)
 
+
 @dataclass(frozen=True)
 class InTransitPacket:
     """Represents a packet traversing the communication channel undergoing latency delay."""

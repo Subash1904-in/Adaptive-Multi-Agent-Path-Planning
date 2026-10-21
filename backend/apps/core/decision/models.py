@@ -174,9 +174,7 @@ class DecisionContext:
             "current_edge_id": self.current_edge_id,
             "current_route_id": self.current_route_id,
             "current_cost": (
-                round(self.current_cost, 4)
-                if math.isfinite(self.current_cost)
-                else "Infinity"
+                round(self.current_cost, 4) if math.isfinite(self.current_cost) else "Infinity"
             ),
             "current_route_edge_ids": list(self.current_route_edge_ids),
             "known_closed_edges": sorted(self.known_closed_edges),
@@ -218,9 +216,7 @@ class DecisionResult:
                 cid: score.to_dict() for cid, score in self.candidate_scores.items()
             },
             "selected_candidate": (
-                self.selected_candidate.to_dict()
-                if self.selected_candidate is not None
-                else None
+                self.selected_candidate.to_dict() if self.selected_candidate is not None else None
             ),
             "execution_time_ms": round(self.execution_time_ms, 3),
             "diagnostics": dict(self.diagnostics),

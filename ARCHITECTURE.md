@@ -1042,6 +1042,121 @@ Policy outcomes are strictly classified:
 ### 15.9 Educational Simulation Disclaimer
 This simulation is developed solely for educational and research purposes and is NOT certified for physical vehicle deployment.
 
+---
+
+## 16. Backend Integration Expansion, Scenario Runner Enhancements, and Advanced Telemetry Streams (Phase 20)
+
+Phase 20 delivers a comprehensive backend integration, execution lifecycle, deterministic reproducibility, and structured telemetry architecture for the AMAPP platform. It establishes a unified execution and observation layer wrapping `SimulationEngine` and all Phase 2–19 subsystems.
+
+```mermaid
+flowchart TD
+    subgraph LifecycleFSM["1. Deterministic Scenario Execution Lifecycle"]
+        S_CREATED["CREATED<br/>(Scenario Instantiated)"]
+        S_VALIDATING["VALIDATING<br/>(Semantic & Graph Checks)"]
+        S_READY["READY<br/>(World & Engine Assembled)"]
+        S_RUNNING["RUNNING<br/>(Discrete Step Loop)"]
+        
+        S_COMPLETED["COMPLETED<br/>(All Arrived)"]
+        S_LIMIT["LIMIT_REACHED<br/>(Ticks / Duration Reached)"]
+        S_CANCELLED["CANCELLED<br/>(Cooperative User Cancel)"]
+        S_FAILED["FAILED<br/>(Uncaught Step Exception)"]
+    end
+
+    subgraph TelemetryLayer["2. Bounded High-Resolution Telemetry Stream"]
+        EventTypes["14 Categorized Record Types"]
+        Buffer["TelemetryCollector (Bounded Capacity N)"]
+        CritPreserve["Zero-Drop Critical Event Retention<br/>(Evicts Oldest Non-Critical Records)"]
+        DropTracker["TelemetryDropStats (Per-Category Accounting)"]
+    end
+
+    subgraph Reproducibility["3. Deterministic Fingerprinting & Export"]
+        ScnFP["Scenario Definition SHA-256 Digest"]
+        InitFP["Initial World State SHA-256 Digest"]
+        FinalFP["Final World State SHA-256 Digest"]
+        GitSHA["Active Git Commit SHA Discovery"]
+        JSONExport["RFC 8259 JSON Result Export<br/>(Non-finite sanitization, Max Size Limit)"]
+    end
+
+    subgraph AggregationLayer["4. Cross-Subsystem Unified Metrics Aggregator"]
+        Subsystems["Simulation, Kinematics, Routing, Comms, Coordination,<br/>Safety, Pedestrians, Emergency, AI Decision Policies"]
+        RollbackSafety["Rollback Invariant: Failed Ticks Never Counted"]
+        Summary["RunMetricsSummary (34 Classified Metrics)"]
+    end
+
+    S_CREATED --> S_VALIDATING --> S_READY --> S_RUNNING
+    S_RUNNING --> S_COMPLETED
+    S_RUNNING --> S_LIMIT
+    S_RUNNING --> S_CANCELLED
+    S_RUNNING --> S_FAILED
+
+    S_RUNNING --> EventTypes --> Buffer
+    Buffer --> CritPreserve --> DropTracker
+    S_READY --> InitFP
+    S_RUNNING --> FinalFP
+    ScnFP & InitFP & FinalFP & GitSHA --> JSONExport
+    Subsystems --> RollbackSafety --> Summary --> JSONExport
+```
+
+### 16.1 Deterministic Scenario Execution Lifecycle FSM
+The execution lifecycle is governed by an explicit 8-state deterministic finite state machine (`RunLifecycleState`):
+- `CREATED`: Raw scenario definition provided.
+- `VALIDATING`: Semantic validation and road graph compatibility verification in progress.
+- `READY`: All subsystems, road graph, clock, vehicles, and signals assembled and primed at tick 0.
+- `RUNNING`: Simulation active and executing discrete time steps.
+- `COMPLETED`: Terminal state reached when all vehicles arrive at destinations.
+- `CANCELLED`: Terminal state reached when cooperative cancellation is requested.
+- `FAILED`: Terminal state reached when an unhandled runtime error halts simulation.
+- `LIMIT_REACHED`: Terminal state reached when configured `max_ticks` or `max_duration_s` is attained.
+- **State Transition Guardrails**: Any attempt to perform an illegal state transition or resume execution of a terminal run raises `RunStateTransitionError`.
+
+### 16.2 Cooperative, Idempotent Cancellation
+- Cancellation can be requested cooperatively via `runner.cancel(reason=...)`.
+- Execution halts cleanly at the current simulation tick boundary, preserving all world state, vehicle trajectories, and telemetry up to that tick.
+- Repeated cancellation calls are safely idempotent.
+- The cancellation reason is captured and preserved in the execution result diagnostics.
+
+### 16.3 Execution Limits & Stop Conditions
+- `RunConfig` defines strictly validated execution bounds:
+  - `max_ticks`: Maximum discrete steps allowed ($\ge 1$).
+  - `max_duration_s`: Maximum simulated time allowed ($> 0.0\text{s}$).
+  - `time_step_s`: Discrete step duration ($> 0.0\text{s}$).
+  - `stop_on_all_arrived`: Boolean flag terminating runs when all vehicles complete their routes.
+  - `max_export_bytes`: Maximum allowed size for serialized result payloads.
+- Limits are evaluated strictly at tick boundaries, returning `LIMIT_REACHED` with reason `MAX_TICKS_REACHED` or `DURATION_LIMIT_REACHED`.
+
+### 16.4 Deterministic Reproducibility & Fingerprinting
+To guarantee 100% replay reproducibility and experiment provenance:
+1. **Scenario Definition Fingerprint (`scenario_fingerprint`)**: Canonical sorted JSON serialization of scenario configuration, stripping operational wall-clock timestamps before SHA-256 hashing.
+2. **Initial World State Fingerprint (`initial_world_state_fingerprint`)**: SHA-256 digest of the pristine world snapshot at tick 0.
+3. **Final World State Fingerprint (`final_world_state_fingerprint`)**: SHA-256 digest of the final world snapshot upon run completion.
+4. **Git Commit SHA Discovery (`git_commit_sha`)**: Discovers active commit SHA via git plumbing or returns `None`. Never invents fake commit hashes.
+- **Determinism Guarantee**: Executions of identical scenario definitions with identical seeds yield bit-identical initial and final fingerprints.
+
+### 16.5 Structured High-Resolution Telemetry Stream
+`TelemetryCollector` manages a bounded in-memory event stream:
+- **14 Event Categories**: `RUN_STATE_CHANGE`, `TICK_SUMMARY`, `VEHICLE_STATE`, `PEDESTRIAN_STATE`, `TRAFFIC_SIGNAL_STATE`, `ROUTING_EVENT`, `COMMUNICATION_EVENT`, `COORDINATION_EVENT`, `SAFETY_EVENT`, `COLLISION_EVENT`, `EMERGENCY_CORRIDOR_EVENT`, `DECISION_EVENT`, `EXECUTION_LIMIT_REACHED`, `RUN_ERROR`.
+- **Bounded Retention**: Fixed capacity `max_records`.
+- **Zero-Drop Critical Event Retention**: Critical events (`SAFETY_EVENT`, `COLLISION_EVENT`, `RUN_ERROR`, `RUN_STATE_CHANGE`) evict the oldest non-critical record from the buffer when capacity is saturated.
+- **Drop Statistics**: Detailed accounting of dropped records by category via `TelemetryDropStats`.
+- **Querying & Filtering**: Multi-attribute filtering via `filter_records()` across category, tick range, simulation time, name, and entity ID.
+- **Stream Closure**: `close()` freezes the stream and rejects subsequent emissions.
+
+### 16.6 Cross-Subsystem Unified Metrics Aggregation
+`MetricsAggregator` produces `RunMetricsSummary`, combining 34 classified metrics across all subsystems:
+- **Classifications**: Cumulative counts, per-tick averages, observed extrema, derived ratios, and terminal snapshots.
+- **Rollback Safety**: Failed ticks that were rolled back in `SimulationEngine.step()` are excluded from tick history and never double-counted in metric aggregations.
+- **Robustness**: Safely handles zero-division edge cases (e.g., zero communication packets sent produces `packet_delivery_ratio = None`).
+
+### 16.7 RFC 8259 Compliant JSON Result Export
+- `runner.export_result(indent=2)` and `result.to_json(max_size_bytes=...)` serialize execution results.
+- **Non-Finite Number Sanitization**: Automatically translates `-inf`, `inf`, and `nan` into compliant JSON string representations (`"-Infinity"`, `"Infinity"`, `"NaN"`).
+- **Payload Size Limits**: Enforces `max_size_bytes`, raising `ExportSizeLimitExceededError` if exceeded.
+- **Read-Only Invariance**: Exporting results never mutates the underlying simulation engine, world state, or tick history.
+
+### 16.8 Educational Simulation Disclaimer
+This simulation platform is developed solely for educational, academic, and research purposes in multi-agent coordination. It is NOT certified, verified, or suitable for deployment in physical autonomous vehicles.
+
+
 
 
 

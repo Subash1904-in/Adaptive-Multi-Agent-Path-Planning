@@ -189,8 +189,7 @@ class SimulationEngine:
         }
 
         pedestrian_rollback_states: dict[str, dict[str, Any]] = {
-            ped.pedestrian_id: ped.capture_state()
-            for ped in self.world.get_pedestrians()
+            ped.pedestrian_id: ped.capture_state() for ped in self.world.get_pedestrians()
         }
         pedestrian_metrics_rollback = self.world.pedestrian_metrics.capture_state()
 
@@ -479,9 +478,7 @@ class SimulationEngine:
                 pedestrian_step_results[ped.pedestrian_id] = ped_res
                 self.world.pedestrian_metrics.record_step(ped_res)
 
-            self.world.pedestrian_metrics.update_point_in_time_counts(
-                self.world.get_pedestrians()
-            )
+            self.world.pedestrian_metrics.update_point_in_time_counts(self.world.get_pedestrians())
         except Exception as exc:
             # Atomic rollback: restore all agents, signals, comms, coord, routing,
             # safety, pedestrians
@@ -579,20 +576,13 @@ class SimulationEngine:
         ):
             routing_metrics = self.world.adaptive_routing_adapter.metrics.to_dict()
 
-        routing_dec_dicts = (
-            [d.to_dict() for d in routing_decisions] if routing_decisions else None
-        )
+        routing_dec_dicts = [d.to_dict() for d in routing_decisions] if routing_decisions else None
 
         safety_metrics = None
-        if (
-            hasattr(self.world, "safety_manager")
-            and self.world.safety_manager.config.enabled
-        ):
+        if hasattr(self.world, "safety_manager") and self.world.safety_manager.config.enabled:
             safety_metrics = self.world.safety_manager.metrics.to_dict()
 
-        safety_evt_dicts = (
-            [e.to_dict() for e in safety_events] if safety_events else None
-        )
+        safety_evt_dicts = [e.to_dict() for e in safety_events] if safety_events else None
 
         ped_metrics_dict = (
             self.world.pedestrian_metrics.to_dict()

@@ -195,8 +195,29 @@ python backend/manage.py check
 - **Safety Detection, Closing Speed, TTC & Risk (`test_safety_detection_and_ttc.py`, 13 passed)**
   - Vector closing-speed formulation along relative position direction.
   - Safe separation distance computation with reaction time and braking distance terms.
-  - Time-To-Collision (TTC) estimation with non-closing / receding vehicle safety bounds.
-  - 5-tier risk classification: `COLLISION`, `IMMINENT`, `HIGH_RISK`, `CAUTION`, `SAFE`.
+- **ScenarioRunner Lifecycle & Cancellation (`test_runner_lifecycle_and_cancellation.py`, 13 passed)**
+  - 8-state lifecycle state machine progression (`CREATED` -> `VALIDATING` -> `READY` -> `RUNNING` -> terminal states).
+  - Strict transition validation and rejection of attempts to resume terminal runs (`RunStateTransitionError`).
+  - Tick-limit and simulation-duration limits, partial stepping (`TARGET_TICKS_COMPLETED`).
+  - Cooperative cancellation between ticks, cancellation idempotency, and reason tracking.
+  - Failure containment, error details preservation, and runner instance state isolation.
+- **Telemetry Collector, Retention & Drops (`test_telemetry_collector_and_retention.py`, 11 passed)**
+  - Record validation, schema version enforcement (`1.0.0`), non-finite float sanitization.
+  - Bounded capacity, non-critical record dropping, drop stats accounting by category.
+  - Strict retention overflow error, critical event zero-drop preservation via oldest non-critical eviction.
+  - Buffer saturation overflow, category filtering, stream closure, multi-attribute querying.
+- **Runner Determinism, Fingerprinting & Export (`test_runner_determinism_and_export.py`, 11 passed)**
+  - Bit-identical execution reproducibility, scenario definition SHA-256 fingerprint determinism.
+  - Operational wall-clock timestamp stripping from hashes, initial and final world state fingerprints.
+  - Active Git commit SHA discovery, completed/cancelled/failed run RFC 8259 JSON export.
+  - Non-finite numeric serialization, export byte size limit enforcement (`ExportSizeLimitExceededError`).
+  - Export read-only state invariance (no mutation of engine, world snapshot, or tick history).
+- **Cross-Subsystem Metrics Aggregation (`test_runner_metrics_aggregation.py`, 7 passed)**
+  - Unified metrics aggregation across simulation, kinematics, routing, V2V, coordination, safety, pedestrians, emergency, and AI decisions.
+  - Averaging, observed extrema, and division by zero protection (e.g. zero sent packets).
+  - Failed tick exclusion (ticks rolled back are never counted in metrics).
+- **End-to-End Backend Integration Scenarios (`test_backend_integration_scenarios.py`, 9 passed)**
+  - End-to-end integration covering single-vehicle, multi-vehicle, traffic signals, adaptive routing, communication impairment, coordination, safety supervisor, pedestrian crosswalks, emergency corridors, and AI decision policies.
 - **Decision Models & Config (`test_decision_models_and_config.py`, 11 passed)**
   - Dataclass validation, numeric bounds, immutable semantics for candidates and scores.
   - Serialization to dictionaries (`to_dict()`) and deserialization compatibility (`from_dict()`).

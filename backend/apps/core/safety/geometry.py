@@ -222,7 +222,6 @@ class OrientedBoundingBox2D:
         )
 
 
-
 def check_obb_overlap_sat(
     box_a: OrientedBoundingBox2D,
     box_b: OrientedBoundingBox2D,

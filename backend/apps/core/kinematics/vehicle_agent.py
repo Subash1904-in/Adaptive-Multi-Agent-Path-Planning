@@ -410,8 +410,7 @@ class VehicleAgent:
         est_duration = sum(s.length_m / s.speed_limit_mps for s in combined_segments)
 
         route_id = (
-            new_route_id
-            or f"{self.vehicle.id}_rerouted_{len(combined_segments)}_{resume_node_id}"
+            new_route_id or f"{self.vehicle.id}_rerouted_{len(combined_segments)}_{resume_node_id}"
         )
         combined_route = Route(
             id=route_id,

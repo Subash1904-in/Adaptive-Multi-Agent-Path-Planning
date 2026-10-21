@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 19 (AI Decision Policy)
+- **Current Phase:** Phase 20 (Backend Integration Checkpoint, Scenario Runner Enhancements, and Advanced Telemetry Streams)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 20 (Backend Integration Checkpoint) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 21 (Django REST API Layer for Scenarios, Control, and Telemetry) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-21
 
 ---
@@ -34,7 +34,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 17** | **Pedestrian agents, crosswalks, and traffic signals** | **COMPLETED** | Typed pedestrian agents, bounded kinematics, crosswalk corridor model, traffic signal integration & clearance policy, vehicle-pedestrian SAT OBB conflict detection & braking, atomic rollback, 853 tests passed (96% coverage). |
 | **Phase 18** | **Emergency vehicle priority, yielding & dynamic corridors** | **COMPLETED** | Ambulance/fire/police types, priority FSM, V2V announcements, dynamic corridors, yielding policies, signal priority, 913 tests passed (96% coverage). |
 | **Phase 19** | **AI decision policy** | **COMPLETED** | Pluggable local decision policy evaluating travel time, congestion, risk, confidence scores, 956 tests passed (95.72% coverage). |
-| **Phase 20** | **Backend integration checkpoint** | **PENDING** | End-to-end backend integration tests (incident, comms failure, emergency vehicle, arrival metrics). |
+| **Phase 20** | **Backend integration checkpoint & telemetry streams** | **COMPLETED** | Unified 8-state execution lifecycle, cooperative cancellation, SHA-256 reproducibility fingerprints, bounded telemetry stream, cross-subsystem metrics aggregator, RFC 8259 JSON export, 1,007 tests passed (96% coverage). |
 | **Phase 21** | Django REST API | Pending | REST endpoints: health, simulation lifecycle, vehicle listing, map data, metrics, scenario config. |
 | **Phase 22** | Real-time WebSocket streaming | Pending | Django Channels telemetry stream, versioned event schemas, resync, bounded frequency. |
 | **Phase 23** | Frontend scaffold and visual system | Pending | TypeScript + Three.js scaffold, professional UI design system, typography, layout, API/render split. |
@@ -171,35 +171,45 @@ This roadmap is strictly aligned with our agreed master development plan, divide
   - Added 60 new automated tests across 6 dedicated test modules bringing total test suite to 913 passing tests (96% coverage).
   - Documented full evidence in `docs/progress/PHASE_18.md`.
 
+- **Phase 19: Pluggable AI Decision Policies for Autonomous Vehicle Agents:**
+  - Implemented typed pluggable policy protocol (`DecisionPolicy`) and deterministic baseline `RuleBasedDecisionPolicy`.
+  - Implemented multi-objective candidate route scoring across travel time, local congestion, hazard costs, observation confidence, and route stability hysteresis.
+  - Hard safety constraints precedence (closures, emergency corridors, connectivity violations yield $-\infty$ score and rejection).
+  - 4 decision outcomes (`ACCEPT`, `REJECT`, `DEFER`, `REEVALUATE`) with typed reason codes.
+  - Integrated into `DynamicRouteAdapter`, `SimulationEngine.step()`, and `WorldState` with atomic rollback.
+  - Added 43 automated tests bringing total test suite to 956 passing tests (95.72% coverage).
+  - Documented full evidence in `docs/progress/PHASE_19.md`.
+- **Phase 20: Backend Integration Expansion, Scenario Runner Enhancements, and Advanced Telemetry Streams:**
+  - Implemented explicit 8-state scenario execution lifecycle (`CREATED` -> `VALIDATING` -> `READY` -> `RUNNING` -> `COMPLETED`/`CANCELLED`/`FAILED`/`LIMIT_REACHED`).
+  - Implemented cooperative, idempotent cancellation between ticks (`runner.cancel(reason=...)`).
+  - Implemented configurable execution limits (`max_ticks`, `max_duration_s`, `stop_on_all_arrived`, `max_export_bytes`).
+  - Implemented deterministic reproducibility: SHA-256 digests for scenario definition, initial world state, and final world state, active Git commit SHA discovery.
+  - Implemented bounded in-memory telemetry stream (`TelemetryCollector`) with 14 event categories, zero-drop preservation of critical records, and drop counters.
+  - Implemented unified cross-subsystem metrics aggregator (`MetricsAggregator`) combining metrics across all subsystems without double-counting on rollback.
+  - Implemented RFC 8259 JSON result export with size limits and non-finite floating-point number sanitization.
+  - Added 51 automated tests bringing total test suite to 1,007 passing tests (96% coverage).
+  - Documented full evidence in `docs/progress/PHASE_20.md`.
+
 ---
 
-## 4. Files Created or Modified (Phase 18)
+## 4. Files Created or Modified (Phase 20)
 - **Created:**
-  - `backend/apps/core/emergency/__init__.py`
-  - `backend/apps/core/emergency/models.py`
-  - `backend/apps/core/emergency/exceptions.py`
-  - `backend/apps/core/emergency/metrics.py`
-  - `backend/apps/core/emergency/v2v.py`
-  - `backend/apps/core/emergency/corridor_planner.py`
-  - `backend/apps/core/emergency/yielding_policy.py`
-  - `backend/apps/core/emergency/priority_manager.py`
-  - `backend/apps/core/tests/test_emergency_models_and_lifecycle.py`
-  - `backend/apps/core/tests/test_emergency_v2v_announcements.py`
-  - `backend/apps/core/tests/test_emergency_corridors_and_reservations.py`
-  - `backend/apps/core/tests/test_emergency_yielding_and_signals.py`
-  - `backend/apps/core/tests/test_emergency_engine_integration.py`
-  - `backend/apps/core/tests/test_emergency_scenarios.py`
-  - `docs/progress/PHASE_18.md`
+  - `backend/apps/core/telemetry/__init__.py`
+  - `backend/apps/core/telemetry/models.py`
+  - `backend/apps/core/telemetry/exceptions.py`
+  - `backend/apps/core/telemetry/fingerprint.py`
+  - `backend/apps/core/telemetry/collector.py`
+  - `backend/apps/core/telemetry/aggregation.py`
+  - `backend/apps/core/tests/test_runner_lifecycle_and_cancellation.py`
+  - `backend/apps/core/tests/test_telemetry_collector_and_retention.py`
+  - `backend/apps/core/tests/test_runner_determinism_and_export.py`
+  - `backend/apps/core/tests/test_runner_metrics_aggregation.py`
+  - `backend/apps/core/tests/test_backend_integration_scenarios.py`
+  - `docs/progress/PHASE_20.md`
 - **Modified:**
-  - `backend/apps/core/domain/enums.py`
-  - `backend/apps/core/signals/controller.py`
-  - `backend/apps/core/simulation/models.py`
-  - `backend/apps/core/simulation/world.py`
-  - `backend/apps/core/simulation/engine.py`
+  - `backend/apps/core/scenarios/__init__.py`
   - `backend/apps/core/scenarios/models.py`
-  - `backend/apps/core/scenarios/validation.py`
-  - `backend/apps/core/scenarios/builder.py`
-  - `backend/apps/core/scenarios/examples.py`
+  - `backend/apps/core/scenarios/runner.py`
   - `.github/workflows/ci.yml`
   - `PROJECT_STATUS.md`
   - `ARCHITECTURE.md`
@@ -211,32 +221,18 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 
 ## 5. Commands Executed and Actual Results
 1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
-2. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-3. `.\.venv\Scripts\pytest.exe backend/apps/core/tests/ --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `913 passed in 6.63s`, `96% coverage` (exit code 0).
+2. `.\.venv\Scripts\ruff.exe format --check backend`: Exit code 0 (`188 files already formatted`).
+3. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
+4. `.\.venv\Scripts\pytest.exe backend/apps/core/tests/ --cov=apps.core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `1007 passed in 11.64s`, `96% coverage` (exit code 0).
 
 ---
 
 ## 6. Test Results
-- **Emergency Models & Lifecycle FSM (`test_emergency_models_and_lifecycle.py`):** 13 passed.
-- **V2V Announcements & Awareness Ingestion (`test_emergency_v2v_announcements.py`):** 14 passed.
-- **Emergency Corridors & Reservations (`test_emergency_corridors_and_reservations.py`):** 8 passed.
-- **Yielding Policies & Signal Priority (`test_emergency_yielding_and_signals.py`):** 8 passed.
-- **Engine Integration & Rollback (`test_emergency_engine_integration.py`):** 6 passed.
-- **Emergency Scenario Orchestration (`test_emergency_scenarios.py`):** 11 passed.
-- **Pedestrian Models & Kinematics (`test_pedestrian_models_and_kinematics.py`):** 12 passed.
-- **Crosswalk Geometry & Projection (`test_pedestrian_crosswalk.py`):** 10 passed.
-- **Signal Interaction & Clearance Policy (`test_pedestrian_signal_interaction.py`):** 6 passed.
-- **Vehicle-Pedestrian Safety & Collisions (`test_pedestrian_safety_and_collisions.py`):** 7 passed.
-- **Simulation Engine Integration & Rollback (`test_pedestrian_engine_integration.py`):** 6 passed.
-- **Pedestrian Scenario Orchestration (`test_pedestrian_scenarios.py`):** 4 passed.
-- **Safety Geometry & SAT Overlap (`test_safety_geometry.py`):** 18 passed.
-- **Safety Detection, TTC & Pairwise Classification (`test_safety_detection_and_ttc.py`):** 13 passed.
-- **Safety Policy & Simultaneous Conflict Resolution (`test_safety_policy.py`):** 9 passed.
-- **Safety Engine Integration & Atomic Rollback (`test_safety_engine_integration.py`):** 8 passed.
-- **Adaptive Rerouting & Dynamic Costs (`test_routing_*.py`):** 97 passed.
-- **Communication Degradation & Latency (`test_communication_*.py`):** 74 passed.
-- **V2V Coordination & Belief Dissemination (`test_coordination_*.py`):** 52 passed.
-- **Dynamic Neighbor Tables & Heartbeats (`test_communication_neighbors*.py`):** 38 passed.
+- **ScenarioRunner Lifecycle & Cancellation (`test_runner_lifecycle_and_cancellation.py`):** 13 passed.
+- **Telemetry Collector, Retention & Drops (`test_telemetry_collector_and_retention.py`):** 11 passed.
+- **Runner Determinism, Fingerprinting & Export (`test_runner_determinism_and_export.py`):** 11 passed.
+- **Cross-Subsystem Metrics Aggregation (`test_runner_metrics_aggregation.py`):** 7 passed.
+- **End-to-End Backend Integration Scenarios (`test_backend_integration_scenarios.py`):** 9 passed.
 - **AI Decision Policies & Scenarios (`test_decision_*.py`):** 43 passed.
 - **Emergency Priority, Corridors & Yielding (`test_emergency_*.py`):** 60 passed.
 - **Pedestrian Crosswalks & Safety (`test_pedestrian_*.py`):** 45 passed.
@@ -252,14 +248,14 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Road Graph & City Generator (`test_road_graph.py`, `test_city_generator.py`):** 41 passed.
 - **Domain Models, Values & Codecs (`test_domain_*.py`):** 105 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **956 passed, 0 failed in 9.51s**, **95.72% line coverage** (exceeds 80% threshold).
+- **Total:** **1,007 passed, 0 failed in 11.64s**, **96% line coverage** (exceeds 80% threshold).
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** AI decision policy subsystem (`backend/apps/core/decision/`) complete, deterministic, and fully integrated with `DynamicRouteAdapter`, `SimulationEngine.step()`, `WorldState`, and emergency priority constraints with atomic rollback guarantees.
+- **Notes:** Full backend execution and observation layer complete. Supports 8-state lifecycle, cooperative cancellation, SHA-256 reproducibility fingerprints, bounded telemetry stream, cross-subsystem metrics aggregator, and RFC 8259 JSON export.
 - **Educational Disclaimer:** This simulation is developed solely for educational and research purposes and is NOT certified for physical vehicle deployment.
 
 ---
@@ -287,7 +283,8 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 9. Exact Next Steps
-1. Await user prompt for **Phase 20: Backend Integration Checkpoint**.
-2. Implement comprehensive end-to-end multi-agent integration benchmarks verifying simultaneous road closures, emergency vehicle preemption, pedestrian crosswalk clearance, communication degradation, and pluggable AI route decision evaluations.
+1. Await user prompt for **Phase 21: Django REST API Layer for Scenarios, Control, and Telemetry**.
+2. Implement REST API endpoints for scenario configuration CRUD, simulation execution triggers, stepping/pausing/cancelling runs, and telemetry result retrieval.
+
 
 

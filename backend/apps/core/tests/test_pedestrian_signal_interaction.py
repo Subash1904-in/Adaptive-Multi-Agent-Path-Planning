@@ -265,6 +265,7 @@ class TestPedestrianSignalInteraction:
 
     def test_registration_order_independence(self) -> None:
         """Registration order of pedestrians does not change simulation outcome."""
+
         def run_sim(order: list[str]) -> list[tuple[float, float]]:
             graph = RoadGraph(name="order_graph")
             n1 = RoadNode(id="node_1", position=Position2D(x=0.0, y=0.0))

@@ -1,6 +1,5 @@
 """Tests for Phase 17 scenario creation, validation, building, and running."""
 
-
 from apps.core.scenarios.builder import ScenarioBuilder
 from apps.core.scenarios.examples import (
     create_pedestrian_crossing_permitted_scenario,

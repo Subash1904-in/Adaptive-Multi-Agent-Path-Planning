@@ -38,34 +38,49 @@ class TestSafetyGeometryValidation:
     def test_rejects_non_finite_coordinates(self):
         with pytest.raises(GeometryValidationError, match="must be finite"):
             OrientedBoundingBox2D(
-                center_x=float("nan"), center_y=0.0,
-                length_m=4.5, width_m=2.0, heading_rad=0.0,
+                center_x=float("nan"),
+                center_y=0.0,
+                length_m=4.5,
+                width_m=2.0,
+                heading_rad=0.0,
             )
 
         with pytest.raises(GeometryValidationError, match="must be finite"):
             OrientedBoundingBox2D(
-                center_x=0.0, center_y=float("inf"),
-                length_m=4.5, width_m=2.0, heading_rad=0.0,
+                center_x=0.0,
+                center_y=float("inf"),
+                length_m=4.5,
+                width_m=2.0,
+                heading_rad=0.0,
             )
 
     def test_rejects_non_positive_dimensions(self):
         with pytest.raises(GeometryValidationError, match="strictly positive"):
             OrientedBoundingBox2D(
-                center_x=0.0, center_y=0.0,
-                length_m=0.0, width_m=2.0, heading_rad=0.0,
+                center_x=0.0,
+                center_y=0.0,
+                length_m=0.0,
+                width_m=2.0,
+                heading_rad=0.0,
             )
 
         with pytest.raises(GeometryValidationError, match="strictly positive"):
             OrientedBoundingBox2D(
-                center_x=0.0, center_y=0.0,
-                length_m=4.5, width_m=-1.0, heading_rad=0.0,
+                center_x=0.0,
+                center_y=0.0,
+                length_m=4.5,
+                width_m=-1.0,
+                heading_rad=0.0,
             )
 
     def test_rejects_non_finite_heading(self):
         with pytest.raises(GeometryValidationError, match="must be finite"):
             OrientedBoundingBox2D(
-                center_x=0.0, center_y=0.0,
-                length_m=4.5, width_m=2.0, heading_rad=float("nan"),
+                center_x=0.0,
+                center_y=0.0,
+                length_m=4.5,
+                width_m=2.0,
+                heading_rad=float("nan"),
             )
 
     def test_from_vehicle_factory(self):

@@ -150,7 +150,8 @@ class SimulatedCommunicationNetwork:
         self._received_message_ids.pop(vehicle_id, None)
         self._sender_sequence_numbers.pop(vehicle_id, None)
         self._in_transit_packets = [
-            it for it in self._in_transit_packets
+            it
+            for it in self._in_transit_packets
             if it.receiver_id != vehicle_id and it.packet.sender_id != vehicle_id
         ]
         if self.neighbor_manager is not None:
@@ -519,7 +520,7 @@ class SimulatedCommunicationNetwork:
             dist = message.sender_position.distance_to(receiver_position)
             range_m = max(1e-6, self.config.range_m)
             ratio = min(1.0, max(0.0, dist / range_m))
-            p_dist_loss = ratio ** self.config.distance_loss_exponent
+            p_dist_loss = ratio**self.config.distance_loss_exponent
             if p_dist_loss > 0.0 and (
                 p_dist_loss >= 1.0 or self._packet_loss_rng.random() < p_dist_loss
             ):

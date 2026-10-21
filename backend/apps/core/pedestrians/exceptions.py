@@ -38,4 +38,3 @@ class DuplicatePedestrianError(PedestrianError):
 
 class PedestrianNotFoundError(PedestrianError):
     """Raised when a requested pedestrian ID does not exist."""
-

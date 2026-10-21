@@ -137,9 +137,8 @@ class YieldingPolicy:
         current_segment = getattr(agent, "current_segment", None)
         if not current_segment:
             return False
-        edge_id = (
-            getattr(current_segment, "edge_id", None)
-            or getattr(agent.vehicle, "current_edge_id", None)
+        edge_id = getattr(current_segment, "edge_id", None) or getattr(
+            agent.vehicle, "current_edge_id", None
         )
         if not edge_id:
             return False

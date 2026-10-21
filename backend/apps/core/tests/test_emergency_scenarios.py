@@ -128,8 +128,7 @@ class TestEmergencyScenarioBuilderAndExecution:
 
         assert world.emergency_manager.is_emergency_vehicle("pol_01")
         assert (
-            world.emergency_manager.get_vehicle_state("pol_01")
-            == EmergencyLifecycleState.INACTIVE
+            world.emergency_manager.get_vehicle_state("pol_01") == EmergencyLifecycleState.INACTIVE
         )
 
         # Activate priority manually

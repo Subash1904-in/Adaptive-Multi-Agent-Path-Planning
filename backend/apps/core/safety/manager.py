@@ -39,9 +39,7 @@ class SafetyManager:
         current_time_s: float,
         scenario_id: Optional[str] = None,
         pedestrians: Optional[Sequence[Any]] = None,
-    ) -> tuple[
-        dict[str, VehicleControlOverride], list[VehiclePairCollision], list[SafetyEvent]
-    ]:
+    ) -> tuple[dict[str, VehicleControlOverride], list[VehiclePairCollision], list[SafetyEvent]]:
         """Evaluate multi-vehicle and pedestrian conflicts, stage control overrides,
         and log safety events.
 

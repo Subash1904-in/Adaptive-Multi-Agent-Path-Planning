@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 19 (AI Decision Policy)  
+**Current Phase:** Phase 20 (Backend Integration Checkpoint, Scenario Runner Enhancements, Advanced Telemetry Streams)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 19 (Pluggable AI Decision Policies for Autonomous Vehicle Agents):* Phase 19 implements a typed pluggable decision policy interface (`DecisionPolicy` protocol), a deterministic rule-based baseline policy (`RuleBasedDecisionPolicy`), multi-objective candidate route scoring balancing travel time, local congestion beliefs, hazard penalties, observation confidence, and route stability hysteresis, pre-scoring hard safety constraint checks (closed edges, active emergency corridors, graph connectivity) where violations yield $S(c) = -\infty$, deterministic 4-tier tie-breaking, bounded confidence scoring $[0.0, 1.0]$, route flapping prevention, explicit outcome taxonomy (`ACCEPT`, `REJECT`, `DEFER`, `REEVALUATE`), decentralized local knowledge isolation, and single-clock `SimulationEngine.step()` integration with atomic rollback. 956 total tests passing, 95.72% line coverage. This fulfills the baseline AI decision-making requirements of FR-08. Reinforcement learning model training (FR-13) remains strictly deferred to Phases 32–34.
+> *Note on Phase 20 (Backend Integration Expansion, Scenario Runner Enhancements, and Advanced Telemetry Streams):* Phase 20 establishes a unified backend execution and observation layer wrapping `SimulationEngine` and all Phase 2–19 subsystems. It implements an explicit 8-state deterministic execution lifecycle (`CREATED` -> `VALIDATING` -> `READY` -> `RUNNING` -> `COMPLETED`/`CANCELLED`/`FAILED`/`LIMIT_REACHED`), cooperative idempotent cancellation between ticks (`runner.cancel()`), configurable execution limits (`RunConfig`), deterministic reproducibility via canonical SHA-256 digests (`scenario_fingerprint`, `initial_world_state_fingerprint`, `final_world_state_fingerprint`) and Git commit discovery, bounded in-memory telemetry streams (`TelemetryCollector`) with 14 event categories and zero-drop critical event retention, cross-subsystem metrics aggregation (`MetricsAggregator`) combining metrics across all subsystems without rollback double-counting, and RFC 8259 JSON result export with non-finite number sanitization and size limits. 1,007 total tests passing, 96% line coverage.
 
 ---
 
@@ -19,10 +19,10 @@
 | Req # | Requirement Name | Implementation Modules | Target Phases | Current Status | Test Coverage |
 |---|---|---|---|---|---|
 | **FR-01** | Vehicle-to-Vehicle (V2V) Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/` | Phase 11, 12, 13, 14, 27 | `NOT STARTED` | Phase 11–14 Protocol, Neighbors, Coordination & Degradation Tested (`test_communication_*.py`, `test_coordination_*.py`) |
-| **FR-02** | Multi-Agent Autonomous Vehicle Environment | `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 07, 08, 10, 25 | `NOT STARTED` | Phase 07, 08, 10 Tested (`test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`) |
+| **FR-02** | Multi-Agent Autonomous Vehicle Environment | `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 07, 08, 10, 20, 25 | `TESTED` | Phase 07, 08, 10, 20 Tested (`test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`, `test_runner_*.py`) |
 | **FR-03** | Real-World Map Integration | `backend/apps/core/graph/` | Phase 04, 05, 24 | `NOT STARTED` | Phase 04 & 05 Foundation Tested (`test_osm_*.py`, `test_road_graph.py`) |
 | **FR-04** | Traffic and Pedestrian Simulation | `backend/apps/core/signals/`, `backend/apps/core/pedestrians/`, `backend/apps/core/safety/` | Phase 09, 17, 25, 29 | `TESTED` | Phase 09 Signals & Phase 17 Pedestrians Tested (`test_signals_*.py`, `test_pedestrian_*.py`) |
-| **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 06, 07, 08, 10, 30, 31 | `NOT STARTED` | Phase 06–10 Tested (`test_routing_*.py`, `test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`) |
+| **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/`, `backend/apps/core/telemetry/` | Phase 06, 07, 08, 10, 20, 30, 31 | `TESTED` | Phase 06–10 & Phase 20 Metrics Aggregation & Export Tested (`test_routing_*.py`, `test_runner_metrics_aggregation.py`, `test_runner_determinism_and_export.py`) |
 | **FR-06** | Decentralized Vehicle Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/`, `sim_engine/agents/` | Phase 11, 12, 13, 14 | `NOT STARTED` | Phase 11–14 Protocol, Discovery, Neighbors, Knowledge & Outages Tested (`test_communication_*.py`, `test_coordination_*.py`) |
 | **FR-07** | Adaptive Path Planning | `backend/apps/core/routing/`, `sim_engine/planning/` | Phase 06, 15, 28 | `NOT STARTED` | Phase 06 & 15 Baseline & Adaptive Rerouting Tested (`test_routing_*.py`) |
 | **FR-08** | AI-Based Decision-Making | `backend/apps/core/decision/`, `backend/apps/core/routing/adapter.py` | Phase 19, 34 | `TESTED` | Phase 19 Pluggable Rule-Based AI Decision Policies Tested (`test_decision_*.py`: 43 tests passing) |

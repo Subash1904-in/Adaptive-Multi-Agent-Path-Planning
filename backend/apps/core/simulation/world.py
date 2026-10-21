@@ -684,9 +684,7 @@ class WorldState:
 
     def get_emergency_corridors(self) -> dict[str, EmergencyCorridor]:
         """Return active emergency corridors."""
-        return {
-            cid: c for cid, c in self.emergency_manager.corridors.items() if c.is_active
-        }
+        return {cid: c for cid, c in self.emergency_manager.corridors.items() if c.is_active}
 
     def get_emergency_requests(self) -> dict[str, PriorityRequest]:
         """Return active priority requests."""
@@ -744,9 +742,7 @@ class WorldState:
             for vid in self.emergency_manager.get_all_emergency_vehicles()
         }
         corridor_snaps = {
-            cid: c.to_dict()
-            for cid, c in self.emergency_manager.corridors.items()
-            if c.is_active
+            cid: c.to_dict() for cid, c in self.emergency_manager.corridors.items() if c.is_active
         }
         emergency_metrics_snap = (
             self.emergency_manager.metrics.to_dict()

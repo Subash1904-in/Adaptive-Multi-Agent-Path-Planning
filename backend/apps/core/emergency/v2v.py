@@ -73,9 +73,7 @@ class EmergencyMessagePayload:
         vid = data["vehicle_id"]
         etype = EmergencyType(data["emergency_type"])
         act = (
-            YieldActionType(data["recommended_action"])
-            if data.get("recommended_action")
-            else None
+            YieldActionType(data["recommended_action"]) if data.get("recommended_action") else None
         )
         return cls(
             operation=op,
@@ -309,6 +307,8 @@ def create_emergency_completed_message(
         ttl_s=ttl_s,
         sequence_number=sequence_number,
     )
+
+
 def create_yield_acknowledged_message(
     vehicle_id: str,
     emergency_vehicle_id: str,
@@ -367,6 +367,7 @@ def create_corridor_updated_message(
         ttl_s=ttl_s,
         sequence_number=sequence_number,
     )
+
 
 def ingest_emergency_message_into_awareness(
     packet: V2VMessagePacket,

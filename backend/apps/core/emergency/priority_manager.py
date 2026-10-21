@@ -608,13 +608,11 @@ class EmergencyPriorityManager:
             "reservations": [CorridorReservation(**r.__dict__) for r in self.reservations],
             "yield_requests": [YieldRequest(**y.__dict__) for y in self.yield_requests],
             "signal_overrides": {
-                k: SignalPriorityOverride(**v.__dict__)
-                for k, v in self.signal_overrides.items()
+                k: SignalPriorityOverride(**v.__dict__) for k, v in self.signal_overrides.items()
             },
             "local_awareness": {
                 vid: {
-                    em_id: EmergencyAwarenessRecord(**rec.__dict__)
-                    for em_id, rec in store.items()
+                    em_id: EmergencyAwarenessRecord(**rec.__dict__) for em_id, rec in store.items()
                 }
                 for vid, store in self.local_awareness.items()
             },

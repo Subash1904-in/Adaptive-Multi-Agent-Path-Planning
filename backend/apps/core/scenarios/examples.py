@@ -2148,7 +2148,3 @@ def create_ai_decision_emergency_corridor_rejection_scenario(
         max_ticks=max_ticks,
         seed=seed,
     )
-
-
-
-

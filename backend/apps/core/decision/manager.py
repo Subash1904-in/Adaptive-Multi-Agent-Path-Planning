@@ -92,9 +92,7 @@ class DecisionManager:
         if "metrics" in state:
             self.metrics.restore_state(state["metrics"])
         self._last_decisions = dict(state.get("last_decisions", {}))
-        self._decision_history = {
-            k: list(v) for k, v in state.get("decision_history", {}).items()
-        }
+        self._decision_history = {k: list(v) for k, v in state.get("decision_history", {}).items()}
         self._records = list(state.get("records", []))
 
     def reset(self) -> None:

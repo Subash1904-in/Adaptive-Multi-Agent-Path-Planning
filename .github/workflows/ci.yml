@@ -52,6 +52,7 @@ jobs:
             "docs/progress/PHASE_17.md"
             "docs/progress/PHASE_18.md"
             "docs/progress/PHASE_19.md"
+            "docs/progress/PHASE_20.md"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"
@@ -119,7 +120,7 @@ jobs:
         run: |
           python backend/manage.py check
 
-      - name: Run Full Automated Test Suite with Coverage (Phases 2-19)
+      - name: Run Full Automated Test Suite with Coverage (Phases 2-20)
         shell: bash
         run: |
           pytest --cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80

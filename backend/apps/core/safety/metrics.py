@@ -164,8 +164,6 @@ class SafetyMetrics:
                 else None
             ),
             "min_ttc_observed": (
-                round(self.min_ttc_observed, 4)
-                if self.min_ttc_observed is not None
-                else None
+                round(self.min_ttc_observed, 4) if self.min_ttc_observed is not None else None
             ),
         }

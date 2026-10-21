@@ -205,6 +205,7 @@ class TestPedestrianEngineIntegration:
 
     def test_deterministic_replay_produces_identical_results(self) -> None:
         """Running the same scenario twice from baseline produces identical step results."""
+
         def run_simulation(ticks: int = 5) -> list[tuple[float, float, str]]:
             world, cw, ped, agent = _build_test_world()
             engine = SimulationEngine(world=world)

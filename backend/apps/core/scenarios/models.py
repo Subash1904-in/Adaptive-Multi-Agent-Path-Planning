@@ -4,6 +4,7 @@ Defines immutable scenario configurations, road network source specifications,
 vehicle deployment parameters, and structured execution summary results.
 """
 
+import json
 import math
 from dataclasses import dataclass, field
 from enum import Enum
@@ -22,14 +23,44 @@ from apps.core.routing.models import AdaptiveRoutingConfig, CostMode, RoutingAlg
 from apps.core.safety.models import SafetyConfig
 from apps.core.signals.models import SignalCycleConfig
 from apps.core.simulation.models import TickResult, WorldSnapshot
+from apps.core.telemetry.exceptions import (
+    ExportSizeLimitExceededError,
+    InvalidExecutionLimitsError,
+)
+from apps.core.telemetry.models import TelemetryConfig, sanitize_for_json
+
+
+class RunLifecycleState(str, Enum):
+    """Explicit lifecycle states for a scenario execution run."""
+
+    CREATED = "CREATED"
+    VALIDATING = "VALIDATING"
+    READY = "READY"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+    FAILED = "FAILED"
+    LIMIT_REACHED = "LIMIT_REACHED"
+
+
+TERMINAL_LIFECYCLE_STATES = frozenset(
+    {
+        RunLifecycleState.COMPLETED,
+        RunLifecycleState.CANCELLED,
+        RunLifecycleState.FAILED,
+        RunLifecycleState.LIMIT_REACHED,
+    }
+)
 
 
 class TerminationReason(str, Enum):
     """Reason for scenario run termination."""
 
     MAX_TICKS_REACHED = "max_ticks_reached"
+    DURATION_LIMIT_REACHED = "duration_limit_reached"
     ALL_ARRIVED = "all_arrived"
     TARGET_TICKS_COMPLETED = "target_ticks_completed"
+    CANCELLED = "cancelled"
     PAUSED = "paused"
     STOPPED = "stopped"
     FAILED = "failed"
@@ -310,26 +341,76 @@ class ScenarioDefinition:
                 self.coordination_config.to_dict() if self.coordination_config else None
             ),
             "adaptive_routing_config": (
-                self.adaptive_routing_config.to_dict()
-                if self.adaptive_routing_config
-                else None
+                self.adaptive_routing_config.to_dict() if self.adaptive_routing_config else None
             ),
-            "safety_config": (
-                self.safety_config.to_dict()
-                if self.safety_config
-                else None
-            ),
+            "safety_config": (self.safety_config.to_dict() if self.safety_config else None),
             "emergency_config": (
-                self.emergency_config.to_dict()
-                if self.emergency_config
-                else None
+                self.emergency_config.to_dict() if self.emergency_config else None
             ),
-            "decision_config": (
-                self.decision_config.to_dict()
-                if self.decision_config
-                else None
-            ),
+            "decision_config": (self.decision_config.to_dict() if self.decision_config else None),
             "simulation_metadata": dict(self.simulation_metadata),
+        }
+
+
+@dataclass(frozen=True)
+class RunConfig:
+    """Configuration parameters governing scenario run execution limits and telemetry."""
+
+    run_id: Optional[str] = None
+    max_ticks: Optional[int] = None
+    max_duration_s: Optional[float] = None
+    stop_on_all_arrived: bool = True
+    time_step_s: Optional[float] = None
+    seed: Optional[int] = None
+    telemetry_config: Optional[TelemetryConfig] = None
+    max_export_bytes: int = 10_000_000
+
+    def __post_init__(self) -> None:
+        """Validate execution limits constraints."""
+        if self.max_ticks is not None and self.max_ticks <= 0:
+            raise InvalidExecutionLimitsError("max_ticks must be positive.", field="max_ticks")
+        if self.max_duration_s is not None and self.max_duration_s <= 0.0:
+            raise InvalidExecutionLimitsError(
+                "max_duration_s must be positive.", field="max_duration_s"
+            )
+        if self.time_step_s is not None and self.time_step_s <= 0.0:
+            raise InvalidExecutionLimitsError("time_step_s must be positive.", field="time_step_s")
+        if self.max_export_bytes <= 0:
+            raise InvalidExecutionLimitsError(
+                "max_export_bytes must be positive.", field="max_export_bytes"
+            )
+
+
+@dataclass(frozen=True)
+class RunMetadata:
+    """Reproducibility and provenance metadata for an executed simulation run."""
+
+    run_id: str
+    scenario_id: str
+    scenario_name: str
+    scenario_version: str
+    scenario_fingerprint: str
+    initial_world_state_fingerprint: str
+    final_world_state_fingerprint: Optional[str] = None
+    commit_sha: Optional[str] = None
+    start_simulation_time_s: float = 0.0
+    time_step_s: float = 0.1
+    seed: Optional[int] = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize run metadata to a JSON-compatible dictionary."""
+        return {
+            "run_id": self.run_id,
+            "scenario_id": self.scenario_id,
+            "scenario_name": self.scenario_name,
+            "scenario_version": self.scenario_version,
+            "scenario_fingerprint": self.scenario_fingerprint,
+            "initial_world_state_fingerprint": self.initial_world_state_fingerprint,
+            "final_world_state_fingerprint": self.final_world_state_fingerprint,
+            "commit_sha": self.commit_sha,
+            "start_simulation_time_s": round(self.start_simulation_time_s, 6),
+            "time_step_s": round(self.time_step_s, 6),
+            "seed": self.seed,
         }
 
 
@@ -356,17 +437,29 @@ class ScenarioExecutionResult:
     is_success: bool = True
     error_message: Optional[str] = None
     diagnostics: dict[str, Any] = field(default_factory=dict)
+    run_id: str = ""
+    lifecycle_state: RunLifecycleState = RunLifecycleState.COMPLETED
+    run_metadata: Optional[RunMetadata] = None
+    metrics_summary: Optional[dict[str, Any]] = None
+    telemetry_drop_stats: Optional[dict[str, Any]] = None
+    cancellation_reason: Optional[str] = None
+    telemetry_records: Optional[tuple[dict[str, Any], ...]] = None
+    is_partial: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize execution result to a JSON-compatible dictionary.
 
-        Excludes wall-clock timestamps from deterministic output comparisons.
+        Excludes non-deterministic wall-clock timestamps from output comparisons.
         """
-        return {
+        base = {
             "scenario_id": self.scenario_id,
             "scenario_name": self.scenario_name,
             "scenario_version": self.scenario_version,
-            "termination_reason": self.termination_reason.value,
+            "termination_reason": (
+                self.termination_reason.value
+                if hasattr(self.termination_reason, "value")
+                else str(self.termination_reason)
+            ),
             "initial_tick": self.initial_tick,
             "final_tick": self.final_tick,
             "completed_ticks": self.completed_ticks,
@@ -381,4 +474,58 @@ class ScenarioExecutionResult:
             "is_success": self.is_success,
             "error_message": self.error_message,
             "diagnostics": dict(self.diagnostics),
+            "run_id": self.run_id,
+            "lifecycle_state": (
+                self.lifecycle_state.value
+                if hasattr(self.lifecycle_state, "value")
+                else str(self.lifecycle_state)
+            ),
+            "run_metadata": self.run_metadata.to_dict() if self.run_metadata else None,
+            "metrics_summary": self.metrics_summary,
+            "telemetry_drop_stats": self.telemetry_drop_stats,
+            "cancellation_reason": self.cancellation_reason,
+            "is_partial": self.is_partial,
         }
+        if self.telemetry_records is not None:
+            base["telemetry_records"] = list(self.telemetry_records)
+        return base
+
+    def to_json(
+        self,
+        indent: Optional[int] = None,
+        max_size_bytes: int = 10_000_000,
+        max_telemetry_records: Optional[int] = None,
+    ) -> str:
+        """Serialize execution result to an RFC 8259 valid JSON string with size guardrails.
+
+        Args:
+            indent: Optional indentation for pretty-printing.
+            max_size_bytes: Maximum allowed payload byte size before raising
+                ExportSizeLimitExceededError.
+            max_telemetry_records: Optional cap on telemetry records included in export.
+
+        Returns:
+            Valid JSON string representation.
+
+        Raises:
+            ExportSizeLimitExceededError: If serialized bytes exceed max_size_bytes.
+        """
+        d = self.to_dict()
+        if (
+            max_telemetry_records is not None
+            and "telemetry_records" in d
+            and d["telemetry_records"]
+        ):
+            d["telemetry_records"] = d["telemetry_records"][:max_telemetry_records]
+        sanitized = sanitize_for_json(d)
+        serialized = json.dumps(sanitized, indent=indent, sort_keys=True, allow_nan=False)
+        encoded_bytes = len(serialized.encode("utf-8"))
+        if encoded_bytes > max_size_bytes:
+            raise ExportSizeLimitExceededError(
+                f"Export payload size ({encoded_bytes} bytes) exceeds limit "
+                f"({max_size_bytes} bytes).",
+                size_bytes=encoded_bytes,
+                max_bytes=max_size_bytes,
+                run_id=self.run_id,
+            )
+        return serialized

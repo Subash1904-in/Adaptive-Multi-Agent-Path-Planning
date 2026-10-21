@@ -305,12 +305,8 @@ class TestDynamicEdgeCostEvaluator:
         evaluator = DynamicEdgeCostEvaluator(road_graph=test_graph, knowledge_store=store)
 
         edge = test_graph.get_edge("e0")
-        c1 = evaluator.calculate_dynamic_edge_cost(
-            edge, CostMode.TRAVEL_TIME, current_time_s=10.0
-        )
-        c2 = evaluator.calculate_dynamic_edge_cost(
-            edge, CostMode.TRAVEL_TIME, current_time_s=10.0
-        )
+        c1 = evaluator.calculate_dynamic_edge_cost(edge, CostMode.TRAVEL_TIME, current_time_s=10.0)
+        c2 = evaluator.calculate_dynamic_edge_cost(edge, CostMode.TRAVEL_TIME, current_time_s=10.0)
 
         assert c1 == c2
         assert math.isfinite(c1)

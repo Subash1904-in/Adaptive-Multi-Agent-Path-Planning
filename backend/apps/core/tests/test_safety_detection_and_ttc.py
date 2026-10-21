@@ -116,13 +116,11 @@ class TestTTCEstimationAndRiskClassification:
 
         # 3. HIGH_RISK: TTC <= 3.0s
         assert (
-            classify_collision_risk(False, 5.0, 2.5, 10.0, config)
-            == CollisionRiskLevel.HIGH_RISK
+            classify_collision_risk(False, 5.0, 2.5, 10.0, config) == CollisionRiskLevel.HIGH_RISK
         )
         # or separation < 3.0m
         assert (
-            classify_collision_risk(False, 2.5, 4.0, 10.0, config)
-            == CollisionRiskLevel.HIGH_RISK
+            classify_collision_risk(False, 2.5, 4.0, 10.0, config) == CollisionRiskLevel.HIGH_RISK
         )
 
         # 4. CAUTION: TTC <= 5.0s
@@ -151,12 +149,18 @@ class TestCollisionDetector:
         detector = CollisionDetector()
         # V1 at x=0 moving East at 10 m/s. V2 at x=20 moving East at 2 m/s.
         v1 = Vehicle(
-            id="v1", position=Position2D(x=0.0, y=0.0), speed_mps=10.0,
-            max_speed_mps=20.0, heading_rad=0.0,
+            id="v1",
+            position=Position2D(x=0.0, y=0.0),
+            speed_mps=10.0,
+            max_speed_mps=20.0,
+            heading_rad=0.0,
         )
         v2 = Vehicle(
-            id="v2", position=Position2D(x=20.0, y=0.0), speed_mps=2.0,
-            max_speed_mps=20.0, heading_rad=0.0,
+            id="v2",
+            position=Position2D(x=20.0, y=0.0),
+            speed_mps=2.0,
+            max_speed_mps=20.0,
+            heading_rad=0.0,
         )
 
         pair_res = detector.evaluate_pair(v1, v2)
@@ -181,8 +185,11 @@ class TestCollisionDetector:
         graph.add_node(RoadNode(id="n1", position=Position2D(x=100.0, y=0.0)))
         graph.add_edge(
             RoadEdge(
-                id="e0", start_node_id="n0", end_node_id="n1",
-                length_m=100.0, speed_limit_mps=13.89,
+                id="e0",
+                start_node_id="n0",
+                end_node_id="n1",
+                length_m=100.0,
+                speed_limit_mps=13.89,
             )
         )
 

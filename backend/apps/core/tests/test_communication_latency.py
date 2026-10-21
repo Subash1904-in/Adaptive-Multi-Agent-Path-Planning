@@ -115,9 +115,7 @@ class TestZeroLatencyCompatibility:
 class TestMultiTickLatencyQueues:
     """Validate multi-tick transit delay scheduling and delivery boundary enforcement."""
 
-    def test_fixed_latency_multi_tick_delivery(
-        self, base_positions: dict[str, Position2D]
-    ) -> None:
+    def test_fixed_latency_multi_tick_delivery(self, base_positions: dict[str, Position2D]) -> None:
         """With latency=0.2s and step=0.1s, packet sent at t=1.0 is delivered at t=1.2."""
         cfg = CommunicationConfig(
             min_latency_s=0.2,
@@ -277,9 +275,7 @@ class TestLatencyRollbackAndReset:
         assert net.get_inbox("veh_b") == []
         assert "m_roll" not in net._received_message_ids["veh_b"]
 
-    def test_reset_clears_in_transit_packets(
-        self, base_positions: dict[str, Position2D]
-    ) -> None:
+    def test_reset_clears_in_transit_packets(self, base_positions: dict[str, Position2D]) -> None:
         cfg = CommunicationConfig(min_latency_s=0.5, max_latency_s=0.5)
         net = SimulatedCommunicationNetwork(config=cfg)
         net.register_participant("veh_a")

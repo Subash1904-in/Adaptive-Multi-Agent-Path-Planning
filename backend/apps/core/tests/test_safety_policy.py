@@ -35,8 +35,11 @@ def _make_agent(
     graph.add_node(RoadNode(id="n1", position=Position2D(x=200.0, y=0.0)))
     graph.add_edge(
         RoadEdge(
-            id="e0", start_node_id="n0", end_node_id="n1",
-            length_m=200.0, speed_limit_mps=20.0,
+            id="e0",
+            start_node_id="n0",
+            end_node_id="n1",
+            length_m=200.0,
+            speed_limit_mps=20.0,
         )
     )
 
@@ -349,4 +352,3 @@ class TestSafetyModelsAndConfigs:
 
         mgr = SafetyManager(config=SafetyConfig(enabled=False))
         assert mgr.evaluate_and_stage([], 0.0) == ({}, [], [])
-

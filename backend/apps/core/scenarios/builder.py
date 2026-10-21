@@ -380,4 +380,3 @@ class ScenarioBuilder:
                     scenario_id=self.scenario.metadata.id,
                     cause=exc,
                 ) from exc
-

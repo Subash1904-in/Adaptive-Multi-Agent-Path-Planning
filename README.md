@@ -657,7 +657,39 @@ The platform includes an individual vehicle kinematics and route-following coord
   ```
 > *Educational Simulation Disclaimer:* This software is designed solely for educational and academic research into multi-agent path planning. It is not designed or certified for real-world vehicular control.
 
-### 6.22 Troubleshooting
+### 6.22 Backend Integration Expansion, Scenario Runner Enhancements, and Advanced Telemetry Streams (Phase 20)
+- **Module:** `backend/apps/core/scenarios/` & `backend/apps/core/telemetry/`
+- **Key Classes:** `ScenarioRunner`, `RunLifecycleState`, `RunConfig`, `RunMetadata`, `TelemetryCollector`, `TelemetryRecord`, `TelemetryRecordType`, `TelemetryConfig`, `TelemetryDropStats`, `MetricsAggregator`, `RunMetricsSummary`.
+- **Capabilities:** Explicit 8-state scenario execution lifecycle (`CREATED` -> `VALIDATING` -> `READY` -> `RUNNING` -> `COMPLETED`/`CANCELLED`/`FAILED`/`LIMIT_REACHED`); cooperative idempotent cancellation between ticks; configurable execution limits (`max_ticks`, `max_duration_s`, `stop_on_all_arrived`); deterministic reproducibility via canonical SHA-256 fingerprints for scenario definition, initial world state, and final world state; active Git commit SHA discovery; bounded in-memory telemetry stream with 14 event categories and zero-drop critical event retention; unified cross-subsystem metrics aggregator; RFC 8259 JSON result export with safe non-finite float sanitization and payload size limits.
+- **Python API Usage Example:**
+  ```python
+  from apps.core.scenarios.examples import create_single_vehicle_scenario
+  from apps.core.scenarios.models import RunConfig
+  from apps.core.scenarios.runner import ScenarioRunner
+
+  # 1. Create a validated scenario definition and execution runner
+  scenario = create_single_vehicle_scenario(max_ticks=20, time_step_s=0.1)
+  runner = ScenarioRunner.create(
+      scenario=scenario,
+      run_config=RunConfig(max_ticks=20, stop_on_all_arrived=True),
+  )
+
+  # 2. Run simulation to completion
+  result = runner.run_to_completion()
+  print(f"Lifecycle State: {result.lifecycle_state.value}")  # 'completed' or 'limit_reached'
+  print(f"Completed Ticks: {result.completed_ticks}")
+
+  # 3. Access reproducibility metadata and aggregated metrics
+  print(f"Scenario Fingerprint: {result.run_metadata.scenario_fingerprint[:12]}...")
+  print(f"Total Distance: {result.metrics_summary['kinematics']['total_distance_traveled_m']} m")
+
+  # 4. Export result to RFC 8259 JSON
+  json_output = runner.export_result(indent=2)
+  print(f"Export Size: {len(json_output)} bytes")
+  ```
+> *Educational Simulation Disclaimer:* This software is designed solely for educational and academic research into multi-agent path planning. It is not designed or certified for real-world vehicular control.
+
+### 6.23 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -689,7 +721,9 @@ The platform includes an individual vehicle kinematics and route-following coord
 - [docs/progress/PHASE_17.md](docs/progress/PHASE_17.md): Phase 17 pedestrian agents, crosswalks, and traffic signals report.
 - [docs/progress/PHASE_18.md](docs/progress/PHASE_18.md): Phase 18 emergency vehicle priority, yielding policies, and dynamic corridors report.
 - [docs/progress/PHASE_19.md](docs/progress/PHASE_19.md): Phase 19 pluggable AI decision policies for autonomous vehicle agents report.
+- [docs/progress/PHASE_20.md](docs/progress/PHASE_20.md): Phase 20 backend integration expansion, scenario runner enhancements, and telemetry streams report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.
+
 

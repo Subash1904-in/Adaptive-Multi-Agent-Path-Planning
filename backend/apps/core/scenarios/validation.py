@@ -212,9 +212,7 @@ def validate_scenario(
         )
 
     # 8.5. Safety configuration validation
-    if scenario.safety_config is not None and not isinstance(
-        scenario.safety_config, SafetyConfig
-    ):
+    if scenario.safety_config is not None and not isinstance(scenario.safety_config, SafetyConfig):
         raise ScenarioValidationError(
             "safety_config must be an instance of SafetyConfig.",
             field="safety_config",
@@ -462,4 +460,3 @@ def validate_graph_compatibility(scenario: ScenarioDefinition, graph: RoadGraph)
                     "destination_node_id": ev.destination_node_id,
                 },
             )
-

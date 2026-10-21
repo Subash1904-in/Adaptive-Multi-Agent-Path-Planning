@@ -167,9 +167,7 @@ class RerouteDecision:
             "vehicle_id": self.vehicle_id,
             "timestamp_s": round(self.timestamp_s, 4),
             "current_cost": (
-                round(self.current_cost, 4)
-                if math.isfinite(self.current_cost)
-                else "Infinity"
+                round(self.current_cost, 4) if math.isfinite(self.current_cost) else "Infinity"
             ),
             "candidate_cost": (
                 round(self.candidate_cost, 4)
@@ -313,11 +311,7 @@ class AdaptiveRoutingConfig:
             if not isinstance(algorithm, RoutingAlgorithm)
             else algorithm
         )
-        self.cost_mode = (
-            CostMode(cost_mode)
-            if not isinstance(cost_mode, CostMode)
-            else cost_mode
-        )
+        self.cost_mode = CostMode(cost_mode) if not isinstance(cost_mode, CostMode) else cost_mode
 
         self.__post_init__()
 

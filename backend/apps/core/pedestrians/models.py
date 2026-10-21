@@ -120,9 +120,7 @@ class PedestrianStepResult:
 
 
 # Legal state transition rules
-LEGAL_PEDESTRIAN_TRANSITIONS: dict[
-    PedestrianLifecycleState, set[PedestrianLifecycleState]
-] = {
+LEGAL_PEDESTRIAN_TRANSITIONS: dict[PedestrianLifecycleState, set[PedestrianLifecycleState]] = {
     PedestrianLifecycleState.IDLE: {
         PedestrianLifecycleState.APPROACHING_CROSSWALK,
         PedestrianLifecycleState.WAITING_TO_CROSS,

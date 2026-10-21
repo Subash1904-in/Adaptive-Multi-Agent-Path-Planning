@@ -93,16 +93,8 @@ class WorldSnapshot:
             if hasattr(self.coordination, "to_dict")
             else self.coordination
         )
-        routing_dict = (
-            self.routing.to_dict()
-            if hasattr(self.routing, "to_dict")
-            else self.routing
-        )
-        safety_dict = (
-            self.safety.to_dict()
-            if hasattr(self.safety, "to_dict")
-            else self.safety
-        )
+        routing_dict = self.routing.to_dict() if hasattr(self.routing, "to_dict") else self.routing
+        safety_dict = self.safety.to_dict() if hasattr(self.safety, "to_dict") else self.safety
         return {
             "tick": self.tick,
             "elapsed_time_s": self.elapsed_time_s,
@@ -131,15 +123,9 @@ class WorldSnapshot:
             ),
             "emergency": dict(self.emergency),
             "corridors": dict(self.corridors),
-            "emergency_metrics": (
-                dict(self.emergency_metrics) if self.emergency_metrics else None
-            ),
-            "decision_metrics": (
-                dict(self.decision_metrics) if self.decision_metrics else None
-            ),
-            "decision_records": (
-                list(self.decision_records) if self.decision_records else None
-            ),
+            "emergency_metrics": (dict(self.emergency_metrics) if self.emergency_metrics else None),
+            "decision_metrics": (dict(self.decision_metrics) if self.decision_metrics else None),
+            "decision_records": (list(self.decision_records) if self.decision_records else None),
             "metadata": dict(self.metadata),
         }
 
@@ -189,18 +175,10 @@ class TickResult:
             "coordination_metrics": (
                 dict(self.coordination_metrics) if self.coordination_metrics else None
             ),
-            "routing_metrics": (
-                dict(self.routing_metrics) if self.routing_metrics else None
-            ),
-            "routing_decisions": (
-                list(self.routing_decisions) if self.routing_decisions else None
-            ),
-            "safety_metrics": (
-                dict(self.safety_metrics) if self.safety_metrics else None
-            ),
-            "safety_events": (
-                list(self.safety_events) if self.safety_events else None
-            ),
+            "routing_metrics": (dict(self.routing_metrics) if self.routing_metrics else None),
+            "routing_decisions": (list(self.routing_decisions) if self.routing_decisions else None),
+            "safety_metrics": (dict(self.safety_metrics) if self.safety_metrics else None),
+            "safety_events": (list(self.safety_events) if self.safety_events else None),
             "pedestrian_step_results": {
                 pid: res.to_dict() if hasattr(res, "to_dict") else res
                 for pid, res in self.pedestrian_step_results.items()
@@ -208,24 +186,12 @@ class TickResult:
             "pedestrian_metrics": (
                 dict(self.pedestrian_metrics) if self.pedestrian_metrics else None
             ),
-            "emergency_metrics": (
-                dict(self.emergency_metrics) if self.emergency_metrics else None
-            ),
-            "emergency_events": (
-                list(self.emergency_events) if self.emergency_events else None
-            ),
-            "corridors": (
-                dict(self.corridors) if self.corridors else None
-            ),
-            "yield_decisions": (
-                dict(self.yield_decisions) if self.yield_decisions else None
-            ),
-            "decision_metrics": (
-                dict(self.decision_metrics) if self.decision_metrics else None
-            ),
-            "decision_records": (
-                list(self.decision_records) if self.decision_records else None
-            ),
+            "emergency_metrics": (dict(self.emergency_metrics) if self.emergency_metrics else None),
+            "emergency_events": (list(self.emergency_events) if self.emergency_events else None),
+            "corridors": (dict(self.corridors) if self.corridors else None),
+            "yield_decisions": (dict(self.yield_decisions) if self.yield_decisions else None),
+            "decision_metrics": (dict(self.decision_metrics) if self.decision_metrics else None),
+            "decision_records": (list(self.decision_records) if self.decision_records else None),
             "arrived_agent_ids": list(self.arrived_agent_ids),
             "active_agent_ids": list(self.active_agent_ids),
         }

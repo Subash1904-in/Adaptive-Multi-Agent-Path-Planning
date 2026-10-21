@@ -187,9 +187,8 @@ class DynamicRouteAdapter:
             return dec
 
         # Determine connection node and pro-rated cost of current edge
-        at_origin = (
-            agent.is_idle
-            or (agent.current_edge_index == 0 and agent.distance_along_segment_m < 1e-6)
+        at_origin = agent.is_idle or (
+            agent.current_edge_index == 0 and agent.distance_along_segment_m < 1e-6
         )
         if at_origin:
             resume_node_id = agent._segments[0].start_node_id
@@ -349,9 +348,7 @@ class DynamicRouteAdapter:
             ):
                 accept = True
                 benefit = (
-                    current_cost - candidate_cost
-                    if math.isfinite(current_cost)
-                    else float("inf")
+                    current_cost - candidate_cost if math.isfinite(current_cost) else float("inf")
                 )
                 req_benefit = 0.0
             else:
@@ -365,9 +362,7 @@ class DynamicRouteAdapter:
                         current_cost=current_cost,
                         candidate_cost=candidate_cost,
                         cost_improvement=(
-                            current_cost - candidate_cost
-                            if math.isfinite(current_cost)
-                            else None
+                            current_cost - candidate_cost if math.isfinite(current_cost) else None
                         ),
                         old_route_id=agent.route.id,
                         reason=f"Policy rejected route: {dec_result.reason}",
@@ -383,9 +378,7 @@ class DynamicRouteAdapter:
                         current_cost=current_cost,
                         candidate_cost=candidate_cost,
                         cost_improvement=(
-                            current_cost - candidate_cost
-                            if math.isfinite(current_cost)
-                            else None
+                            current_cost - candidate_cost if math.isfinite(current_cost) else None
                         ),
                         old_route_id=agent.route.id,
                         reason=f"Policy deferred route change: {dec_result.reason}",

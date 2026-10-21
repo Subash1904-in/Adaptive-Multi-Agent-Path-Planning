@@ -209,7 +209,9 @@ class TestCorridorReservationsAndConflictResolution:
         """FCFS policy blocks competing requests regardless of priority."""
         planner = EmergencyCorridorPlanner(
             grid_graph,
-            config=EmergencyConfig(conflict_policy=ReservationConflictPolicy.FIRST_COME_FIRST_SERVED),
+            config=EmergencyConfig(
+                conflict_policy=ReservationConflictPolicy.FIRST_COME_FIRST_SERVED
+            ),
         )
 
         req_amb = PriorityRequest(

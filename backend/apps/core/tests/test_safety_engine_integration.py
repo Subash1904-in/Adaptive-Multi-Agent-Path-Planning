@@ -34,12 +34,18 @@ def _build_test_corridor(length_m: float = 200.0) -> tuple[RoadGraph, Route, Rou
     graph.add_node(n1)
 
     e_fwd = RoadEdge(
-        id="e_fwd", start_node_id="node_0", end_node_id="node_1",
-        length_m=length_m, speed_limit_mps=20.0,
+        id="e_fwd",
+        start_node_id="node_0",
+        end_node_id="node_1",
+        length_m=length_m,
+        speed_limit_mps=20.0,
     )
     e_rev = RoadEdge(
-        id="e_rev", start_node_id="node_1", end_node_id="node_0",
-        length_m=length_m, speed_limit_mps=20.0,
+        id="e_rev",
+        start_node_id="node_1",
+        end_node_id="node_0",
+        length_m=length_m,
+        speed_limit_mps=20.0,
     )
     graph.add_edge(e_fwd)
     graph.add_edge(e_rev)
@@ -69,20 +75,30 @@ class TestSafetyEngineSteppingIntegration:
         world = WorldState(road_graph=graph, safety_config=safety_cfg)
 
         v1 = Vehicle(
-            id="v1", position=Position2D(x=0.0, y=0.0), speed_mps=10.0,
-            max_speed_mps=20.0, heading_rad=0.0,
+            id="v1",
+            position=Position2D(x=0.0, y=0.0),
+            speed_mps=10.0,
+            max_speed_mps=20.0,
+            heading_rad=0.0,
         )
         v2 = Vehicle(
-            id="v2", position=Position2D(x=12.0, y=0.0), speed_mps=10.0,
-            max_speed_mps=20.0, heading_rad=math.pi,
+            id="v2",
+            position=Position2D(x=12.0, y=0.0),
+            speed_mps=10.0,
+            max_speed_mps=20.0,
+            heading_rad=math.pi,
         )
 
         ag1 = VehicleAgent(
-            v1, graph, route=r_fwd,
+            v1,
+            graph,
+            route=r_fwd,
             config=KinematicsConfig(max_speed_mps=20.0, max_deceleration_mps2=8.0),
         )
         ag2 = VehicleAgent(
-            v2, graph, route=r_rev,
+            v2,
+            graph,
+            route=r_rev,
             config=KinematicsConfig(max_speed_mps=20.0, max_deceleration_mps2=8.0),
         )
         ag1.start()
@@ -111,12 +127,18 @@ class TestSafetyEngineSteppingIntegration:
         graph.add_node(RoadNode(id="n2", position=Position2D(x=0.0, y=50.0)))
         graph.add_node(RoadNode(id="n3", position=Position2D(x=100.0, y=50.0)))
         e1 = RoadEdge(
-            id="e1", start_node_id="n0", end_node_id="n1",
-            length_m=100.0, speed_limit_mps=20.0,
+            id="e1",
+            start_node_id="n0",
+            end_node_id="n1",
+            length_m=100.0,
+            speed_limit_mps=20.0,
         )
         e2 = RoadEdge(
-            id="e2", start_node_id="n2", end_node_id="n3",
-            length_m=100.0, speed_limit_mps=20.0,
+            id="e2",
+            start_node_id="n2",
+            end_node_id="n3",
+            length_m=100.0,
+            speed_limit_mps=20.0,
         )
         graph.add_edge(e1)
         graph.add_edge(e2)
@@ -128,12 +150,18 @@ class TestSafetyEngineSteppingIntegration:
         world = WorldState(road_graph=graph, safety_config=safety_cfg)
 
         v1 = Vehicle(
-            id="v1", position=Position2D(x=0.0, y=0.0), speed_mps=5.0,
-            max_speed_mps=20.0, heading_rad=0.0,
+            id="v1",
+            position=Position2D(x=0.0, y=0.0),
+            speed_mps=5.0,
+            max_speed_mps=20.0,
+            heading_rad=0.0,
         )
         v2 = Vehicle(
-            id="v2", position=Position2D(x=0.0, y=50.0), speed_mps=5.0,
-            max_speed_mps=20.0, heading_rad=0.0,
+            id="v2",
+            position=Position2D(x=0.0, y=50.0),
+            speed_mps=5.0,
+            max_speed_mps=20.0,
+            heading_rad=0.0,
         )
 
         ag1 = VehicleAgent(v1, graph, route=r1, config=KinematicsConfig(max_speed_mps=20.0))
@@ -160,12 +188,18 @@ class TestSafetyEngineAtomicRollback:
         world = WorldState(road_graph=graph, safety_config=safety_cfg)
 
         v1 = Vehicle(
-            id="v1", position=Position2D(x=10.0, y=0.0), speed_mps=10.0,
-            max_speed_mps=20.0, heading_rad=0.0,
+            id="v1",
+            position=Position2D(x=10.0, y=0.0),
+            speed_mps=10.0,
+            max_speed_mps=20.0,
+            heading_rad=0.0,
         )
         v2 = Vehicle(
-            id="v2", position=Position2D(x=20.0, y=0.0), speed_mps=10.0,
-            max_speed_mps=20.0, heading_rad=math.pi,
+            id="v2",
+            position=Position2D(x=20.0, y=0.0),
+            speed_mps=10.0,
+            max_speed_mps=20.0,
+            heading_rad=math.pi,
         )
 
         ag1 = VehicleAgent(v1, graph, route=r_fwd)

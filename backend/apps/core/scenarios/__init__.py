@@ -39,8 +39,12 @@ from apps.core.scenarios.exceptions import (
     UnreachableDestinationError,
 )
 from apps.core.scenarios.models import (
+    TERMINAL_LIFECYCLE_STATES,
     RoadNetworkDefinition,
     RoadNetworkSourceType,
+    RunConfig,
+    RunLifecycleState,
+    RunMetadata,
     ScenarioDefinition,
     ScenarioExecutionResult,
     ScenarioMetadata,
@@ -84,6 +88,10 @@ __all__ = [
     "RoadNetworkSourceType",
     "ScenarioExecutionResult",
     "TerminationReason",
+    "RunConfig",
+    "RunLifecycleState",
+    "TERMINAL_LIFECYCLE_STATES",
+    "RunMetadata",
     # Exceptions
     "ScenarioError",
     "ScenarioValidationError",

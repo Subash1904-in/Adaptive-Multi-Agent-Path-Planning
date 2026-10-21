@@ -421,9 +421,7 @@ class TestAdaptiveRoutingPolicy:
         evaluator_expired = adapter.get_evaluator(store)
         assert not evaluator_expired.is_edge_closed("e_bot1", current_time_s=6.0)
 
-    def test_step_processes_agents_in_deterministic_order(
-        self, diamond_graph: RoadGraph
-    ) -> None:
+    def test_step_processes_agents_in_deterministic_order(self, diamond_graph: RoadGraph) -> None:
         """DynamicRouteAdapter.step processes agents in sorted vehicle ID order."""
         v_b = Vehicle(id="veh_b", position=Position2D(x=0.0, y=50.0), target_node_id="n_dest")
         v_a = Vehicle(id="veh_a", position=Position2D(x=0.0, y=50.0), target_node_id="n_dest")

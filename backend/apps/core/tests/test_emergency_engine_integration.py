@@ -278,6 +278,5 @@ class TestEmergencyEngineStepping:
         assert len(world.emergency_manager.get_active_reservations()) == 0
         assert world.emergency_manager.get_active_corridor("amb_01") is None
         assert (
-            world.emergency_manager.get_vehicle_state("amb_01")
-            == EmergencyLifecycleState.INACTIVE
+            world.emergency_manager.get_vehicle_state("amb_01") == EmergencyLifecycleState.INACTIVE
         )

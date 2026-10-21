@@ -63,7 +63,8 @@ class PedestrianAgent:
         """
         effective_position = position if position is not None else initial_position
         effective_destination = (
-            destination if destination is not None
+            destination
+            if destination is not None
             else (destination_point if destination_point is not None else target_position)
         )
         effective_crosswalk_id = (
@@ -124,9 +125,7 @@ class PedestrianAgent:
         self.crosswalk_id: Optional[str] = (
             effective_crosswalk_id or self.pedestrian.crossing_node_id
         )
-        self.target_position: Optional[Position2D] = (
-            self.pedestrian.target_position
-        )
+        self.target_position: Optional[Position2D] = self.pedestrian.target_position
         self.state: PedestrianLifecycleState = effective_state
         self.heading_rad: float = effective_heading
         self.waiting_time_s: float = 0.0
@@ -251,11 +250,15 @@ class PedestrianAgent:
                     self.set_state(PedestrianLifecycleState.ARRIVED)
 
         # 2. Kinematic Movement Integration for Active States
-        is_moving = self.state in (
-            PedestrianLifecycleState.APPROACHING_CROSSWALK,
-            PedestrianLifecycleState.CROSSING,
-            PedestrianLifecycleState.WALKING,
-        ) and not safety_stop
+        is_moving = (
+            self.state
+            in (
+                PedestrianLifecycleState.APPROACHING_CROSSWALK,
+                PedestrianLifecycleState.CROSSING,
+                PedestrianLifecycleState.WALKING,
+            )
+            and not safety_stop
+        )
 
         if is_moving:
             # Determine active navigation target

@@ -59,9 +59,7 @@ class RuleBasedDecisionPolicy:
         6. Return typed DecisionResult with explicit rationale.
         """
         start_time_ns = time.perf_counter_ns()
-        dec_id = (
-            f"dec_{context.agent_id}_{int(context.current_time_s * 1000):d}_{len(candidates)}"
-        )
+        dec_id = f"dec_{context.agent_id}_{int(context.current_time_s * 1000):d}_{len(candidates)}"
 
         if not candidates:
             return DecisionResult(
