@@ -69,6 +69,7 @@ lerna-debug.log*
 .pnpm-debug.log*
 frontend/dist/
 frontend/build/
+*.tsbuildinfo
 .next/
 out/
 

@@ -55,6 +55,7 @@ jobs:
             "docs/progress/PHASE_20.md"
             "docs/progress/PHASE_21.md"
             "docs/progress/PHASE_22.md"
+            "docs/progress/PHASE_23.md"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"
@@ -129,7 +130,7 @@ jobs:
 
 
   frontend-quality:
-    name: Frontend Lint, Typecheck & Build
+    name: Frontend Lint, Typecheck, Test & Production Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -139,19 +140,27 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22.x"
+          cache: "npm"
+          cache-dependency-path: "frontend/package-lock.json"
 
-      - name: Inspect Frontend & Validate
-        shell: bash
-        run: |
-          echo "Node version: $(node --version)"
-          echo "npm version: $(npm --version)"
-          if [ -f "frontend/package.json" ]; then
-            cd frontend
-            npm ci
-            npm run lint
-            npm run typecheck
-            npm run build
-          else
-            echo "Phase 22 verified: Live Simulation & Telemetry WebSocket Streaming active; frontend/package.json not yet declared. Node 22.x environment verified."
-          fi
+      - name: Install Frontend Dependencies (Reproducible npm ci)
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run Frontend Linting (ESLint)
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Run TypeScript Strict Typecheck
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Run Frontend Unit Tests (Vitest)
+        working-directory: frontend
+        run: npm test
+
+      - name: Run Production Bundle Build (Vite)
+        working-directory: frontend
+        run: npm run build
+
 

@@ -69,9 +69,9 @@ flowchart TB
 - **Adaptive Rerouting & Dynamic Route Adjustment (`backend/apps/core/routing/`):** **IMPLEMENTED & TESTED** in Phase 15 (`DynamicEdgeCostEvaluator`, `DynamicRouteAdapter`, `AdaptiveRoutingConfig`, `AdaptiveRoutingMetrics`, safe route suffix replacement, hysteresis & cooldown, engine integration & rollback, 760 tests passing).
 - **Simulation Execution Lifecycle, Telemetry & Export (`backend/apps/core/scenarios/`, `telemetry/`):** **IMPLEMENTED & TESTED** in Phase 20 (8-state FSM, cooperative cancellation, SHA-256 fingerprints, bounded telemetry stream, metrics aggregator, RFC 8259 JSON export, 1,007 tests passing).
 - **Django REST API Layer (`backend/apps/core/api/`):** **IMPLEMENTED & TESTED** in Phase 21 (REST endpoints under `/api/v1/`: scenario CRUD/validation, run lifecycle, discrete stepping, cancellation, telemetry, metrics, export, custom exception taxonomy, 1,053 tests passing).
-- **Transport Streaming (WebSockets via Django Channels):** **PLANNED** (Phase 22).
+- **Transport Streaming (WebSockets via Django Channels):** **IMPLEMENTED & TESTED** in Phase 22 (WebSocket endpoint `/ws/v1/runs/{run_id}/`, Channels 4 + Daphne ASGI, 21 event types, bounded backpressure, replay, 1,095 tests passing).
+- **Frontend Dashboard & 3D Simulation Viewer (`frontend/`):** **IMPLEMENTED & TESTED** in Phase 23 (React 18, TypeScript, Three.js 3D viewport, REST API & WebSocket clients, metrics panel, event feed, 35 frontend tests passing).
 - **Reinforcement Learning (`rl_engine/*`):** **PLANNED** (Phases 32–34).
-- **Frontend Dashboard (`frontend/*`):** **PLANNED** (Phases 23–30).
 
 ---
 
@@ -1295,6 +1295,47 @@ All server-to-client messages follow a versioned JSON envelope:
 ### 18.8 Process-Local Limitations & Scalability
 - **In-Memory Channel Layer**: By default, AMAPP uses `channels.layers.InMemoryChannelLayer`. In this configuration, WebSocket connections and simulation runs must reside within the same server process.
 - **Horizontal Scaling Path**: Multi-process or clustered production environments require configuring Redis as the backing store via `channels_redis` and moving the in-memory run registry to a centralized execution worker model.
+
+---
+
+## 19. Frontend Architecture & Interactive 3D Simulation Viewer (`frontend/`)
+
+Phase 23 establishes the official frontend architecture and interactive 3D simulation visualization system for the AMAPP platform.
+
+### 19.1 Frontend Technology Stack
+- **Framework**: React 18 (`react`, `react-dom`) with TypeScript 5.6 in strict mode (`tsc --noEmit`).
+- **3D Graphics Engine**: Three.js (`three` v0.170.0) with standard `OrbitControls` for orbital navigation, zooming, and panning.
+- **Build & Development Tooling**: Vite 5.4 providing fast ESM Hot Module Replacement (HMR) and optimized Rollup production bundling.
+- **Test Runner & Environment**: Vitest 2.1 paired with `jsdom` and `@testing-library/react` for accessible component behavior testing.
+- **Linting & Code Standards**: ESLint 9 using modern flat configuration (`eslint.config.js`) enforcing TypeScript rules and React Hooks invariants.
+
+### 19.2 Coordinate Conventions & Transformations
+Simulation world coordinates use a 2D planar metric coordinate system where $+X$ represents East and $+Y$ represents North. Three.js defines $+Y$ as Up and the ground plane on $X-Z$.
+The coordinate mapping function `simToWorldCoordinates(simX, simY, elevation = 0)` in `frontend/src/features/scene3d/geometry.ts` maps:
+- $\text{Three.js } X = \text{sim } x$ (East/West)
+- $\text{Three.js } Y = \text{elevation}$ (meters above ground level)
+- $\text{Three.js } Z = -\text{sim } y$ (North/South inverted for standard forward-facing screen space)
+All inputs are validated for finiteness (`Number.isFinite`), safely falling back to origin if missing or non-numeric.
+
+### 19.3 3D Simulation Viewport Architecture (`SimulationViewer3D.tsx`)
+- **Road Network**: Evaluates scenario geometry or generates synthetic grid geometry identical to backend `generate_city_grid`. Renders asphalt surfaces, intersection pads, and directional road-edge lines.
+- **Traffic Signals**: Visualizes intersection signal poles with illuminated phase sphere meshes dynamically reflecting `RED`, `YELLOW`, or `GREEN` states from live backend telemetry.
+- **Crosswalks & Pedestrians**: Renders crosswalk corridor bands across roadways and dynamic pedestrian spheres updated from `pedestrian.state` events.
+- **Vehicles**: Renders low-poly vehicle box meshes oriented by `heading_rad`. Distinguishes emergency vehicles with bright red/amber coloring and flashing siren spheres.
+- **Routes**: Renders active planned paths as elevated cyan polylines above the roadway.
+- **Interaction**: Raycasting selection allows users to click any vehicle or pedestrian to inspect its kinematic properties and active route in the `EntityInspector`. Includes a Reset Camera button and scene legend overlay.
+
+### 19.4 Network Clients & Data Ingestion
+- **REST API Client (`SimulationApiClient`)**: Typed client connecting to `/api/v1/` endpoints for scenario discovery, validation, run initialization, discrete stepping (`/step/`), cancellation (`/cancel/`), metrics, and telemetry query. Handles RFC 7807 problem details and request cancellation.
+- **WebSocket Streaming Client (`SimulationWebSocketClient`)**: Typed streaming client connecting to `/ws/v1/runs/{run_id}/`. Automatically subscribes on open, auto-replies to server keepalive `heartbeat` messages, handles `telemetry.gap` events, and applies bounded exponential backoff on transient disconnection with a 5-second stability reset window. Non-recoverable close codes (`4404 Run Not Found`, `4401 Unauthorized`) halt reconnection immediately.
+
+### 19.5 Dashboard Layout & State Management
+- **`Header`**: Displays application identity, research disclaimer, active run badge, live connection status pill, and reconnect action button.
+- **`ScenarioSelector`**: Allows discovery of available scenarios, configurable run initialization (ticks cap), and execution stepping (+1, +10, Run to End, Cancel).
+- **`MetricsPanel`**: Displays cross-subsystem metrics across kinematics (distance, speed), V2V communication (PDR, messages sent), safety (collisions, near misses), and routing.
+- **`TelemetryFeed`**: Bounded, scrollable live event feed displaying sequence numbers, tick timestamps, event category tags, payload summaries, and prominent gap alerts.
+- **`EntityInspector`**: Contextual inspection card for selected vehicle or pedestrian displaying velocity, heading angle, coordinates, and active route node chain.
+
 
 
 

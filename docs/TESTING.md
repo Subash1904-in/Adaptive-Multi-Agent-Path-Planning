@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles (AMAPP)  
 **Testing Frameworks:** `pytest`, `pytest-cov`, `pytest-django`, `pytest-asyncio`  
-**Current Status:** Active Test Strategy Enforced (Phase 22 — 1,095 Tests Passing, 95.66% Coverage)
+**Current Status:** Active Test Strategy Enforced (Phase 23 — 1,095 Backend Tests Passing at 95.66% Coverage; 35 Frontend Tests Passing)
 
 ---
 
@@ -425,12 +425,39 @@ python backend/manage.py check
 
 ---
 
+### 4.3 Frontend Test Suites & Commands (Phase 23)
+The frontend application includes 4 comprehensive Vitest test suites executing in headless `jsdom`:
+
+```bash
+# Run all frontend tests
+cd frontend
+npm test
+
+# Run strict TypeScript compiler verification
+npm run typecheck
+
+# Run ESLint linting
+npm run lint
+
+# Run production bundle build
+npm run build
+```
+
+#### Frontend Test Breakdown:
+- **`src/test/api-client.test.ts` (8 passed):** Tests base URL construction, trailing slash normalization, scenario listing, scenario detail, run creation, RFC 7807 problem details handling, invalid JSON defense, and network error handling.
+- **`src/test/websocket-client.test.ts` (8 passed):** Tests initial handshake, automatic subscription command dispatch, Schema 1.0.0 envelope parsing, malformed JSON/binary frame resilience, server heartbeat ping/pong reply, non-recoverable 4404 close halting, bounded exponential backoff with stable connection window, and cleanup on disconnect.
+- **`src/test/geometry.test.ts` (9 passed):** Tests planar-to-Three.js coordinate transforms (`simToWorldCoordinates`), non-finite coordinate safety, synthetic grid geometry generation (nodes, bidirectional edges), scenario geometry extraction, and network bounding box computation.
+- **`src/test/components.test.tsx` (10 passed):** Tests Header branding and connection badge, scenario selection and run creation, run stats rendering and stepping (+1, +10, Run to End, Cancel), TelemetryFeed stream and gap alert banner, MetricsPanel grid rendering, and EntityInspector vehicle details.
+
+---
+
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
-- **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 22: **95.66%** coverage across 1,095 passing tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_22.md`), and scans for leaked secrets or prohibited binary artifacts.
-- **Frontend Deferred Cleanly:** Frontend build/lint/typecheck job runs in Node 22.x, deferring execution cleanly until `frontend/package.json` is introduced.
+- **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`, `node`, `npm`).
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 23: **95.66%** coverage across 1,095 passing backend tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_23.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Frontend CI Gate:** `frontend-quality` executes `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` inside `frontend/`. No skipping or conditional deferral.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.
+
 

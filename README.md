@@ -745,6 +745,50 @@ The platform includes an individual vehicle kinematics and route-following coord
   ```
 > *Educational Simulation Disclaimer:* This software is designed solely for educational and academic research into multi-agent path planning. It is not designed or certified for real-world vehicular control.
 
+### 6.24 Frontend Dashboard & Interactive 3D Simulation Viewer (Phase 23)
+The platform includes an industrial-grade simulation workstation frontend built with React 18, TypeScript, Three.js, and Vite:
+
+#### Prerequisites
+- Node.js 22.x LTS (or 20.x LTS)
+- npm 10.x
+
+#### Environment Configuration
+In the `frontend/` directory, copy the example environment file:
+```bash
+cd frontend
+cp .env.example .env
+```
+Default configuration:
+- `VITE_API_BASE_URL=/api/v1` (proxied by Vite dev server to backend)
+- `VITE_WS_BASE_URL=ws://127.0.0.1:8000/ws/v1`
+
+#### Dependency Installation
+```bash
+cd frontend
+npm ci
+```
+
+#### Running the Development Server
+```bash
+npm run dev
+```
+The application will launch at `http://localhost:5173/` with Hot Module Replacement (HMR).
+
+#### Running Frontend Quality Checks & Tests
+```bash
+# Run ESLint (flat config)
+npm run lint
+
+# Run strict TypeScript type check
+npm run typecheck
+
+# Run unit tests via Vitest
+npm test
+
+# Build production bundle
+npm run build
+```
+
 ### 6.25 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
@@ -780,6 +824,7 @@ The platform includes an individual vehicle kinematics and route-following coord
 - [docs/progress/PHASE_20.md](docs/progress/PHASE_20.md): Phase 20 backend integration expansion, scenario runner enhancements, and telemetry streams report.
 - [docs/progress/PHASE_21.md](docs/progress/PHASE_21.md): Phase 21 Django REST API for scenario management and simulation runs report.
 - [docs/progress/PHASE_22.md](docs/progress/PHASE_22.md): Phase 22 Django Channels WebSockets for live simulation and telemetry streaming report.
+- [docs/progress/PHASE_23.md](docs/progress/PHASE_23.md): Phase 23 frontend foundation and interactive 3D simulation viewer report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.
