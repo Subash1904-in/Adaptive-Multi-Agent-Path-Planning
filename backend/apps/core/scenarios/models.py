@@ -12,6 +12,7 @@ from typing import Any, Optional, Union
 from apps.core.communication.models import CommunicationConfig
 from apps.core.coordination.models import CoordinationConfig
 from apps.core.domain.enums import VehicleType
+from apps.core.emergency.models import EmergencyConfig, EmergencyType
 from apps.core.graph.generator import CityGridConfig
 from apps.core.graph.osm_models import OSMImportConfig
 from apps.core.graph.road_graph import RoadGraph
@@ -213,6 +214,39 @@ class PedestrianScenarioDefinition:
 
 
 @dataclass(frozen=True)
+class EmergencyVehicleScenarioDefinition:
+    """Deployment specification for an emergency vehicle in a scenario."""
+
+    vehicle_id: str
+    emergency_type: EmergencyType = EmergencyType.AMBULANCE
+    start_node_id: str = ""
+    destination_node_id: str = ""
+    priority_level: Optional[int] = None
+    activate_at_time_s: float = 0.0
+    ttl_s: float = 60.0
+    auto_activate: bool = True
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize emergency vehicle definition to dictionary."""
+        return {
+            "vehicle_id": self.vehicle_id,
+            "emergency_type": (
+                self.emergency_type.value
+                if hasattr(self.emergency_type, "value")
+                else str(self.emergency_type)
+            ),
+            "start_node_id": self.start_node_id,
+            "destination_node_id": self.destination_node_id,
+            "priority_level": self.priority_level,
+            "activate_at_time_s": round(self.activate_at_time_s, 4),
+            "ttl_s": round(self.ttl_s, 4),
+            "auto_activate": self.auto_activate,
+            "metadata": dict(self.metadata),
+        }
+
+
+@dataclass(frozen=True)
 class ScenarioDefinition:
     """Authoritative declaration of a complete simulation scenario."""
 
@@ -222,6 +256,9 @@ class ScenarioDefinition:
     signals: tuple[TrafficSignalScenarioDefinition, ...] = field(default_factory=tuple)
     pedestrians: tuple[PedestrianScenarioDefinition, ...] = field(default_factory=tuple)
     crosswalks: tuple[CrosswalkScenarioDefinition, ...] = field(default_factory=tuple)
+    emergency_vehicles: tuple[EmergencyVehicleScenarioDefinition, ...] = field(
+        default_factory=tuple
+    )
     time_step_s: float = 0.1
     max_ticks: Optional[int] = None
     max_duration_s: Optional[float] = None
@@ -233,6 +270,7 @@ class ScenarioDefinition:
     coordination_config: Optional[CoordinationConfig] = None
     adaptive_routing_config: Optional[AdaptiveRoutingConfig] = None
     safety_config: Optional[SafetyConfig] = None
+    emergency_config: Optional[EmergencyConfig] = None
 
     @property
     def effective_max_ticks(self) -> Optional[int]:
@@ -255,6 +293,7 @@ class ScenarioDefinition:
             "signals": [s.to_dict() for s in self.signals],
             "pedestrians": [p.to_dict() for p in self.pedestrians],
             "crosswalks": [c.to_dict() for c in self.crosswalks],
+            "emergency_vehicles": [ev.to_dict() for ev in self.emergency_vehicles],
             "time_step_s": round(self.time_step_s, 6),
             "max_ticks": self.max_ticks,
             "max_duration_s": (
@@ -276,6 +315,11 @@ class ScenarioDefinition:
             "safety_config": (
                 self.safety_config.to_dict()
                 if self.safety_config
+                else None
+            ),
+            "emergency_config": (
+                self.emergency_config.to_dict()
+                if self.emergency_config
                 else None
             ),
             "simulation_metadata": dict(self.simulation_metadata),

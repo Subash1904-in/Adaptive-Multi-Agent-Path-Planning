@@ -567,7 +567,40 @@ The platform includes an individual vehicle kinematics and route-following coord
   print(f"Pedestrian state: {ped.state.value}, position: ({ped.position.x}, {ped.position.y})")
   ```
 
-### 6.20 Troubleshooting
+### 6.20 Emergency Vehicle Priority and Dynamic Corridors (Phase 18)
+- **Module:** `backend/apps/core/emergency/`
+- **Key Classes:** `EmergencyPriorityManager`, `EmergencyCorridorPlanner`, `YieldingPolicy`, `EmergencyType`, `EmergencyLifecycleState`, `PriorityRequest`, `CorridorReservation`, `YieldRequest`, `EmergencyMetrics`.
+- **Capabilities:** Authoritative management of emergency vehicles (`AMBULANCE`, `FIRE_ENGINE`, `POLICE`) with numeric priority hierarchy (lower numeric value = higher authority); deterministic tie-breaking `(priority_level, creation_time_s, vehicle_id)`; V2V priority announcements and local awareness stores without omniscient leakage; dynamic corridor reservations with TTL and preemption conflict policies; cooperative yielding policies observing physical deceleration limits, stopping at red traffic signals, respecting crossing pedestrians, and deferring to Phase 16 safety collision avoidance overrides; traffic-signal priority overrides with absolute protection for pedestrians in `CROSSING` state; single-clock engine execution and atomic rollback guarantees.
+- **Python API Usage Example:**
+  ```python
+  from apps.core.emergency import (
+      EmergencyPriorityManager,
+      EmergencyType,
+      EmergencyConfig,
+  )
+  from apps.core.simulation import SimulationEngine, WorldState
+
+  # 1. Initialize world with emergency support
+  world = WorldState(emergency_config=EmergencyConfig(enabled=True, signal_priority_enabled=True))
+  world.register_emergency_vehicle("amb_01")
+
+  # 2. Activate emergency vehicle priority
+  req = world.emergency_manager.activate_emergency(
+      vehicle_id="amb_01",
+      emergency_type=EmergencyType.AMBULANCE,
+      destination_node_id="node_r2_c2",
+      current_time_s=0.0,
+      priority_level=2,
+  )
+
+  # 3. Advance simulation step
+  engine = SimulationEngine(world=world)
+  tick_res = engine.step()
+  print(f"Active corridors: {tick_res.emergency_metrics['active_corridors']}")
+  ```
+> *Educational Simulation Disclaimer:* This software is designed solely for educational and academic research into multi-agent path planning. It is not designed or certified for real-world vehicular control.
+
+### 6.21 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -597,6 +630,7 @@ The platform includes an individual vehicle kinematics and route-following coord
 - [docs/progress/PHASE_15.md](docs/progress/PHASE_15.md): Phase 15 adaptive rerouting and dynamic route adjustment report.
 - [docs/progress/PHASE_16.md](docs/progress/PHASE_16.md): Phase 16 collision detection, safe separation, and avoidance report.
 - [docs/progress/PHASE_17.md](docs/progress/PHASE_17.md): Phase 17 pedestrian agents, crosswalks, and traffic signals report.
+- [docs/progress/PHASE_18.md](docs/progress/PHASE_18.md): Phase 18 emergency vehicle priority, yielding policies, and dynamic corridors report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

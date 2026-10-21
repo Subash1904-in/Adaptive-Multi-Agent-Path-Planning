@@ -10,7 +10,10 @@ from apps.core.communication.models import V2VMessagePacket
 from apps.core.communication.neighbors import NeighborRecord, NeighborTable
 from apps.core.coordination.knowledge import VehicleKnowledgeStore
 from apps.core.coordination.models import TrafficReport
+from apps.core.domain.enums import V2VMessageType
 from apps.core.domain.values import Position2D
+from apps.core.emergency.models import EmergencyLifecycleState, YieldActionType
+from apps.core.emergency.v2v import ingest_emergency_message_into_awareness
 from apps.core.kinematics.models import MotionStepResult
 from apps.core.pedestrians.models import PedestrianSignalState
 from apps.core.safety.models import SafetyEventType
@@ -173,7 +176,15 @@ class SimulationEngine:
             )
 
         signal_rollback_states: dict[str, tuple] = {
-            ctrl.id: (ctrl.signal.state, ctrl.signal.remaining_phase_s)
+            ctrl.id: (
+                ctrl.signal.state,
+                ctrl.signal.remaining_phase_s,
+                (
+                    ctrl.get_priority_override_state()
+                    if hasattr(ctrl, "get_priority_override_state")
+                    else (None, 0.0, None)
+                ),
+            )
             for ctrl in self.world.get_signals()
         }
 
@@ -188,6 +199,7 @@ class SimulationEngine:
         coord_rollback = None
         routing_rollback = None
         safety_rollback = None
+        emergency_rollback = None
         if self.world.communication_network.config.enabled:
             comm_rollback = self.world.communication_network.capture_state()
             sched_rollback = self.world.broadcast_scheduler.capture_state()
@@ -205,6 +217,8 @@ class SimulationEngine:
             and self.world.safety_manager.config.enabled
         ):
             safety_rollback = self.world.safety_manager.capture_state()
+        if hasattr(self.world, "emergency_manager") and self.world.emergency_manager:
+            emergency_rollback = self.world.emergency_manager.capture_state()
 
         # 2. Advance communication network tick (moves transit messages to inboxes)
         if self.world.communication_network.config.enabled:
@@ -277,13 +291,92 @@ class SimulationEngine:
                     current_time_s=self.clock.elapsed_time_s,
                 )
 
-        # 2.5, 2.7 & 3. Evaluate adaptive rerouting, safety overrides, and advance each agent
+            # Ingest emergency V2V messages from inboxes into local awareness
+            if (
+                hasattr(self.world, "emergency_manager")
+                and self.world.emergency_manager
+                and self.world.emergency_manager.config.enabled
+            ):
+                emergency_msg_types = {
+                    V2VMessageType.EMERGENCY_ACTIVATED,
+                    V2VMessageType.PRIORITY_REQUEST,
+                    V2VMessageType.CORRIDOR_PROPOSED,
+                    V2VMessageType.YIELD_REQUEST,
+                    V2VMessageType.YIELD_ACKNOWLEDGED,
+                    V2VMessageType.CORRIDOR_UPDATED,
+                    V2VMessageType.PRIORITY_CANCELLED,
+                    V2VMessageType.EMERGENCY_COMPLETED,
+                }
+                for agent in agents:
+                    vid = agent.vehicle.id
+                    inbox = self.world.communication_network.get_inbox(vid)
+                    if inbox:
+                        vid_store = self.world.emergency_manager.local_awareness.setdefault(vid, {})
+                        for pkt in inbox:
+                            if pkt.message_type in emergency_msg_types:
+                                ingest_emergency_message_into_awareness(
+                                    packet=pkt,
+                                    awareness_store=vid_store,
+                                    current_time_s=self.clock.elapsed_time_s,
+                                )
+
+        # 2.5, 2.7 & 3. Evaluate adaptive rerouting, safety overrides, yielding,
+        # and advance each agent
         step_results: dict[str, MotionStepResult] = {}
         pedestrian_step_results: dict[str, Any] = {}
         routing_decisions = []
         safety_overrides = {}
         safety_events = []
+        yield_decisions = {}
         try:
+            # Perform emergency priority manager maintenance (expirations, TTL cleanup)
+            if hasattr(self.world, "emergency_manager") and self.world.emergency_manager:
+                self.world.emergency_manager.perform_maintenance(
+                    current_time_s=self.clock.elapsed_time_s
+                )
+
+            # Evaluate emergency signal priority and vehicle yielding decisions
+            if (
+                hasattr(self.world, "emergency_manager")
+                and self.world.emergency_manager
+                and self.world.emergency_manager.config.enabled
+            ):
+                for agent in agents:
+                    vid = agent.vehicle.id
+                    if self.world.emergency_manager.is_emergency_vehicle(vid):
+                        st = self.world.emergency_manager.get_vehicle_state(vid)
+                        if st in (
+                            EmergencyLifecycleState.REQUESTING_PRIORITY,
+                            EmergencyLifecycleState.PRIORITY_ACTIVE,
+                        ):
+                            if not self.world.emergency_manager.get_active_corridor(vid):
+                                start_node = agent.vehicle.current_node_id or (
+                                    agent.route.node_ids[0]
+                                    if agent.route and agent.route.node_ids
+                                    else None
+                                )
+                                if start_node:
+                                    try:
+                                        self.world.emergency_manager.plan_and_commit_corridor(
+                                            vehicle_id=vid,
+                                            start_node_id=start_node,
+                                            current_time_s=self.clock.elapsed_time_s,
+                                        )
+                                    except Exception:
+                                        pass
+
+                self.world.emergency_manager.evaluate_signal_priority(
+                    signals=self.world.get_signals(),
+                    pedestrians=self.world.get_pedestrians(),
+                    current_time_s=self.clock.elapsed_time_s,
+                )
+                yield_decisions = self.world.emergency_manager.evaluate_yielding_for_vehicles(
+                    agents=agents,
+                    signals=self.world.get_signals(),
+                    pedestrians=self.world.get_pedestrians(),
+                    current_time_s=self.clock.elapsed_time_s,
+                )
+
             if (
                 hasattr(self.world, "adaptive_routing_adapter")
                 and self.world.adaptive_routing_adapter
@@ -331,15 +424,33 @@ class SimulationEngine:
             for agent in agents:
                 vid = agent.vehicle.id
                 caller_accel = target_accels.get(vid) if target_accels else None
-                if vid in safety_overrides:
-                    # Safety deceleration override takes precedence over caller acceleration
-                    safety_accel = safety_overrides[vid].target_acceleration_mps2
-                    if caller_accel is not None:
-                        effective_accel = min(caller_accel, safety_accel)
-                    else:
-                        effective_accel = safety_accel
+
+                # Yielding deceleration calculation
+                yielding_accel = None
+                if vid in yield_decisions:
+                    y_dec = yield_decisions[vid]
+                    if y_dec.action in (
+                        YieldActionType.YIELD_TO_EMERGENCY,
+                        YieldActionType.STOP_BEFORE_INTERSECTION,
+                        YieldActionType.CLEAR_CORRIDOR,
+                        YieldActionType.REDUCE_SPEED,
+                    ):
+                        yielding_accel = -abs(y_dec.effective_decel_mps2)
+
+                if caller_accel is not None and yielding_accel is not None:
+                    effective_accel = min(caller_accel, yielding_accel)
+                elif yielding_accel is not None:
+                    effective_accel = yielding_accel
                 else:
                     effective_accel = caller_accel
+
+                if vid in safety_overrides:
+                    # Safety deceleration override takes supreme precedence over all movement
+                    safety_accel = safety_overrides[vid].target_acceleration_mps2
+                    if effective_accel is not None:
+                        effective_accel = min(effective_accel, safety_accel)
+                    else:
+                        effective_accel = safety_accel
 
                 step_res = agent.step(dt=dt, target_accel=effective_accel)
                 step_results[vid] = step_res
@@ -401,9 +512,11 @@ class SimulationEngine:
 
             for ctrl in self.world.get_signals():
                 if ctrl.id in signal_rollback_states:
-                    r_sig_state, r_sig_rem = signal_rollback_states[ctrl.id]
+                    r_sig_state, r_sig_rem, r_override = signal_rollback_states[ctrl.id]
                     ctrl.signal.state = r_sig_state
                     ctrl.signal.remaining_phase_s = r_sig_rem
+                    if hasattr(ctrl, "restore_priority_override_state"):
+                        ctrl.restore_priority_override_state(*r_override)
 
             for ped in self.world.get_pedestrians():
                 if ped.pedestrian_id in pedestrian_rollback_states:
@@ -421,6 +534,8 @@ class SimulationEngine:
                 self.world.adaptive_routing_adapter.restore_state(routing_rollback)
             if safety_rollback is not None and hasattr(self.world, "safety_manager"):
                 self.world.safety_manager.restore_state(safety_rollback)
+            if emergency_rollback is not None and hasattr(self.world, "emergency_manager"):
+                self.world.emergency_manager.restore_state(emergency_rollback)
 
             self.status = EngineStatus.FAILED
             raise TickExecutionError(
@@ -476,6 +591,18 @@ class SimulationEngine:
             else None
         )
 
+        em_metrics = None
+        em_events = None
+        corridors_dict = None
+        if hasattr(self.world, "emergency_manager") and self.world.emergency_manager:
+            em_metrics = self.world.emergency_manager.metrics.to_dict()
+            em_events = [e.to_dict() for e in self.world.emergency_manager.events]
+            corridors_dict = {
+                cid: c.to_dict()
+                for cid, c in self.world.emergency_manager.corridors.items()
+                if c.is_active
+            }
+
         tick_result = TickResult(
             tick=new_tick,
             elapsed_time_s=self.clock.elapsed_time_s,
@@ -493,6 +620,14 @@ class SimulationEngine:
             safety_events=safety_evt_dicts,
             pedestrian_step_results=pedestrian_step_results,
             pedestrian_metrics=ped_metrics_dict,
+            emergency_metrics=em_metrics,
+            emergency_events=em_events,
+            corridors=corridors_dict,
+            yield_decisions=(
+                {vid: dec.to_dict() for vid, dec in yield_decisions.items()}
+                if yield_decisions
+                else None
+            ),
         )
 
         self.last_tick_result = tick_result

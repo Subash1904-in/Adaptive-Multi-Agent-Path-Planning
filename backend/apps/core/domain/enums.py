@@ -77,6 +77,15 @@ class V2VMessageType(str, Enum):
     EMERGENCY_CORRIDOR = "emergency_corridor"
     ROUTE_ADVISORY = "route_advisory"
     HEARTBEAT = "heartbeat"
+    # Phase 18 Emergency Vehicle Priority & Corridor operations
+    EMERGENCY_ACTIVATED = "emergency_activated"
+    PRIORITY_REQUEST = "priority_request"
+    CORRIDOR_PROPOSED = "corridor_proposed"
+    YIELD_REQUEST = "yield_request"
+    YIELD_ACKNOWLEDGED = "yield_acknowledged"
+    CORRIDOR_UPDATED = "corridor_updated"
+    PRIORITY_CANCELLED = "priority_cancelled"
+    EMERGENCY_COMPLETED = "emergency_completed"
 
 
 class PedestrianState(str, Enum):

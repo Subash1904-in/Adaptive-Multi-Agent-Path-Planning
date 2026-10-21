@@ -840,12 +840,89 @@ If an exception occurs during stepping:
 - `total_distance_m`, `total_waiting_time_s`, `total_crossing_time_s`.
 - `completed_crossings`, `crosswalk_conflicts`, `near_misses`, `collisions`.
 
-### 13.9 Scope Boundaries with Future Phases
-- **Phase 17 Scope**: Typed pedestrian agents, bounded kinematics, crosswalk corridor model, traffic signal integration, clearance policy, vehicle-pedestrian SAT OBB conflict detection & braking overrides, atomic rollback, and scenario builder support.
-- **Strictly Deferred**:
-  - **No Emergency Vehicles (Phase 18)**: Emergency vehicles and priority yielding deferred to Phase 18.
-  - **No Reinforcement Learning (Phases 32–34)**.
-  - **No Frontend 3D Visualizer (Phases 23–25)**.
+---
+
+## 14. Emergency Vehicle Priority, Yielding Policies, and Dynamic Emergency Corridors (Phase 18)
+
+Phase 18 establishes authoritative emergency vehicle management (`apps.core.emergency`), integrating high-priority routing, cooperative yielding, dynamic corridors, and traffic-signal priority overrides.
+
+```mermaid
+flowchart TD
+    subgraph EmergencyAgent["1. Emergency Agent Lifecycle"]
+        Inactive["INACTIVE"] -->|activate_emergency()| Req["REQUESTING_PRIORITY"]
+        Req -->|plan_and_commit_corridor()| Active["PRIORITY_ACTIVE"]
+        Active -->|cancel_priority()| Cancelling["CANCELLING"]
+        Active -->|destination reached| Completed["COMPLETED"]
+        Cancelling --> Inactive
+        Completed --> Inactive
+    end
+
+    subgraph Manager["2. Authoritative Priority Management"]
+        EPM["EmergencyPriorityManager"]
+        TieBreak["Tie-Breaking: (priority_level, creation_time_s, vehicle_id)"]
+        ResTable["Corridor Reservations (TTL, Preemption)"]
+        V2VCodec["V2V Emergency Broadcasts & Awareness Ingestion"]
+    end
+
+    subgraph Yielding["3. Cooperative Vehicle Yielding"]
+        Policy["YieldingPolicy"]
+        Decel["Kinematic Deceleration (<= max_decel)"]
+        RedSig["Red Signal Stop Invariant"]
+        CrosswalkSafety["Crossing Pedestrian Invariant"]
+        SafetySupremacy["Phase 16 SafetyManager Absolute Override"]
+    end
+
+    subgraph SignalIntegration["4. Traffic Signal Priority"]
+        SigCtrl["TrafficSignalController.apply_priority_override()"]
+        GreenHold["Hold GREEN along Corridor"]
+        PedProtection["Denied if Pedestrian in CROSSING State"]
+    end
+
+    EmergencyAgent --> Manager
+    Manager --> Yielding
+    Manager --> SignalIntegration
+```
+
+### 14.1 Emergency Vehicle Models & Lifecycle FSM
+- **Emergency Types & Priority Levels**:
+  - `FIRE_ENGINE` (Default priority level = 1, highest authority).
+  - `AMBULANCE` (Default priority level = 2).
+  - `POLICE` (Default priority level = 3).
+  - *Invariant*: Lower numeric value represents strictly higher priority authority.
+- **Deterministic Tie-Breaking**: When two emergency vehicles contend for identical resources:
+  1. `priority_level` (lower integer wins).
+  2. `creation_time_s` (earlier request wins).
+  3. `vehicle_id` (lexicographical comparison as final tie-breaker).
+- **Lifecycle FSM**: Validated transitions enforce `INACTIVE` $\to$ `REQUESTING_PRIORITY` $\to$ `PRIORITY_ACTIVE` $\to$ `CANCELLING` / `COMPLETED` $\to$ `INACTIVE`.
+
+### 14.2 Authoritative Dynamic Corridor Planning & Reservations
+- **Non-Mutating Graph Routing**: Corridors are planned over the existing immutable `RoadGraph` without graph mutation.
+- **Corridor Reservations**: Reserves edges and intermediate nodes along the emergency path with bounded time-to-live (`ttl_s`).
+- **Conflict Policies**:
+  - `STRICT_PRIORITY`: Higher priority requests preempt existing reservations from lower priority vehicles.
+  - `FIRST_COME_FIRST_SERVED`: Prior reservations block competing requests regardless of authority.
+
+### 14.3 V2V Awareness and Information Isolation
+- Emergency announcements (`EMERGENCY_ACTIVATED`, `PRIORITY_REQUEST`, `CORRIDOR_PROPOSED`, `YIELD_REQUEST`, `PRIORITY_CANCELLED`, `EMERGENCY_COMPLETED`) are disseminated via `SimulatedCommunicationNetwork`.
+- Packets are subject to physical communication constraints (range, latency, packet loss, outages).
+- Non-recipient vehicles experience zero omniscient leakage; decisions rely purely on local awareness stores.
+
+### 14.4 Cooperative Yielding Policy
+Non-emergency vehicles approaching an active emergency corridor calculate cooperative deceleration:
+1. **Kinematic Bounds**: Deceleration respects physical vehicle deceleration limits.
+2. **Red Signal Protection**: A yielding vehicle **never violates a RED traffic signal** to yield.
+3. **Crosswalk Protection**: A yielding vehicle **never enters an occupied crosswalk** with crossing pedestrians.
+4. **Safety Subsystem Supremacy**: Phase 16 `SafetyManager` collision avoidance braking overrides maintain absolute supreme authority over yielding deceleration.
+
+### 14.5 Traffic-Signal Priority Override & Absolute Pedestrian Protection
+- Active corridors request GREEN phases at approaching signalized intersections.
+- **Pedestrian Protection Invariant**: If a pedestrian is in the `CROSSING` state at an intersection crosswalk, signal priority is **strictly denied** (`SignalPriorityOverride.is_granted = False`), incrementing `signal_priority_denials` and allowing pedestrian clearance.
+
+### 14.6 Atomic Rollback & State Restoration
+If a simulation step fails, `EmergencyPriorityManager.capture_state()` and `restore_state()` restore active requests, reservations, corridors, yield requests, signal overrides, awareness records, and metrics back to the exact pre-tick baseline.
+
+### 14.7 Educational Disclaimer
+This simulation is developed solely for educational and research purposes and is NOT certified for physical vehicle deployment.
 
 
 

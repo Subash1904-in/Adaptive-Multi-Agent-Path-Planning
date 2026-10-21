@@ -98,6 +98,11 @@ class TrafficSignalController:
             self.config
         )
 
+        # Priority override state
+        self._priority_override_state: Optional[TrafficSignalState] = None
+        self._priority_override_until_s: float = 0.0
+        self._priority_request_id: Optional[str] = None
+
         # Initialize domain entity state to t=0
         self.update(0.0)
 
@@ -177,6 +182,16 @@ class TrafficSignalController:
             raise ValueError(f"sim_time_s must be non-negative, got {sim_time_s}.")
 
         sim_time_s = max(0.0, sim_time_s)
+
+        # Check if priority override is active
+        if (
+            self.has_active_priority_override(sim_time_s)
+            and self._priority_override_state is not None
+        ):
+            remaining = max(0.0, self._priority_override_until_s - sim_time_s)
+            elapsed = 0.0
+            return self._priority_override_state, elapsed, remaining
+
         total_cycle = self.config.total_cycle_duration_s
 
         # Map to position in cycle period accounting for phase offset
@@ -195,14 +210,78 @@ class TrafficSignalController:
         remaining = max(0.0, last_end - tau)
         return last_phase, elapsed, remaining
 
+    def apply_priority_override(
+        self,
+        state: TrafficSignalState,
+        duration_s: float,
+        current_time_s: float,
+        request_id: Optional[str] = None,
+    ) -> None:
+        """Apply a temporary priority override holding a specific signal phase.
+
+        Args:
+            state: Desired signal state (e.g. GREEN).
+            duration_s: Duration to hold the phase in seconds.
+            current_time_s: Current simulation timestamp.
+            request_id: Associated priority request identifier.
+        """
+        if duration_s <= 0.0:
+            self.clear_priority_override()
+            return
+        self._priority_override_state = state
+        self._priority_override_until_s = current_time_s + duration_s
+        self._priority_request_id = request_id
+        self.signal.state = state
+        self.signal.remaining_phase_s = duration_s
+
+    def clear_priority_override(self) -> None:
+        """Clear active priority override and restore normal cycle."""
+        self._priority_override_state = None
+        self._priority_override_until_s = 0.0
+        self._priority_request_id = None
+
+    def has_active_priority_override(self, current_time_s: float) -> bool:
+        """Check if a priority override is currently active."""
+        return (
+            self._priority_override_state is not None
+            and current_time_s < self._priority_override_until_s
+        )
+
+    def get_priority_override_state(
+        self,
+    ) -> tuple[Optional[TrafficSignalState], float, Optional[str]]:
+        """Return (state, held_until_s, request_id) for atomic state capture and rollback."""
+        return (
+            self._priority_override_state,
+            self._priority_override_until_s,
+            self._priority_request_id,
+        )
+
+    def restore_priority_override_state(
+        self,
+        state: Optional[TrafficSignalState],
+        until_s: float,
+        req_id: Optional[str],
+    ) -> None:
+        """Restore priority override state during atomic rollback."""
+        self._priority_override_state = state
+        self._priority_override_until_s = until_s
+        self._priority_request_id = req_id
+
     def update(self, sim_time_s: float) -> None:
         """Evaluate and synchronize internal TrafficSignal domain entity at sim_time_s."""
+        if (
+            self._priority_override_state is not None
+            and sim_time_s >= self._priority_override_until_s
+        ):
+            self.clear_priority_override()
         state, _, remaining = self.evaluate(sim_time_s)
         self.signal.state = state
         self.signal.remaining_phase_s = remaining
 
     def reset(self) -> None:
         """Reset signal state to initial time t=0.0."""
+        self.clear_priority_override()
         self.update(0.0)
 
     def query(self, sim_time_s: Optional[float] = None) -> SignalQueryResult:

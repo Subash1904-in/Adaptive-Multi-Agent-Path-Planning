@@ -15,6 +15,13 @@ from apps.core.coordination.manager import CoordinationManager
 from apps.core.coordination.models import CoordinationConfig
 from apps.core.domain.models import SimulationConfig, TrafficSignal
 from apps.core.domain.values import Position2D
+from apps.core.emergency.models import (
+    EmergencyConfig,
+    EmergencyCorridor,
+    EmergencyLifecycleState,
+    PriorityRequest,
+)
+from apps.core.emergency.priority_manager import EmergencyPriorityManager
 from apps.core.graph.road_graph import RoadGraph
 from apps.core.kinematics.vehicle_agent import VehicleAgent
 from apps.core.pedestrians.agent import PedestrianAgent
@@ -63,6 +70,7 @@ class WorldState:
         coordination_config: Optional[CoordinationConfig] = None,
         adaptive_routing_config: Optional[AdaptiveRoutingConfig] = None,
         safety_config: Optional[SafetyConfig] = None,
+        emergency_config: Optional[EmergencyConfig] = None,
     ) -> None:
         """Initialize the world state container.
 
@@ -75,6 +83,7 @@ class WorldState:
             coordination_config: Optional CoordinationConfig governing knowledge sharing.
             adaptive_routing_config: Optional AdaptiveRoutingConfig governing dynamic rerouting.
             safety_config: Optional SafetyConfig governing collision detection and avoidance.
+            emergency_config: Optional EmergencyConfig governing emergency priority and corridors.
 
         Raises:
             TypeError: If road_graph is not an instance of RoadGraph.
@@ -148,6 +157,17 @@ class WorldState:
         self._crosswalks: dict[str, Crosswalk] = {}
         self.pedestrian_metrics: PedestrianMetrics = PedestrianMetrics()
         self._pedestrian_metrics_baseline: Optional[dict[str, Any]] = None
+
+        # Initialize Emergency Priority and Corridors subsystem
+        if emergency_config is not None:
+            self.emergency_config: EmergencyConfig = emergency_config
+        else:
+            self.emergency_config = EmergencyConfig()
+        self.emergency_manager: EmergencyPriorityManager = EmergencyPriorityManager(
+            road_graph=self.road_graph,
+            config=self.emergency_config,
+        )
+        self._emergency_baseline: Optional[dict[str, Any]] = None
 
         # Auto-register signals defined in the road_graph
         for sig in self.road_graph.get_traffic_signals().values():
@@ -581,6 +601,7 @@ class WorldState:
         self._coord_baseline = self.coordination_manager.capture_state()
         self._routing_baseline = self.adaptive_routing_adapter.capture_state()
         self._safety_baseline = self.safety_manager.capture_state()
+        self._emergency_baseline = self.emergency_manager.capture_state()
 
     def restore_baseline(self) -> None:
         """Restore all registered agents and subsystems to their recorded baseline states."""
@@ -602,6 +623,8 @@ class WorldState:
             self.adaptive_routing_adapter.restore_state(self._routing_baseline)
         if self._safety_baseline is not None:
             self.safety_manager.restore_state(self._safety_baseline)
+        if self._emergency_baseline is not None:
+            self.emergency_manager.restore_state(self._emergency_baseline)
 
     def reset(self) -> None:
         """Reset simulation clock to tick 0 and restore all agents, signals, comms, and safety."""
@@ -615,6 +638,7 @@ class WorldState:
         self.coordination_manager.reset()
         self.adaptive_routing_adapter.reset()
         self.safety_manager.reset()
+        self.emergency_manager.reset()
         if self.communication_network.config.enabled:
             for aid in self._agents:
                 if not self.communication_network.is_participant_registered(aid):
@@ -623,6 +647,30 @@ class WorldState:
             for aid in self._agents:
                 if not self.coordination_manager.has_vehicle(aid):
                     self.coordination_manager.register_vehicle(aid)
+
+    def register_emergency_vehicle(
+        self,
+        vehicle_id: str,
+        initial_state: EmergencyLifecycleState = EmergencyLifecycleState.INACTIVE,
+    ) -> None:
+        """Register a vehicle identifier as an emergency vehicle in the world."""
+        self.emergency_manager.register_emergency_vehicle(
+            vehicle_id=vehicle_id, initial_state=initial_state
+        )
+
+    def is_emergency_vehicle(self, vehicle_id: str) -> bool:
+        """Check whether a vehicle is registered as an emergency vehicle."""
+        return self.emergency_manager.is_emergency_vehicle(vehicle_id)
+
+    def get_emergency_corridors(self) -> dict[str, EmergencyCorridor]:
+        """Return active emergency corridors."""
+        return {
+            cid: c for cid, c in self.emergency_manager.corridors.items() if c.is_active
+        }
+
+    def get_emergency_requests(self) -> dict[str, PriorityRequest]:
+        """Return active priority requests."""
+        return dict(self.emergency_manager.active_requests)
 
     def get_snapshot(self) -> WorldSnapshot:
         """Generate an immutable point-in-time snapshot of world, agents, signals, and comms.
@@ -671,6 +719,21 @@ class WorldState:
             self.pedestrian_metrics.to_dict() if (self._pedestrians or self._crosswalks) else None
         )
 
+        emergency_snap = {
+            vid: self.emergency_manager.get_vehicle_state(vid).value
+            for vid in self.emergency_manager.get_all_emergency_vehicles()
+        }
+        corridor_snaps = {
+            cid: c.to_dict()
+            for cid, c in self.emergency_manager.corridors.items()
+            if c.is_active
+        }
+        emergency_metrics_snap = (
+            self.emergency_manager.metrics.to_dict()
+            if self.emergency_manager.get_all_emergency_vehicles()
+            else None
+        )
+
         return WorldSnapshot(
             tick=self.clock.tick_count,
             elapsed_time_s=self.clock.elapsed_time_s,
@@ -686,6 +749,9 @@ class WorldState:
             pedestrians=ped_snaps,
             crosswalks=cw_snaps,
             pedestrian_metrics=ped_metrics_snap,
+            emergency=emergency_snap,
+            corridors=corridor_snaps,
+            emergency_metrics=emergency_metrics_snap,
             metadata=dict(self.metadata),
         )
 

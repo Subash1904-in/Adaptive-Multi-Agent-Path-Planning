@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 17 (Pedestrian Agents, Crosswalks, and Traffic-Signal Interaction)
+- **Current Phase:** Phase 18 (Emergency Vehicle Priority, Yielding Policies, and Dynamic Emergency Corridors)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 18 (Emergency Vehicle Priority) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 19 (AI Decision Policy) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-21
 
 ---
@@ -32,7 +32,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 15** | **Adaptive rerouting and dynamic route adjustment** | **COMPLETED** | Vehicle-private dynamic edge costs, congestion/closure/hazard evaluation, benefit hysteresis & cooldown, safe route suffix replacement, rollback, 760 tests passed (95.69% coverage). |
 | **Phase 16** | **Collision detection and avoidance** | **COMPLETED** | 2D OBB SAT collision detection, safe separation distance, TTC estimation, 5-tier risk classification, controlled deceleration/emergency braking, deterministic conflict resolution, atomic rollback, 808 tests passed (96% coverage). |
 | **Phase 17** | **Pedestrian agents, crosswalks, and traffic signals** | **COMPLETED** | Typed pedestrian agents, bounded kinematics, crosswalk corridor model, traffic signal integration & clearance policy, vehicle-pedestrian SAT OBB conflict detection & braking, atomic rollback, 853 tests passed (96% coverage). |
-| **Phase 18** | Emergency vehicle priority | Pending | Ambulance/emergency types, priority beacons, cooperative yielding and corridor creation. |
+| **Phase 18** | **Emergency vehicle priority, yielding & dynamic corridors** | **COMPLETED** | Ambulance/fire/police types, priority FSM, V2V announcements, dynamic corridors, yielding policies, signal priority, 913 tests passed (96% coverage). |
 | **Phase 19** | AI decision policy | Pending | Pluggable local decision policy evaluating travel time, congestion, risk, confidence scores. |
 | **Phase 20** | Backend integration checkpoint | Pending | End-to-end backend integration tests (incident, comms failure, emergency vehicle, arrival metrics). |
 | **Phase 21** | Django REST API | Pending | REST endpoints: health, simulation lifecycle, vehicle listing, map data, metrics, scenario config. |
@@ -160,29 +160,39 @@ This roadmap is strictly aligned with our agreed master development plan, divide
   - Authoritatively integrated pedestrian simulation into `SimulationEngine.step()` with single clock progression, atomic rollback guarantees, cumulative/point-in-time metrics tracking, and scenario builder support.
   - Added 45 new automated tests across 6 dedicated test modules bringing total test suite to 853 passing tests (96% coverage).
   - Documented full evidence in `docs/progress/PHASE_17.md`.
+- **Phase 18: Emergency Vehicle Priority, Yielding Policies, and Dynamic Emergency Corridors:**
+  - Implemented typed emergency domain models (`EmergencyType` AMBULANCE/FIRE_ENGINE/POLICE, numeric priority levels 1-3, `EmergencyLifecycleState` FSM, `PriorityRequest`, `CorridorReservation`, `YieldRequest`, `SignalPriorityOverride`, `EmergencyMetrics`).
+  - Implemented authoritative `EmergencyPriorityManager` governing priority requests, deterministic tie-breaking `(priority_level, creation_time_s, vehicle_id)`, idempotent activation, and TTL maintenance.
+  - Implemented V2V emergency communication codecs and awareness ingestion into vehicle-private stores without omniscient leakage.
+  - Implemented dynamic emergency corridor planning (`EmergencyCorridorPlanner`) and temporary edge/node reservations with preemption conflict policies.
+  - Implemented cooperative yielding policy (`YieldingPolicy`) observing deceleration kinematics, stopping at red traffic signals, respecting crossing pedestrians, and deferring to Phase 16 safety collision braking overrides.
+  - Implemented traffic-signal emergency priority override with absolute protection for pedestrians in `CROSSING` state.
+  - Integrated into single-clock `SimulationEngine.step()` and `WorldState` with atomic rollback guarantees.
+  - Added 60 new automated tests across 6 dedicated test modules bringing total test suite to 913 passing tests (96% coverage).
+  - Documented full evidence in `docs/progress/PHASE_18.md`.
 
 ---
 
-## 4. Files Created or Modified (Phase 17)
+## 4. Files Created or Modified (Phase 18)
 - **Created:**
-  - `backend/apps/core/pedestrians/__init__.py`
-  - `backend/apps/core/pedestrians/models.py`
-  - `backend/apps/core/pedestrians/exceptions.py`
-  - `backend/apps/core/pedestrians/crosswalk.py`
-  - `backend/apps/core/pedestrians/agent.py`
-  - `backend/apps/core/pedestrians/metrics.py`
-  - `backend/apps/core/tests/test_pedestrian_models_and_kinematics.py`
-  - `backend/apps/core/tests/test_pedestrian_crosswalk.py`
-  - `backend/apps/core/tests/test_pedestrian_signal_interaction.py`
-  - `backend/apps/core/tests/test_pedestrian_safety_and_collisions.py`
-  - `backend/apps/core/tests/test_pedestrian_engine_integration.py`
-  - `backend/apps/core/tests/test_pedestrian_scenarios.py`
-  - `docs/progress/PHASE_17.md`
+  - `backend/apps/core/emergency/__init__.py`
+  - `backend/apps/core/emergency/models.py`
+  - `backend/apps/core/emergency/exceptions.py`
+  - `backend/apps/core/emergency/metrics.py`
+  - `backend/apps/core/emergency/v2v.py`
+  - `backend/apps/core/emergency/corridor_planner.py`
+  - `backend/apps/core/emergency/yielding_policy.py`
+  - `backend/apps/core/emergency/priority_manager.py`
+  - `backend/apps/core/tests/test_emergency_models_and_lifecycle.py`
+  - `backend/apps/core/tests/test_emergency_v2v_announcements.py`
+  - `backend/apps/core/tests/test_emergency_corridors_and_reservations.py`
+  - `backend/apps/core/tests/test_emergency_yielding_and_signals.py`
+  - `backend/apps/core/tests/test_emergency_engine_integration.py`
+  - `backend/apps/core/tests/test_emergency_scenarios.py`
+  - `docs/progress/PHASE_18.md`
 - **Modified:**
-  - `backend/apps/core/safety/models.py`
-  - `backend/apps/core/safety/geometry.py`
-  - `backend/apps/core/safety/detection.py`
-  - `backend/apps/core/safety/manager.py`
+  - `backend/apps/core/domain/enums.py`
+  - `backend/apps/core/signals/controller.py`
   - `backend/apps/core/simulation/models.py`
   - `backend/apps/core/simulation/world.py`
   - `backend/apps/core/simulation/engine.py`
@@ -202,11 +212,17 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ## 5. Commands Executed and Actual Results
 1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
 2. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-3. `.\.venv\Scripts\pytest.exe backend/apps/core/tests/ --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `853 passed in 6.26s`, `96% coverage` (exit code 0).
+3. `.\.venv\Scripts\pytest.exe backend/apps/core/tests/ --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `913 passed in 6.63s`, `96% coverage` (exit code 0).
 
 ---
 
 ## 6. Test Results
+- **Emergency Models & Lifecycle FSM (`test_emergency_models_and_lifecycle.py`):** 13 passed.
+- **V2V Announcements & Awareness Ingestion (`test_emergency_v2v_announcements.py`):** 14 passed.
+- **Emergency Corridors & Reservations (`test_emergency_corridors_and_reservations.py`):** 8 passed.
+- **Yielding Policies & Signal Priority (`test_emergency_yielding_and_signals.py`):** 8 passed.
+- **Engine Integration & Rollback (`test_emergency_engine_integration.py`):** 6 passed.
+- **Emergency Scenario Orchestration (`test_emergency_scenarios.py`):** 11 passed.
 - **Pedestrian Models & Kinematics (`test_pedestrian_models_and_kinematics.py`):** 12 passed.
 - **Crosswalk Geometry & Projection (`test_pedestrian_crosswalk.py`):** 10 passed.
 - **Signal Interaction & Clearance Policy (`test_pedestrian_signal_interaction.py`):** 6 passed.
@@ -233,14 +249,14 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Road Graph & City Generator (`test_road_graph.py`, `test_city_generator.py`):** 41 passed.
 - **Domain Models, Values & Codecs (`test_domain_*.py`):** 105 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **853 passed, 0 failed in 6.26s**, **96% line coverage** (exceeds 80% threshold).
+- **Total:** **913 passed, 0 failed in 6.63s**, **96% line coverage** (exceeds 80% threshold).
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Pedestrian subsystem (`backend/apps/core/pedestrians/`) complete, deterministic, and fully integrated with `SimulationEngine.step()`, `WorldState`, traffic signals, and the safety subsystem with atomic rollback guarantees.
+- **Notes:** Emergency priority subsystem (`backend/apps/core/emergency/`) complete, deterministic, and fully integrated with `SimulationEngine.step()`, `WorldState`, traffic signals, V2V communication, and the Phase 16 safety collision avoidance subsystem with atomic rollback guarantees.
 - **Educational Disclaimer:** This simulation is developed solely for educational and research purposes and is NOT certified for physical vehicle deployment.
 
 ---

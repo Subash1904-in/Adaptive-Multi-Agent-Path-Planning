@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 17 (Pedestrian Agents, Crosswalks, and Traffic-Signal Interaction):* Phase 17 implements typed pedestrian agents with bounded kinematics (`PedestrianAgent`), crosswalk corridor modeling with 2D vector projections (`Crosswalk`), traffic signal integration (`RED` -> `WALK`, `YELLOW` -> `CLEARANCE`, `GREEN` -> `DONT_WALK`; unsignalized -> `WALK`), clearance policy (pedestrians in `CROSSING` state continue walking to exit curb upon signal change), vehicle-pedestrian conflict detection using Phase 16 SAT OBB safety subsystem (`CollisionDetector.evaluate_vehicle_pedestrian`), braking overrides, authoritative single-clock engine execution, atomic rollback, and cumulative/point-in-time metrics tracking. 853 total tests passing, 96% line coverage. This fulfills the pedestrian simulation requirements of FR-04 and pedestrian collision avoidance requirements of FR-09. Emergency vehicle priority (Phase 18) remains strictly deferred.
+> *Note on Phase 18 (Emergency Vehicle Priority, Yielding Policies, and Dynamic Emergency Corridors):* Phase 18 implements typed emergency vehicles (`EmergencyType` AMBULANCE/FIRE_ENGINE/POLICE, priority levels 1-3, `EmergencyLifecycleState` FSM), authoritative `EmergencyPriorityManager`, deterministic tie-breaking `(priority_level, creation_time_s, vehicle_id)`, idempotent priority activation, V2V emergency message codecs and awareness stores without omniscient leakage, dynamic emergency corridor planning and temporary reservations (`EmergencyCorridorPlanner`), cooperative yielding policy with physical deceleration limits, stopping before red traffic signals, crosswalk protection for crossing pedestrians, supreme Phase 16 safety collision avoidance overrides, and traffic signal priority overrides. 913 total tests passing, 96% line coverage. This fulfills the emergency vehicle priority requirements of FR-10. AI decision policies (Phase 19) remain strictly deferred.
 
 ---
 
@@ -27,7 +27,7 @@
 | **FR-07** | Adaptive Path Planning | `backend/apps/core/routing/`, `sim_engine/planning/` | Phase 06, 15, 28 | `NOT STARTED` | Phase 06 & 15 Baseline & Adaptive Rerouting Tested (`test_routing_*.py`) |
 | **FR-08** | AI-Based Decision-Making | `sim_engine/agents/`, `rl_engine/policies/` | Phase 19, 34 | `NOT STARTED` | Pending Phase 19 |
 | **FR-09** | Collision Detection and Avoidance | `backend/apps/core/safety/` | Phase 16, 17, 37 | `TESTED` | Phase 16 V2V & Phase 17 Vehicle-Pedestrian Collision Avoidance Tested (`test_safety_*.py`, `test_pedestrian_safety_and_collisions.py`) |
-| **FR-10** | Emergency Vehicle Priority | `sim_engine/agents/`, `sim_engine/safety/` | Phase 18, 25, 29 | `NOT STARTED` | Pending Phase 18 |
+| **FR-10** | Emergency Vehicle Priority | `backend/apps/core/emergency/`, `backend/apps/core/simulation/` | Phase 18, 25, 29 | `TESTED` | Phase 18 Emergency Priority, Corridors, Yielding & Signals Tested (`test_emergency_*.py`: 60 tests passing) |
 | **FR-11** | Communication Range Detection | `backend/apps/core/communication/discovery.py`, `backend/apps/core/communication/neighbors.py` | Phase 11, 12, 14, 27 | `NOT STARTED` | Phase 11, 12, 14 Spatial Discovery, Tables & Distance Loss Tested (`test_communication_discovery.py`, `test_communication_impairment.py`) |
 | **FR-12** | Communication Failure Handling | `backend/apps/core/communication/network.py`, `backend/apps/core/communication/neighbors.py` | Phase 11, 12, 14, 27 | `NOT STARTED` | Phase 11, 12, 14 Latency, Loss, Burst Channels, Outages & Recovery Tested (`test_communication_latency.py`, `test_communication_impairment.py`, `test_communication_degradation_integration.py`) |
 | **FR-13** | AI Model Training Using Reinforcement Learning | `rl_engine/` | Phase 32, 33, 34 | `NOT STARTED` | Pending Phase 32 |
@@ -120,11 +120,11 @@
 ---
 
 ### FR-10: Emergency Vehicle Priority
-- **Requirement Statement:** Identify emergency vehicles such as ambulances; enable nearby vehicles to safely adjust their movement and provide priority.
+- **Requirement Statement:** Identify emergency vehicles such as ambulances, fire engines, and police cars; enable nearby vehicles to safely adjust their movement, yield, create dynamic corridors, and grant traffic signal priority.
 - **Target Phases:** Phase 18 (Emergency vehicle priority), Phase 25 (Vehicle and pedestrian visualization), Phase 29 (Traffic incidents and scenario controls).
-- **Components:** `sim_engine/agents/emergency_vehicle.py`, `sim_engine/safety/priority_yielding.py`
-- **Verification Plan:** Scenario test with ambulance broadcasting siren beacon, confirming surrounding vehicles transition to yielding state and create corridor.
-- **Current Status:** `NOT STARTED`
+- **Components:** `backend/apps/core/emergency/` (`models.py`, `v2v.py`, `corridor_planner.py`, `yielding_policy.py`, `priority_manager.py`, `metrics.py`), `backend/apps/core/signals/controller.py`, `backend/apps/core/simulation/engine.py`
+- **Verification Plan:** Unit and integration tests for emergency models, priority FSM, tie-breaking, V2V announcements without leakage, corridor reservations and preemption, yielding with physical limits, red signal and crosswalk protection, signal priority override with pedestrian clearance denial, single-clock engine execution, and atomic rollback (`test_emergency_*.py`: 60 tests passing).
+- **Current Status:** `TESTED (Phase 18 Complete)`
 
 ---
 

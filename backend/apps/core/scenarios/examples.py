@@ -11,12 +11,15 @@ Provides compact, offline, and deterministic scenario templates illustrating:
 from apps.core.communication.models import CommunicationConfig
 from apps.core.coordination.models import CoordinationConfig
 from apps.core.domain.enums import VehicleType
+from apps.core.emergency.models import EmergencyConfig, EmergencyType, ReservationConflictPolicy
 from apps.core.graph.generator import CityGridConfig
 from apps.core.kinematics.models import KinematicsConfig
+from apps.core.pedestrians.models import PedestrianLifecycleState
 from apps.core.routing.models import AdaptiveRoutingConfig, CostMode, RoutingAlgorithm
 from apps.core.safety.models import SafetyConfig
 from apps.core.scenarios.models import (
     CrosswalkScenarioDefinition,
+    EmergencyVehicleScenarioDefinition,
     PedestrianScenarioDefinition,
     RoadNetworkDefinition,
     RoadNetworkSourceType,
@@ -1468,6 +1471,395 @@ def create_unavoidable_vehicle_pedestrian_collision_scenario(
             strong_decel_mps2=0.8,
             emergency_decel_mps2=1.0,
         ),
+        seed=seed,
+    )
+
+
+def create_ambulance_corridor_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 100,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario with an ambulance requesting priority and generating a dynamic corridor."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=60.0,
+        speed_limit_mps=15.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    amb_veh = VehicleScenarioDefinition(
+        vehicle_id="amb_01",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+        algorithm=RoutingAlgorithm.ASTAR,
+        cost_mode=CostMode.TRAVEL_TIME,
+        initial_speed_mps=5.0,
+        kinematics=KinematicsConfig(max_speed_mps=20.0, max_acceleration_mps2=4.0),
+    )
+    ev_def = EmergencyVehicleScenarioDefinition(
+        vehicle_id="amb_01",
+        emergency_type=EmergencyType.AMBULANCE,
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+        priority_level=3,
+        auto_activate=True,
+        ttl_s=60.0,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_ambulance_corridor",
+            name="Ambulance Priority Corridor",
+            description=(
+                "Ambulance activating emergency mode and establishing an "
+                "authoritative priority corridor."
+            ),
+        ),
+        road_network=rn,
+        vehicles=(amb_veh,),
+        emergency_vehicles=(ev_def,),
+        emergency_config=EmergencyConfig(
+            enabled=True,
+            signal_priority_enabled=True,
+        ),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+
+
+def create_fire_engine_multi_intersection_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 150,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario with a fire engine traversing multiple signalized intersections."""
+    grid_cfg = CityGridConfig(
+        rows=4,
+        cols=4,
+        spacing_m=50.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    fe_veh = VehicleScenarioDefinition(
+        vehicle_id="fire_01",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r3_c3",
+        algorithm=RoutingAlgorithm.ASTAR,
+        cost_mode=CostMode.TRAVEL_TIME,
+        initial_speed_mps=0.0,
+        kinematics=KinematicsConfig(max_speed_mps=15.0, max_acceleration_mps2=3.0),
+    )
+    sig1 = TrafficSignalScenarioDefinition(
+        signal_id="sig_r1_c1",
+        node_id="node_r1_c1",
+        config=SignalCycleConfig(green_duration_s=20.0, yellow_duration_s=4.0, red_duration_s=20.0),
+    )
+    sig2 = TrafficSignalScenarioDefinition(
+        signal_id="sig_r2_c2",
+        node_id="node_r2_c2",
+        config=SignalCycleConfig(green_duration_s=20.0, yellow_duration_s=4.0, red_duration_s=20.0),
+    )
+    ev_def = EmergencyVehicleScenarioDefinition(
+        vehicle_id="fire_01",
+        emergency_type=EmergencyType.FIRE_ENGINE,
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r3_c3",
+        priority_level=2,
+        auto_activate=True,
+        ttl_s=120.0,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_fire_engine_multi_signal",
+            name="Fire Engine Multi-Intersection Priority",
+            description=(
+                "Fire engine traversing multiple signalized intersections "
+                "requesting signal priority."
+            ),
+        ),
+        road_network=rn,
+        vehicles=(fe_veh,),
+        signals=(sig1, sig2),
+        emergency_vehicles=(ev_def,),
+        emergency_config=EmergencyConfig(
+            enabled=True,
+            signal_priority_enabled=True,
+            signal_hold_green_duration_s=15.0,
+        ),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+
+
+def create_police_activation_cancellation_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 80,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario with a police vehicle activating and cancelling priority."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=50.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    pol_veh = VehicleScenarioDefinition(
+        vehicle_id="pol_01",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r2_c2",
+        algorithm=RoutingAlgorithm.ASTAR,
+        cost_mode=CostMode.TRAVEL_TIME,
+        initial_speed_mps=0.0,
+    )
+    ev_def = EmergencyVehicleScenarioDefinition(
+        vehicle_id="pol_01",
+        emergency_type=EmergencyType.POLICE,
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r2_c2",
+        priority_level=1,
+        auto_activate=False,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_police_activation_cancellation",
+            name="Police Vehicle Activation and Cancellation",
+            description="Police vehicle manual emergency priority activation and cancellation.",
+        ),
+        road_network=rn,
+        vehicles=(pol_veh,),
+        emergency_vehicles=(ev_def,),
+        emergency_config=EmergencyConfig(enabled=True),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+
+
+def create_competing_emergency_priority_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 100,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario where an ambulance and police vehicle compete for corridor space."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=60.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v_amb = VehicleScenarioDefinition(
+        vehicle_id="amb_high",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+        algorithm=RoutingAlgorithm.ASTAR,
+        initial_speed_mps=0.0,
+    )
+    v_pol = VehicleScenarioDefinition(
+        vehicle_id="pol_low",
+        start_node_id="node_r1_c0",
+        destination_node_id="node_r0_c2",
+        algorithm=RoutingAlgorithm.ASTAR,
+        initial_speed_mps=0.0,
+    )
+    ev_amb = EmergencyVehicleScenarioDefinition(
+        vehicle_id="amb_high",
+        emergency_type=EmergencyType.AMBULANCE,
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+        priority_level=1,
+        auto_activate=True,
+    )
+    ev_pol = EmergencyVehicleScenarioDefinition(
+        vehicle_id="pol_low",
+        emergency_type=EmergencyType.POLICE,
+        start_node_id="node_r1_c0",
+        destination_node_id="node_r0_c2",
+        priority_level=3,
+        auto_activate=True,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_competing_emergency",
+            name="Competing Emergency Priority",
+            description=(
+                "Higher-priority ambulance resolves intersection conflict "
+                "over lower-priority police vehicle."
+            ),
+        ),
+        road_network=rn,
+        vehicles=(v_amb, v_pol),
+        emergency_vehicles=(ev_amb, ev_pol),
+        emergency_config=EmergencyConfig(
+            enabled=True,
+            conflict_policy=ReservationConflictPolicy.STRICT_PRIORITY,
+        ),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+
+
+def create_vehicle_yielding_to_emergency_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 100,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a scenario where a standard vehicle receives a yield request and decelerates."""
+    grid_cfg = CityGridConfig(
+        rows=3,
+        cols=3,
+        spacing_m=80.0,
+        speed_limit_mps=15.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    v_lead = VehicleScenarioDefinition(
+        vehicle_id="veh_standard",
+        start_node_id="node_r0_c1",
+        destination_node_id="node_r0_c2",
+        algorithm=RoutingAlgorithm.ASTAR,
+        initial_speed_mps=8.0,
+        kinematics=KinematicsConfig(max_speed_mps=12.0, max_deceleration_mps2=4.0),
+    )
+    v_amb = VehicleScenarioDefinition(
+        vehicle_id="amb_chase",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+        algorithm=RoutingAlgorithm.ASTAR,
+        initial_speed_mps=10.0,
+        kinematics=KinematicsConfig(max_speed_mps=20.0, max_acceleration_mps2=4.0),
+    )
+    ev_amb = EmergencyVehicleScenarioDefinition(
+        vehicle_id="amb_chase",
+        emergency_type=EmergencyType.AMBULANCE,
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c2",
+        priority_level=3,
+        auto_activate=True,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_vehicle_yielding",
+            name="Vehicle Yielding to Emergency Corridor",
+            description="Standard vehicle yields and safely decelerates upon corridor awareness.",
+        ),
+        road_network=rn,
+        vehicles=(v_lead, v_amb),
+        emergency_vehicles=(ev_amb,),
+        v2v_config=CommunicationConfig(enabled=True, range_m=200.0),
+        emergency_config=EmergencyConfig(
+            enabled=True,
+            yielding_distance_m=100.0,
+            yield_decel_mps2=3.0,
+        ),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+
+
+def create_pedestrian_crosswalk_signal_priority_denial_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 80,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create scenario where emergency signal priority is denied due to crossing pedestrians."""
+    grid_cfg = CityGridConfig(
+        rows=2,
+        cols=2,
+        spacing_m=60.0,
+        speed_limit_mps=12.0,
+        bidirectional=True,
+        seed=seed,
+    )
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.SYNTHETIC_GRID,
+        grid_config=grid_cfg,
+    )
+    amb_veh = VehicleScenarioDefinition(
+        vehicle_id="amb_ped_test",
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c1",
+        algorithm=RoutingAlgorithm.ASTAR,
+        initial_speed_mps=5.0,
+    )
+    sig_def = TrafficSignalScenarioDefinition(
+        signal_id="sig_r0_c1",
+        node_id="node_r0_c1",
+        config=SignalCycleConfig(green_duration_s=20.0, yellow_duration_s=4.0, red_duration_s=20.0),
+    )
+    cw_def = CrosswalkScenarioDefinition(
+        crosswalk_id="cw_sig_denial",
+        entry_point=(58.0, -3.0),
+        exit_point=(58.0, 3.0),
+        width_m=4.0,
+        associated_intersection_id="node_r0_c1",
+    )
+    ped_def = PedestrianScenarioDefinition(
+        pedestrian_id="ped_crossing",
+        initial_position=(58.0, -1.0),
+        destination_point=(58.0, 3.0),
+        crosswalk_id="cw_sig_denial",
+        walking_speed_mps=1.0,
+        metadata={"initial_state": PedestrianLifecycleState.CROSSING},
+    )
+    ev_def = EmergencyVehicleScenarioDefinition(
+        vehicle_id="amb_ped_test",
+        emergency_type=EmergencyType.AMBULANCE,
+        start_node_id="node_r0_c0",
+        destination_node_id="node_r0_c1",
+        priority_level=3,
+        auto_activate=True,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_pedestrian_priority_denial",
+            name="Pedestrian Clearance Priority Denial",
+            description=(
+                "Signal priority is denied while pedestrian is in CROSSING "
+                "state at intersection crosswalk."
+            ),
+        ),
+        road_network=rn,
+        vehicles=(amb_veh,),
+        signals=(sig_def,),
+        crosswalks=(cw_def,),
+        pedestrians=(ped_def,),
+        emergency_vehicles=(ev_def,),
+        emergency_config=EmergencyConfig(
+            enabled=True,
+            signal_priority_enabled=True,
+        ),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
         seed=seed,
     )
 

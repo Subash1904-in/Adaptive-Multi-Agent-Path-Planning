@@ -12,6 +12,7 @@ import networkx as nx
 
 from apps.core.domain.models import TrafficSignal, Vehicle
 from apps.core.domain.values import Position2D
+from apps.core.emergency.models import EmergencyLifecycleState
 from apps.core.graph.generator import CityGridConfig, generate_synthetic_city_grid
 from apps.core.graph.osm_models import OSMImportConfig
 from apps.core.graph.osm_service import import_osm_road_network
@@ -19,7 +20,7 @@ from apps.core.graph.road_graph import RoadGraph
 from apps.core.kinematics.vehicle_agent import VehicleAgent
 from apps.core.pedestrians.agent import PedestrianAgent
 from apps.core.pedestrians.crosswalk import Crosswalk
-from apps.core.pedestrians.models import PedestrianConfig
+from apps.core.pedestrians.models import PedestrianConfig, PedestrianLifecycleState
 from apps.core.routing.exceptions import NoPathFoundError
 from apps.core.routing.planner import RoutePlanner
 from apps.core.scenarios.exceptions import (
@@ -113,6 +114,7 @@ class ScenarioBuilder:
                 coordination_config=self.scenario.coordination_config,
                 adaptive_routing_config=self.scenario.adaptive_routing_config,
                 safety_config=self.scenario.safety_config,
+                emergency_config=self.scenario.emergency_config,
             )
         except Exception as exc:
             msg = (
@@ -197,6 +199,26 @@ class ScenarioBuilder:
                     scenario_id=self.scenario.metadata.id,
                     cause=exc,
                 ) from exc
+
+        # 7.5. Emergency vehicle registration and auto-activation
+        for ev in self.scenario.emergency_vehicles:
+            world.register_emergency_vehicle(
+                vehicle_id=ev.vehicle_id,
+                initial_state=EmergencyLifecycleState.INACTIVE,
+            )
+            if ev.auto_activate and ev.destination_node_id:
+                try:
+                    world.emergency_manager.activate_emergency(
+                        vehicle_id=ev.vehicle_id,
+                        emergency_type=ev.emergency_type,
+                        destination_node_id=ev.destination_node_id,
+                        current_time_s=clock.elapsed_time_s,
+                        priority_level=ev.priority_level,
+                        ttl_s=ev.ttl_s,
+                        start_node_id=ev.start_node_id or None,
+                    )
+                except Exception:
+                    pass
 
         # 8. Save baseline for deterministic resets
         world.save_baseline()
@@ -337,6 +359,7 @@ class ScenarioBuilder:
                     arrival_tolerance_m=ped_def.arrival_tolerance_m,
                     waiting_distance_m=ped_def.waiting_distance_m,
                 )
+                init_state = ped_def.metadata.get("initial_state", PedestrianLifecycleState.IDLE)
                 ped_agent = PedestrianAgent(
                     pedestrian_id=ped_def.pedestrian_id,
                     initial_position=ped_def.initial_position,
@@ -345,8 +368,10 @@ class ScenarioBuilder:
                     config=config,
                     initial_heading_rad=ped_def.initial_heading_rad,
                     initial_speed_mps=ped_def.initial_speed_mps,
+                    initial_state=init_state,
                 )
-                ped_agent.start()
+                if init_state == PedestrianLifecycleState.IDLE:
+                    ped_agent.start()
                 world.register_pedestrian(ped_agent)
             except Exception as exc:
                 raise ScenarioBuilderError(

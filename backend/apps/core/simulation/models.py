@@ -75,6 +75,9 @@ class WorldSnapshot:
     pedestrians: dict[str, Any] = field(default_factory=dict)
     crosswalks: dict[str, Any] = field(default_factory=dict)
     pedestrian_metrics: Optional[dict[str, Any]] = None
+    emergency: dict[str, Any] = field(default_factory=dict)
+    corridors: dict[str, Any] = field(default_factory=dict)
+    emergency_metrics: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize world snapshot to a plain JSON-compatible dictionary."""
@@ -124,6 +127,11 @@ class WorldSnapshot:
             "pedestrian_metrics": (
                 dict(self.pedestrian_metrics) if self.pedestrian_metrics else None
             ),
+            "emergency": dict(self.emergency),
+            "corridors": dict(self.corridors),
+            "emergency_metrics": (
+                dict(self.emergency_metrics) if self.emergency_metrics else None
+            ),
             "metadata": dict(self.metadata),
         }
 
@@ -148,6 +156,10 @@ class TickResult:
     safety_events: Optional[list[dict[str, Any]]] = None
     pedestrian_step_results: dict[str, Any] = field(default_factory=dict)
     pedestrian_metrics: Optional[dict[str, Any]] = None
+    emergency_metrics: Optional[dict[str, Any]] = None
+    emergency_events: Optional[list[dict[str, Any]]] = None
+    corridors: Optional[dict[str, Any]] = None
+    yield_decisions: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize tick result to a plain JSON-compatible dictionary."""
@@ -185,6 +197,18 @@ class TickResult:
             },
             "pedestrian_metrics": (
                 dict(self.pedestrian_metrics) if self.pedestrian_metrics else None
+            ),
+            "emergency_metrics": (
+                dict(self.emergency_metrics) if self.emergency_metrics else None
+            ),
+            "emergency_events": (
+                list(self.emergency_events) if self.emergency_events else None
+            ),
+            "corridors": (
+                dict(self.corridors) if self.corridors else None
+            ),
+            "yield_decisions": (
+                dict(self.yield_decisions) if self.yield_decisions else None
             ),
             "arrived_agent_ids": list(self.arrived_agent_ids),
             "active_agent_ids": list(self.active_agent_ids),

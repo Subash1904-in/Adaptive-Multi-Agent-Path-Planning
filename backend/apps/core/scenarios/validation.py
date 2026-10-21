@@ -8,6 +8,7 @@ from typing import Optional
 
 from apps.core.communication.models import CommunicationConfig
 from apps.core.coordination.models import CoordinationConfig
+from apps.core.emergency.models import EmergencyConfig, EmergencyType
 from apps.core.graph.road_graph import RoadGraph
 from apps.core.kinematics.models import KinematicsConfig
 from apps.core.routing.models import AdaptiveRoutingConfig, CostMode, RoutingAlgorithm
@@ -15,6 +16,7 @@ from apps.core.safety.models import SafetyConfig
 from apps.core.scenarios.exceptions import ScenarioValidationError
 from apps.core.scenarios.models import (
     CrosswalkScenarioDefinition,
+    EmergencyVehicleScenarioDefinition,
     PedestrianScenarioDefinition,
     RoadNetworkSourceType,
     ScenarioDefinition,
@@ -288,6 +290,77 @@ def validate_scenario(
                 field=f"pedestrians[{idx}].crosswalk_id",
             )
 
+    # 8.9. Emergency vehicles validation
+    seen_emergency_ids: set[str] = set()
+    for idx, ev in enumerate(scenario.emergency_vehicles):
+        if not isinstance(ev, EmergencyVehicleScenarioDefinition):
+            raise ScenarioValidationError(
+                f"Emergency vehicle at index {idx} must be an "
+                "EmergencyVehicleScenarioDefinition instance.",
+                field=f"emergency_vehicles[{idx}]",
+            )
+        if not ev.vehicle_id or not ev.vehicle_id.strip():
+            raise ScenarioValidationError(
+                f"Emergency vehicle at index {idx} has empty vehicle_id.",
+                field=f"emergency_vehicles[{idx}].vehicle_id",
+            )
+        if ev.vehicle_id in seen_emergency_ids:
+            raise ScenarioValidationError(
+                f"Duplicate emergency vehicle ID '{ev.vehicle_id}' found in scenario.",
+                field="emergency_vehicles",
+                details={"vehicle_id": ev.vehicle_id},
+            )
+        seen_emergency_ids.add(ev.vehicle_id)
+
+        if ev.vehicle_id not in seen_vehicle_ids:
+            raise ScenarioValidationError(
+                f"Emergency vehicle '{ev.vehicle_id}' is not declared in scenario vehicles.",
+                field=f"emergency_vehicles[{idx}].vehicle_id",
+                details={"vehicle_id": ev.vehicle_id},
+            )
+
+        if isinstance(ev.emergency_type, str):
+            try:
+                EmergencyType(ev.emergency_type)
+            except ValueError:
+                raise ScenarioValidationError(
+                    f"Emergency vehicle '{ev.vehicle_id}' specifies invalid "
+                    f"emergency_type '{ev.emergency_type}'.",
+                    field=f"emergency_vehicles[{idx}].emergency_type",
+                )
+        elif not isinstance(ev.emergency_type, EmergencyType):
+            raise ScenarioValidationError(
+                f"Emergency vehicle '{ev.vehicle_id}' emergency_type must be "
+                "an EmergencyType enum.",
+                field=f"emergency_vehicles[{idx}].emergency_type",
+            )
+
+        if ev.priority_level is not None and (
+            not isinstance(ev.priority_level, int) or ev.priority_level < 1
+        ):
+            raise ScenarioValidationError(
+                f"Emergency vehicle '{ev.vehicle_id}' priority_level must be an integer >= 1.",
+                field=f"emergency_vehicles[{idx}].priority_level",
+            )
+        if ev.ttl_s <= 0.0:
+            raise ScenarioValidationError(
+                f"Emergency vehicle '{ev.vehicle_id}' ttl_s must be strictly positive.",
+                field=f"emergency_vehicles[{idx}].ttl_s",
+            )
+        if ev.activate_at_time_s < 0.0:
+            raise ScenarioValidationError(
+                f"Emergency vehicle '{ev.vehicle_id}' activate_at_time_s must be non-negative.",
+                field=f"emergency_vehicles[{idx}].activate_at_time_s",
+            )
+
+    if scenario.emergency_config is not None and not isinstance(
+        scenario.emergency_config, EmergencyConfig
+    ):
+        raise ScenarioValidationError(
+            "emergency_config must be an EmergencyConfig instance.",
+            field="emergency_config",
+        )
+
     # 9. Graph compatibility validation if graph is provided
     target_graph = graph or scenario.road_network.supplied_graph
     if target_graph is not None:
@@ -355,4 +428,23 @@ def validate_graph_compatibility(scenario: ScenarioDefinition, graph: RoadGraph)
                     field="crosswalks.associated_road_segment_ids",
                     details={"crosswalk_id": cw.crosswalk_id, "edge_id": edge_id},
                 )
+
+    for ev in scenario.emergency_vehicles:
+        if ev.start_node_id and not graph.has_node(ev.start_node_id):
+            raise ScenarioValidationError(
+                f"Emergency vehicle '{ev.vehicle_id}' start node "
+                f"'{ev.start_node_id}' does not exist in graph.",
+                field="emergency_vehicles.start_node_id",
+                details={"vehicle_id": ev.vehicle_id, "start_node_id": ev.start_node_id},
+            )
+        if ev.destination_node_id and not graph.has_node(ev.destination_node_id):
+            raise ScenarioValidationError(
+                f"Emergency vehicle '{ev.vehicle_id}' destination node "
+                f"'{ev.destination_node_id}' does not exist in graph.",
+                field="emergency_vehicles.destination_node_id",
+                details={
+                    "vehicle_id": ev.vehicle_id,
+                    "destination_node_id": ev.destination_node_id,
+                },
+            )
 

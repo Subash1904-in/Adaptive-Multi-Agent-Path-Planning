@@ -197,6 +197,38 @@ python backend/manage.py check
   - Safe separation distance computation with reaction time and braking distance terms.
   - Time-To-Collision (TTC) estimation with non-closing / receding vehicle safety bounds.
   - 5-tier risk classification: `COLLISION`, `IMMINENT`, `HIGH_RISK`, `CAUTION`, `SAFE`.
+- **Emergency Models & Lifecycle FSM (`test_emergency_models_and_lifecycle.py`, 13 passed)**
+  - Priority levels (1-3) and emergency types (`AMBULANCE`, `FIRE_ENGINE`, `POLICE`).
+  - Lifecycle state machine transitions and invalid transition rejection.
+  - Deterministic tie-breaking `(priority_level, creation_time_s, vehicle_id)` and TTL expiration.
+  - Manager activation idempotency, destination conflict rejection, deactivation cleanup, and baseline reset.
+- **Emergency V2V Announcements & Awareness (`test_emergency_v2v_announcements.py`, 14 passed)**
+  - Packet builders and JSON codecs for emergency messages.
+  - Local awareness store updates without omniscient leakage.
+  - Stale and expired message rejection.
+  - Delivery across simulated network subject to range and packet loss.
+- **Emergency Corridors & Reservations (`test_emergency_corridors_and_reservations.py`, 8 passed)**
+  - Dynamic corridor path extraction from existing `RoadGraph` without graph mutation.
+  - Temporary edge and node reservations with time-to-live (`ttl_s`).
+  - Preemption conflict resolution under `STRICT_PRIORITY` and `FIRST_COME_FIRST_SERVED` policies.
+  - Complete reservation cleanup on priority deactivation.
+- **Yielding Policies & Traffic Signals (`test_emergency_yielding_and_signals.py`, 8 passed)**
+  - Cooperative yielding deceleration respecting physical vehicle limits.
+  - Yielding vehicles stopping at red traffic signals without entering intersections.
+  - Yielding vehicles stopping before occupied crosswalks with crossing pedestrians.
+  - Traffic-signal priority overrides holding GREEN along emergency corridors.
+  - Priority override denial protecting pedestrians actively crossing in crosswalks.
+  - Phase 16 safety subsystem collision avoidance overrides retaining supreme authority.
+- **Emergency Engine Integration & Atomic Rollback (`test_emergency_engine_integration.py`, 6 passed)**
+  - Single-clock stepping integrating V2V inbox ingestion, corridor auto-commitment, and yielding.
+  - Atomic rollback restoring emergency requests, corridors, reservations, and overrides on step failure.
+  - Injected maintenance and vehicle motion failures verified.
+  - Deterministic replay producing bit-identical snapshots.
+  - Scenario reset restoring baseline emergency state.
+- **Emergency Scenario Orchestration (`test_emergency_scenarios.py`, 11 passed)**
+  - Scenario validation for emergency vehicle definitions, priority bounds, and road graph node presence.
+  - End-to-end execution across all 6 Phase 18 example scenario fixtures.
+  - Backward compatibility with scenarios omitting emergency configurations.
 - **Pedestrian Models & Kinematics (`test_pedestrian_models_and_kinematics.py`, 12 passed)**
   - Pedestrian lifecycle states (`IDLE`, `APPROACHING_CROSSWALK`, `WAITING_TO_CROSS`, `CROSSING`, `WALKING`, `ARRIVED`, `BLOCKED`).
   - Strict transition validation (`validate_pedestrian_transition`) and error handling (`InvalidPedestrianStateError`).
@@ -286,8 +318,8 @@ python backend/manage.py check
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 17: **96%** coverage across 853 passing tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_17.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 18: **96%** coverage across 913 passing tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_18.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend Deferred Cleanly:** Frontend build/lint/typecheck job runs in Node 22.x, deferring execution cleanly until `frontend/package.json` is introduced.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.
