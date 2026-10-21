@@ -192,6 +192,15 @@ The GitHub Actions CI pipeline (`.github/workflows/ci.yml`) runs the complete re
 - **Backend Lint, Test & Coverage**: Runs Ruff, Django system check, and pytest with `--cov-fail-under=80`.
 - **Frontend Environment Validation**: Verifies Node 22.x execution environment cleanly.
 
+### Verified CI Run
+- **Run URL**: [GitHub Actions Run 39546954597](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39546954597)
+- **Status**: Completed / Success (100% green)
+- **Commit**: `19f2eb2` (`feat(core): implement Phase 18 emergency vehicle priority, yielding policies, and dynamic corridors`)
+- **Jobs Executed**:
+  - `Backend Lint, Test & Coverage`: Passed in 36s (913 passed, 96% coverage, 0 lint errors, 0 Django check issues)
+  - `Frontend Lint, Typecheck & Build`: Passed in 8s
+  - `Repository Hygiene & Documentation Integrity`: Passed in 4s
+
 ---
 
 ## 7. Scope Boundaries & Next Phase Handoff
