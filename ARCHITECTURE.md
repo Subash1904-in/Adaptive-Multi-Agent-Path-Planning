@@ -67,7 +67,9 @@ flowchart TB
 - **Decentralized V2V Coordination (`backend/apps/core/coordination/`):** **IMPLEMENTED & TESTED** in Phase 13 (`CongestionReport`, `RoadClosureReport`, `HazardReport`, `VehicleKnowledgeStore`, `InformationFusion`, `DisseminationManager`, `CoordinationManager`, order-invariant belief fusion, multi-hop dissemination, atomic rollback, 676 tests passing).
 - **Communication Failures and Latency Recovery (`backend/apps/core/communication/`):** **IMPLEMENTED & TESTED** in Phase 14 (Multi-tick transit queues, deterministic latency, distance loss, Gilbert-Elliott burst loss, outages, links, partitions, 709 tests passing).
 - **Adaptive Rerouting & Dynamic Route Adjustment (`backend/apps/core/routing/`):** **IMPLEMENTED & TESTED** in Phase 15 (`DynamicEdgeCostEvaluator`, `DynamicRouteAdapter`, `AdaptiveRoutingConfig`, `AdaptiveRoutingMetrics`, safe route suffix replacement, hysteresis & cooldown, engine integration & rollback, 760 tests passing).
-- **Transport Streaming & Advanced REST (`backend/channels/`, etc.):** **PLANNED** (Phases 21–22).
+- **Simulation Execution Lifecycle, Telemetry & Export (`backend/apps/core/scenarios/`, `telemetry/`):** **IMPLEMENTED & TESTED** in Phase 20 (8-state FSM, cooperative cancellation, SHA-256 fingerprints, bounded telemetry stream, metrics aggregator, RFC 8259 JSON export, 1,007 tests passing).
+- **Django REST API Layer (`backend/apps/core/api/`):** **IMPLEMENTED & TESTED** in Phase 21 (REST endpoints under `/api/v1/`: scenario CRUD/validation, run lifecycle, discrete stepping, cancellation, telemetry, metrics, export, custom exception taxonomy, 1,053 tests passing).
+- **Transport Streaming (WebSockets via Django Channels):** **PLANNED** (Phase 22).
 - **Reinforcement Learning (`rl_engine/*`):** **PLANNED** (Phases 32–34).
 - **Frontend Dashboard (`frontend/*`):** **PLANNED** (Phases 23–30).
 
@@ -1155,6 +1157,69 @@ To guarantee 100% replay reproducibility and experiment provenance:
 
 ### 16.8 Educational Simulation Disclaimer
 This simulation platform is developed solely for educational, academic, and research purposes in multi-agent coordination. It is NOT certified, verified, or suitable for deployment in physical autonomous vehicles.
+
+---
+
+## 17. Django REST API Layer Architecture (`apps.core.api`)
+
+Phase 21 delivers an authoritative, testable Django REST Framework (DRF) HTTP API layer exposing scenario management, simulation execution, and telemetry inspection under `/api/v1/`.
+
+### 17.1 Thin Application Layer Design Pattern
+- **Strict Separation of Concerns**: API views (`views.py`) inherit from `BaseSimulationView` and act exclusively as thin HTTP orchestration controllers.
+- **Invariance Invariant**: Views NEVER mutate `SimulationEngine`, `WorldState`, or vehicle states directly. All mutations and stepping are delegated to domain entities (`ScenarioDefinition`, `validate_scenario()`, `ScenarioRunner`, `MetricsAggregator`) via the `SimulationService` facade.
+- **Stateless Controllers**: Views hold no local simulation state; state is encapsulated within domain runners.
+
+### 17.2 Thread-Safe In-Memory Registries (`ScenarioRegistry`, `RunRegistry`)
+- **Lightweight & Portable**: The core simulation architecture requires zero database models for scenario or run execution, preserving pure-Python execution efficiency.
+- **Thread Synchronization**: `ScenarioRegistry` and `RunRegistry` utilize `threading.RLock` to synchronize registration, lookup, listing, deletion, and teardown across concurrent HTTP requests.
+- **Default Scenarios Preloaded**: On boot, standard verified scenarios (`scn_single_veh`, `scn_multi_veh`, `scn_signalized`, `scn_congestion`, `scn_ambulance`, `scn_pedestrian`) are preloaded into `ScenarioRegistry` for immediate evaluation.
+
+### 17.3 Standardized RFC 7807 Error Taxonomy & Exception Handler
+- **Custom DRF Handler (`api_exception_handler`)**: Registered in `settings.REST_FRAMEWORK["EXCEPTION_HANDLER"]`.
+- **Uniform Response Envelope**:
+  ```json
+  {
+    "error": {
+      "code": "ERROR_CODE",
+      "message": "Human-readable explanation.",
+      "details": { ... }
+    }
+  }
+  ```
+- **Error Code Mapping**:
+  - `400 Bad Request`: `VALIDATION_ERROR`, `UNREACHABLE_DESTINATION`, `INVALID_EXECUTION_LIMITS`, `TELEMETRY_ERROR`, `PARSE_ERROR`.
+  - `401 Unauthorized`: `UNAUTHORIZED` (when authentication is enabled).
+  - `403 Forbidden`: `PERMISSION_DENIED`.
+  - `404 Not Found`: `SCENARIO_NOT_FOUND`, `RUN_NOT_FOUND`, `NOT_FOUND`.
+  - `405 Method Not Allowed`: `METHOD_NOT_ALLOWED`.
+  - `409 Conflict`: `LIFECYCLE_CONFLICT`, `DUPLICATE_SCENARIO_ID`, `DUPLICATE_RUN_ID`.
+  - `413 Payload Too Large`: `EXPORT_SIZE_LIMIT_EXCEEDED`.
+  - `500 Internal Server Error`: `INTERNAL_SERVER_ERROR` with sanitized error messages.
+
+### 17.4 Endpoint Surface Specification
+- **Scenario Management**:
+  - `GET /api/v1/scenarios/`: Lists scenario summaries.
+  - `POST /api/v1/scenarios/`: Validates and registers a new scenario (201 Created).
+  - `GET /api/v1/scenarios/{scenario_id}/`: Retrieves scenario definition (200 OK or 404).
+  - `POST /api/v1/scenarios/validate/`: Validates payload without registering (200 OK or 400).
+- **Simulation Runs Lifecycle & Execution**:
+  - `GET /api/v1/runs/`: Lists active and past simulation runs.
+  - `POST /api/v1/runs/`: Creates a new simulation run in `READY` state (201 Created).
+  - `GET /api/v1/runs/{run_id}/`: Retrieves point-in-time status (200 OK or 404).
+  - `POST /api/v1/runs/{run_id}/step/`: Steps simulation by $N$ ticks or to completion.
+  - `POST /api/v1/runs/{run_id}/cancel/`: Requests cooperative cancellation (`CANCELLED`).
+  - `GET /api/v1/runs/{run_id}/result/`: Retrieves `ScenarioExecutionResult` payload.
+  - `GET /api/v1/runs/{run_id}/metrics/`: Retrieves cross-subsystem aggregated metrics.
+  - `GET /api/v1/runs/{run_id}/telemetry/`: Queries bounded telemetry stream records.
+  - `GET /api/v1/runs/{run_id}/export/`: Downloads RFC 8259 JSON export with size cap enforcement.
+
+### 17.5 Security Boundaries and Permissions
+- `SimulationApiPermission`: Provides open development/research access by default while enforcing authentication when `settings.AMAPP_API_REQUIRE_AUTHENTICATION` is enabled.
+- `ReadOnlyOrAdminApiPermission`: Allows anonymous read access and restricts state modifications (`POST`) to staff users.
+
+### 17.6 Educational Simulation Disclaimer
+Every API response envelope, scenario detail, and exported result includes the mandatory academic disclaimer:
+`"AMAPP is an educational simulation framework and is not intended for real-world autonomous vehicle safety-critical control."`
 
 
 

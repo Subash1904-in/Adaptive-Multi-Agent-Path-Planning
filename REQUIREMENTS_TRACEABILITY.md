@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 20 (Backend Integration Checkpoint, Scenario Runner Enhancements, Advanced Telemetry Streams)  
+**Current Phase:** Phase 21 (Django REST API Layer for Scenario Management, Simulation Runs, and Telemetry)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 20 (Backend Integration Expansion, Scenario Runner Enhancements, and Advanced Telemetry Streams):* Phase 20 establishes a unified backend execution and observation layer wrapping `SimulationEngine` and all Phase 2–19 subsystems. It implements an explicit 8-state deterministic execution lifecycle (`CREATED` -> `VALIDATING` -> `READY` -> `RUNNING` -> `COMPLETED`/`CANCELLED`/`FAILED`/`LIMIT_REACHED`), cooperative idempotent cancellation between ticks (`runner.cancel()`), configurable execution limits (`RunConfig`), deterministic reproducibility via canonical SHA-256 digests (`scenario_fingerprint`, `initial_world_state_fingerprint`, `final_world_state_fingerprint`) and Git commit discovery, bounded in-memory telemetry streams (`TelemetryCollector`) with 14 event categories and zero-drop critical event retention, cross-subsystem metrics aggregation (`MetricsAggregator`) combining metrics across all subsystems without rollback double-counting, and RFC 8259 JSON result export with non-finite number sanitization and size limits. 1,007 total tests passing, 96% line coverage.
+> *Note on Phase 21 (Django REST API Layer for Scenario Management, Simulation Runs, and Telemetry):* Phase 21 delivers an authoritative, testable Django REST Framework HTTP API under `/api/v1/`. Exposes scenario CRUD, validation, simulation run lifecycle orchestration (`READY` -> `RUNNING` -> `COMPLETED`/`CANCELLED`/`LIMIT_REACHED`), discrete stepping, cancellation, point-in-time status queries, cross-subsystem aggregated metrics, bounded telemetry inspection, and RFC 8259 JSON exports with size limits. Implements thin view controllers, thread-safe in-memory registries (`ScenarioRegistry`, `RunRegistry`), standardized RFC 7807 error format, and academic disclaimers. 1,053 total tests passing, 95.77% line coverage.
 
 ---
 
@@ -31,7 +31,8 @@
 | **FR-11** | Communication Range Detection | `backend/apps/core/communication/discovery.py`, `backend/apps/core/communication/neighbors.py` | Phase 11, 12, 14, 27 | `NOT STARTED` | Phase 11, 12, 14 Spatial Discovery, Tables & Distance Loss Tested (`test_communication_discovery.py`, `test_communication_impairment.py`) |
 | **FR-12** | Communication Failure Handling | `backend/apps/core/communication/network.py`, `backend/apps/core/communication/neighbors.py` | Phase 11, 12, 14, 27 | `NOT STARTED` | Phase 11, 12, 14 Latency, Loss, Burst Channels, Outages & Recovery Tested (`test_communication_latency.py`, `test_communication_impairment.py`, `test_communication_degradation_integration.py`) |
 | **FR-13** | AI Model Training Using Reinforcement Learning | `rl_engine/` | Phase 32, 33, 34 | `NOT STARTED` | Pending Phase 32 |
-| **FR-14** | Real-Time 3D Visualization and Interactive Dashboard | `backend/`, `frontend/` | Phase 21–30 | `NOT STARTED` | Pending Phase 21 |
+| **FR-14** | Real-Time 3D Visualization and Interactive Dashboard | `backend/apps/core/api/`, `frontend/` | Phase 21–30 | `IN PROGRESS` | Phase 21 REST API Layer Tested (`test_api_*.py`: 46 tests passing); WebSockets pending Phase 22 |
+
 
 
 ---

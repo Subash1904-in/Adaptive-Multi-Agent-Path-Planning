@@ -1,10 +1,11 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 20 (Backend Integration Checkpoint, Scenario Runner Enhancements, and Advanced Telemetry Streams)
+- **Current Phase:** Phase 21 (Django REST API Layer for Scenario Management, Simulation Runs, and Telemetry)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 21 (Django REST API Layer for Scenarios, Control, and Telemetry) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 22 (Real-time WebSocket Streaming) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-21
+
 
 ---
 
@@ -35,8 +36,9 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 18** | **Emergency vehicle priority, yielding & dynamic corridors** | **COMPLETED** | Ambulance/fire/police types, priority FSM, V2V announcements, dynamic corridors, yielding policies, signal priority, 913 tests passed (96% coverage). |
 | **Phase 19** | **AI decision policy** | **COMPLETED** | Pluggable local decision policy evaluating travel time, congestion, risk, confidence scores, 956 tests passed (95.72% coverage). |
 | **Phase 20** | **Backend integration checkpoint & telemetry streams** | **COMPLETED** | Unified 8-state execution lifecycle, cooperative cancellation, SHA-256 reproducibility fingerprints, bounded telemetry stream, cross-subsystem metrics aggregator, RFC 8259 JSON export, 1,007 tests passed (96% coverage). |
-| **Phase 21** | Django REST API | Pending | REST endpoints: health, simulation lifecycle, vehicle listing, map data, metrics, scenario config. |
+| **Phase 21** | **Django REST API Layer for Scenarios, Control & Telemetry** | **COMPLETED** | REST endpoints under `/api/v1/`: scenario CRUD/validation, simulation run lifecycle, discrete stepping, cancellation, telemetry, metrics, export, custom exception taxonomy, 1,053 tests passed (95.77% coverage). |
 | **Phase 22** | Real-time WebSocket streaming | Pending | Django Channels telemetry stream, versioned event schemas, resync, bounded frequency. |
+
 | **Phase 23** | Frontend scaffold and visual system | Pending | TypeScript + Three.js scaffold, professional UI design system, typography, layout, API/render split. |
 | **Phase 24** | 3D city and road rendering | Pending | Render road graph as navigable 3D city (surfaces, intersections, markings, buildings, lighting). |
 | **Phase 25** | Vehicle and pedestrian visualization | Pending | 3D vehicles, pedestrians, traffic signals, emergency styling, smooth snapshot interpolation. |
@@ -221,13 +223,17 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 
 ## 5. Commands Executed and Actual Results
 1. `.\.venv\Scripts\ruff.exe check backend`: Exit code 0 (`All checks passed!`).
-2. `.\.venv\Scripts\ruff.exe format --check backend`: Exit code 0 (`188 files already formatted`).
+2. `.\.venv\Scripts\ruff.exe format --check backend`: Exit code 0 (`199 files already formatted`).
 3. `.\.venv\Scripts\python.exe backend/manage.py check`: Returned `System check identified no issues (0 silenced).` (exit code 0).
-4. `.\.venv\Scripts\pytest.exe backend/apps/core/tests/ --cov=apps.core --cov-report=term-missing --cov-fail-under=80`: Executed entire test suite; returned `1007 passed in 11.64s`, `96% coverage` (exit code 0).
+4. `.\.venv\Scripts\pytest.exe --cov=apps.core --cov-report=term --cov-fail-under=80`: Executed entire test suite; returned `1053 passed in 24.92s`, `95.77% coverage` (exit code 0).
 
 ---
 
 ## 6. Test Results
+- **Scenario Management REST API (`test_api_scenarios.py`):** 10 passed.
+- **Simulation Runs Lifecycle & Stepping REST API (`test_api_runs.py`):** 15 passed.
+- **Telemetry, Metrics & Export REST API (`test_api_telemetry_and_export.py`):** 11 passed.
+- **REST API Error Taxonomy, Permissions & Security (`test_api_security_and_errors.py`):** 10 passed.
 - **ScenarioRunner Lifecycle & Cancellation (`test_runner_lifecycle_and_cancellation.py`):** 13 passed.
 - **Telemetry Collector, Retention & Drops (`test_telemetry_collector_and_retention.py`):** 11 passed.
 - **Runner Determinism, Fingerprinting & Export (`test_runner_determinism_and_export.py`):** 11 passed.
@@ -248,14 +254,14 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Road Graph & City Generator (`test_road_graph.py`, `test_city_generator.py`):** 41 passed.
 - **Domain Models, Values & Codecs (`test_domain_*.py`):** 105 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total:** **1,007 passed, 0 failed in 11.64s**, **96% line coverage** (exceeds 80% threshold).
+- **Total:** **1,053 passed, 0 failed in 24.92s**, **95.77% line coverage** (exceeds 80% threshold).
 
 ---
 
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Full backend execution and observation layer complete. Supports 8-state lifecycle, cooperative cancellation, SHA-256 reproducibility fingerprints, bounded telemetry stream, cross-subsystem metrics aggregator, and RFC 8259 JSON export.
+- **Notes:** Full Django REST API layer operational under `/api/v1/`. Features thin application views, in-memory thread-safe registries, standardized RFC 7807 error format, and preloaded scenario fixtures.
 - **Educational Disclaimer:** This simulation is developed solely for educational and research purposes and is NOT certified for physical vehicle deployment.
 
 ---
@@ -277,14 +283,17 @@ This roadmap is strictly aligned with our agreed master development plan, divide
    ```bash
    python backend/manage.py runserver 127.0.0.1:8000
    ```
-5. Query health endpoint:
-   - Visit `http://127.0.0.1:8000/api/v1/health/` or run `curl http://127.0.0.1:8000/api/v1/health/`
+5. Query API endpoints:
+   - Health: `http://127.0.0.1:8000/api/v1/health/`
+   - Scenarios: `http://127.0.0.1:8000/api/v1/scenarios/`
+   - Runs: `http://127.0.0.1:8000/api/v1/runs/`
 
 ---
 
 ## 9. Exact Next Steps
-1. Await user prompt for **Phase 21: Django REST API Layer for Scenarios, Control, and Telemetry**.
-2. Implement REST API endpoints for scenario configuration CRUD, simulation execution triggers, stepping/pausing/cancelling runs, and telemetry result retrieval.
+1. Await user prompt for **Phase 22: Real-time WebSocket Streaming**.
+2. Implement Django Channels consumer for real-time telemetry streaming, subscription handshakes, and periodic frame broadcasting.
+
 
 
 

@@ -124,8 +124,36 @@ ruff check backend
 python backend/manage.py check
 ```
 
-### 4.2 Verified Test Coverage (Phase 06 — 257 Tests Passing, 96.76% Coverage)
-- **Routing Costs, Traversability & Heuristics (`test_routing_costs_and_heuristics.py`, 18 passed):**
+### 4.2 Verified Test Coverage (Phase 21 — 1,053 Tests Passing, 95.77% Coverage)
+- **API Scenario Management & Validation (`test_api_scenarios.py`, 10 passed):**
+  - Scenario collection listing and preloaded example templates (`scn_single_veh`, `scn_multi_veh`, `scn_emergency_corridor`, `scn_signalized_intersection`).
+  - Single scenario retrieval by ID with full structural definition serialization.
+  - Custom scenario creation with atomic validation and duplicate ID rejection (409 Conflict).
+  - Malformed scenario rejection with field-level RFC 7807 error details (400 Bad Request).
+  - Dedicated validation endpoint (`POST /api/v1/scenarios/validate/`) for pre-flight checking without persistence.
+  - Rich scenario definitions with signals, crosswalks, pedestrians, emergency vehicles, and subsystem configs.
+- **API Simulation Run Lifecycle (`test_api_runs.py`, 15 passed):**
+  - Run listing and run status retrieval (`GET /api/v1/runs/`, `GET /api/v1/runs/{run_id}/`).
+  - Run creation from preloaded scenario ID or inline definition with custom ticks and random seed (`POST /api/v1/runs/`).
+  - Duplicate run ID rejection (409 Conflict) and non-existent scenario rejection (404 Not Found).
+  - Point-in-time snapshot and execution status inspection.
+  - Discrete stepping: single-tick stepping, multi-tick stepping (`ticks=5`), and run-to-completion (`ticks=None`).
+  - Terminal run stepping rejection (409 Conflict with `INVALID_RUN_LIFECYCLE_STATE`).
+  - Cooperative cancellation: transitioning run to `CANCELLED` lifecycle state (`POST /api/v1/runs/{run_id}/cancel/`).
+  - Already-terminal run cancellation rejection (409 Conflict).
+- **API Telemetry, Metrics & RFC 8259 Export (`test_api_telemetry_and_export.py`, 11 passed):**
+  - Full telemetry query and filtering by tick range (`min_tick`, `max_tick`) and limit.
+  - Intermediate metrics aggregation computed on-the-fly (`GET /api/v1/runs/{run_id}/metrics/`).
+  - Completed execution result retrieval (`GET /api/v1/runs/{run_id}/result/`).
+  - Structured RFC 8259 JSON simulation export (`GET /api/v1/runs/{run_id}/export/`).
+  - Export size limit enforcement (413 Payload Too Large with `EXPORT_SIZE_LIMIT_EXCEEDED`).
+- **API Security, Error Envelope & Permissions (`test_api_security_and_errors.py`, 10 passed):**
+  - Consistent RFC 7807 JSON error responses across 404, 405, 400 (malformed JSON), and sanitized 500 without stack trace leaks.
+  - Open development access by default (`SimulationApiPermission`).
+  - Strict authentication toggle (`AMAPP_API_REQUIRE_AUTHENTICATION`) returning 401 Unauthorized for unauthenticated clients and 403 Forbidden for non-staff mutations.
+  - Safe read-only and admin mutations with `ReadOnlyOrAdminApiPermission`.
+  - Thread-safe programmatic registry lifecycle and cleanup.
+
   - Edge cost calculation: scalar distance in meters, scalar travel time in seconds, validation of non-positive/non-finite length and speed limits.
   - Route metrics aggregation: summation of lengths and durations.
   - Traversability: filtering against closed edge IDs.
@@ -369,8 +397,8 @@ python backend/manage.py check
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 19: **95.72%** coverage across 956 passing tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_19.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 21: **95.77%** coverage across 1,053 passing tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_21.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend Deferred Cleanly:** Frontend build/lint/typecheck job runs in Node 22.x, deferring execution cleanly until `frontend/package.json` is introduced.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.
