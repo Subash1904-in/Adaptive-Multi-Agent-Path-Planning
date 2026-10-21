@@ -208,11 +208,11 @@ All frontend checks execute locally and in CI:
 
 | Attribute | Verified Value |
 |---|---|
-| **Git Commit SHA** | `0a13283` |
-| **Workflow Run URL** | [Run 39598366054](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39598366054) |
-| **Repo Hygiene Job** | PASSED (3s, Job ID 119216259211) |
-| **Backend Quality Job** | PASSED (54s, Job ID 119216259410 — 1,095 tests passed, 95.66% line coverage) |
-| **Frontend Quality Job** | PASSED (19s, Job ID 119216259406 — npm ci, lint, typecheck, 35 tests, production build) |
+| **Git Commit SHA** | `3ec8db0` (implementation `0a13283`) |
+| **Workflow Run URL** | [Run 39598702150](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39598702150) (initial pass: [Run 39598366054](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39598366054)) |
+| **Repo Hygiene Job** | PASSED (4s, Job ID 119217395646) |
+| **Backend Quality Job** | PASSED (1m2s, Job ID 119217396109 — 1,095 tests passed, 95.66% line coverage) |
+| **Frontend Quality Job** | PASSED (19s, Job ID 119217396008 — npm ci, lint, typecheck, 35 tests, production build) |
 
 ### 8.1 Failures Encountered & Root-Cause Resolutions
 1. **API Client Base URL Normalization:**
