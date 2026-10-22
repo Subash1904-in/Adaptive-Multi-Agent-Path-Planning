@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles (AMAPP)  
 **Testing Frameworks:** `pytest`, `pytest-cov`, `pytest-django`, `pytest-asyncio`  
-**Current Status:** Active Test Strategy Enforced (Phase 29 — 1,112 Backend Tests Passing at 95.61% Coverage; 183 Frontend Tests Passing across 10 test files)
+**Current Status:** Active Test Strategy Enforced (Phase 31 — 1,144 Backend Tests Passing at 95.40% Coverage; 192 Frontend Tests Passing across 11 test suites)
 
 ---
 
@@ -440,6 +440,20 @@ python backend/manage.py check
   - Multi-vehicle travel-time distribution calculations, intermediate junction edge-transition throughput tracking, safety events, and V2V communication delivery rates.
   - Time-window boundary filtering restricting analytics to specified simulation tick ranges.
   - `MetricsQuerySerializer` validation rejecting inverted tick ranges, negative values, and oversized sample limits.
+- **Reproducible Routing Benchmarking Framework (`test_benchmarking.py`, 26 passed)**
+  - Adapter protocol verification for registered algorithms (`dijkstra`, `astar`, `static`, `adaptive`).
+  - Unsupported algorithm rejection (`UnsupportedAlgorithmError`) and extensible placeholder verification (`learned` raises unsupported without RL).
+  - Algorithm cost parity tests: verifying Dijkstra and A* compute strictly identical optimal route costs on identical road graphs.
+  - Standardized scenario suite validation (8 scenarios) with stable IDs, versions, and calibrated tick limits.
+  - Random seed policy verification: deterministic multi-trial seeds ($S_i = \text{base} + i \times 1000$) yielding identical outputs across repeated runs.
+  - State isolation: complete world, scenario, and incident state reset between trials; no mutable state leaks.
+  - Execution order invariance: ensuring changing algorithm order does not alter scenario inputs or outputs.
+  - Honest accounting of failures and infeasibilities: infeasible barriers produce `INFEASIBLE` status with `None` cost/travel time (never zero-cost success).
+  - Timeout and execution limit safeguards: halting over-running simulations cleanly.
+  - Statistical aggregation correctness: sample counts, mean, median, min, max, stdev, p90/p95 calculation, and missing-value preservation.
+  - Export integrity: JSON schema (`amapp.benchmark.v1`), CSV row stability (`trials.csv`, `summary.csv`), and Markdown report generation.
+  - Security validation: path traversal rejection for illegal export directory paths (`../`, `..\\`).
+  - Django CLI command integration: testing `python backend/manage.py run_benchmark` with `--smoke`, `--list-*`, and execution flags.
 
 ---
 
@@ -479,8 +493,8 @@ npm run build
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`, `node`, `npm`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 30: **95.60%** coverage across 1,118 passing backend tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_30.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 31: **95.40%** coverage across 1,144 passing backend tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_31.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend CI Gate:** `frontend-quality` executes `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` inside `frontend/`. No skipping or conditional deferral.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.

@@ -119,3 +119,4 @@ wandb/
 tmp/
 temp/
 scratch/
+artifacts/

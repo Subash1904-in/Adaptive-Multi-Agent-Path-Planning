@@ -852,7 +852,59 @@ Phase 29 establishes an interactive, operator-facing, backend-authoritative inci
 - **Operator Control Panel UI (`IncidentControlPanel.tsx`)**: Accessible, collapsible glassmorphism panel allowing operators to inject validated incidents, monitor active incident counts, and remove active incidents with instant visual feedback.
 - **Historical Playback Synchronization**: Extended `SimulationFrameSnapshot` with deep-cloned incident state, ensuring historical timeline scrubbing displays authentic historical incident state without mutating active runner state.
 
-### 6.32 Troubleshooting
+### 6.32 Operational Metrics Dashboard, Live KPIs, and Simulation Analytics (Phase 30)
+Phase 30 introduces a comprehensive operational metrics dashboard and simulation analytics engine grounded strictly in backend simulation truth without synthetic fabrication:
+- **8 Authoritative KPI Cards**: Completion Rate, Average Travel Time, 90th Percentile Travel Time, Intersection Throughput, Collision Rate, Near-Miss Rate, V2V Packet Delivery Ratio (PDR), and Reroute Efficiency.
+- **Pure SVG Visualizations**: Travel-time distribution histogram with dynamic binning and discrete step time-series charts with multi-metric toggles.
+- **Strict Data Integrity**: Unobserved metrics display explicit `"Unavailable"` badges; historical playback scrubbing isolates historical metrics from active live runs.
+
+### 6.33 Reproducible Routing Benchmarking Framework (Phase 31)
+Phase 31 implements an extensible, reproducible benchmarking framework that evaluates route-planning algorithms across standardized simulation scenarios:
+- **Supported Routing Algorithms**:
+  - `dijkstra`: Optimal shortest-path baseline using Dijkstra's algorithm with static road graph edge weights.
+  - `astar`: Optimal shortest-path baseline using A* heuristic search (Euclidean distance admissible heuristic).
+  - `static`: Fixed baseline path computed at departure; no dynamic rerouting or incident avoidance.
+  - `adaptive`: Dynamic A* routing policy that reacts to incident broadcasts (road closures, congestion delays) and local knowledge stores.
+  - `learned`: Extensible architectural stub for future reinforcement-learning policies (Phases 32–34); cleanly raises `UnsupportedAlgorithmError` if invoked before RL training.
+- **8 Standardized Benchmark Scenarios**:
+  - `bench_grid_sparse_3x3`: Small 3x3 sparse grid baseline (1 vehicle, 50m spacing, 250 ticks).
+  - `bench_urban_dense_4x4`: Medium 4x4 urban grid (4 vehicles, signalized intersections, 350 ticks).
+  - `bench_traffic_heavy_3x3`: High vehicle density stress test (8 vehicles, 400 ticks).
+  - `bench_incident_closure`: Dynamic incident injection comparing static vs. adaptive rerouting (300 ticks).
+  - `bench_multi_agent_fleet`: Concurrent multi-agent fleet routing (6 vehicles, 350 ticks).
+  - `bench_infeasible_barrier`: Complete network partition testing honest infeasibility handling (100 ticks).
+  - `bench_emergency_corridor`: Emergency priority corridor yielding evaluation (300 ticks).
+  - `bench_v2v_coordination`: V2V communication and shared obstacle awareness (350 ticks).
+- **Seed Policy & Determinism**:
+  - Configurable `SeedPolicy` (default: `FIXED`). Seeds all random-number generators (`random`, `numpy.random`, Python hash seeds) and derives per-trial seeds deterministically: $\text{trial\_seed} = \text{base\_seed} + i \times 1000$.
+  - Complete scenario and world-state isolation between trials: no mutable graph or vehicle state leaks.
+- **Metrics Aggregation & Honest Accounting**:
+  - Infeasible routes and failed trials are explicitly recorded with status `INFEASIBLE` / `FAILED` and `None` cost/travel time. They are never converted to zero-cost successes.
+  - Statistical summaries compute sample count, success rate, mean, median, min, max, standard deviation, and p90/p95 percentiles.
+- **Reproducible Exports (JSON, CSV, Markdown)**:
+  - JSON output conforming to schema `amapp.benchmark.v1`.
+  - RFC 4180 compliant CSV exports: `trials.csv` (per-trial metrics) and `summary.csv` (aggregated metrics).
+  - Human-readable Markdown summary report: `report.md`.
+  - Secure path validation preventing path traversal escapes outside designated export directories.
+- **CLI Commands (`run_benchmark`)**:
+  ```powershell
+  # Run bounded smoke test (runs in CI pipeline)
+  python backend/manage.py run_benchmark --smoke
+
+  # List available algorithms and scenarios
+  python backend/manage.py run_benchmark --list-algorithms
+  python backend/manage.py run_benchmark --list-scenarios
+
+  # Run custom benchmark comparison with export
+  python backend/manage.py run_benchmark \
+    --algorithms dijkstra astar static adaptive \
+    --scenarios bench_grid_sparse_3x3 bench_incident_closure \
+    --trials 3 \
+    --seed 42 \
+    --export-dir artifacts/benchmark_results
+  ```
+
+### 6.34 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -895,6 +947,7 @@ Phase 29 establishes an interactive, operator-facing, backend-authoritative inci
 - [docs/progress/PHASE_28.md](docs/progress/PHASE_28.md): Phase 28 adaptive routing visualization, route alternatives, and rerouting explanations report.
 - [docs/progress/PHASE_29.md](docs/progress/PHASE_29.md): Phase 29 interactive traffic incident injection and scenario controls report.
 - [docs/progress/PHASE_30.md](docs/progress/PHASE_30.md): Phase 30 operational metrics dashboard, live KPIs, and simulation analytics report.
+- [docs/progress/PHASE_31.md](docs/progress/PHASE_31.md): Phase 31 reproducible routing benchmarking framework report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

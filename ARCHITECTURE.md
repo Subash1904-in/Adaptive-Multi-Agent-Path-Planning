@@ -1733,3 +1733,61 @@ Phase 26 establishes interactive simulation steering, a visible timeline scrubbe
    - Current live totals are never back-projected onto past historical ticks.
    - Displays an prominent amber banner: `"Historical Review Mode — Displaying recorded metrics at tick N"` with a one-click `"Return to Live"` action.
 
+---
+
+## 27. Reproducible Routing Benchmarking Framework (Phase 31)
+
+### 27.1 Component Architecture Overview (`apps.core.benchmarking`)
+The AMAPP benchmarking subsystem provides an isolated, reproducible framework for evaluating route-planning algorithms across standardized multi-agent scenarios:
+1. **`BaseRoutingBenchmarkAdapter` & Concrete Adapters (`adapters.py`)**:
+   - Establishes a uniform execution protocol for route planners.
+   - Adapters wrap `DijkstraBaseline`, `AStarBaseline`, `StaticRouting`, `AdaptiveRouting`, and provide a clean extension point (`LearnedRoutingBenchmarkAdapter`, marked `is_implemented=False`) for future RL policies (Phases 32–34).
+   - Each adapter exposes `plan_initial_route(road_graph, start, dest, cost_mode, closed_edges)` and `configure_scenario(base_scenario)`.
+2. **`AlgorithmRegistry` (`adapters.py`)**:
+   - Thread-safe registry maintaining registered algorithms.
+   - Validates requested algorithm IDs, returning `UnsupportedAlgorithmError` with available suggestions if invalid or unimplemented.
+3. **`BenchmarkScenarioRegistry` & Scenario Suite (`scenarios.py`)**:
+   - Maintains 8 standardized benchmark scenarios (`bench_grid_sparse_3x3`, `bench_urban_medium_4x4`, `bench_dense_corridor_5x5`, `bench_incident_closure`, `bench_incident_congestion`, `bench_infeasible_barrier`, `bench_emergency_corridor`, `bench_v2v_degradation`).
+   - Every scenario definition is instantiated through an isolated factory function with an explicit random seed.
+4. **`BenchmarkRunner` (`runner.py`)**:
+   - Orchestrates full test suites over (scenario, algorithm, trial) tuples.
+   - Manages seed assignment via `SeedPolicy`, enforces execution limits, isolates mutable runtime states, and computes comprehensive statistical summaries without conflating failures.
+5. **`BenchmarkExporter` (`export.py`)**:
+   - Exports results to RFC 8259 JSON (`benchmark_results.json`), stable-column CSVs (`trials.csv`, `summary.csv`), and Markdown comparison reports (`summary_report.md`).
+   - Enforces strict path-traversal validation (`target.relative_to(base)`) preventing filesystem breakout attacks.
+
+### 27.2 Algorithm Parity & Equivalence Invariants
+1. **Dijkstra vs. A* Optimal Cost Parity**:
+   - On identical static directed road graphs with non-negative edge costs and admissible Euclidean distance heuristics, A* and Dijkstra compute mathematically identical optimal objective costs.
+   - Tests assert `math.isclose(dijkstra_cost, astar_cost, rel_tol=1e-5)` on benchmark road graphs.
+2. **Static vs. Adaptive Rerouting Contract**:
+   - Static routing executes with `AdaptiveRoutingConfig(enabled=False)`, keeping original trajectories even when encountering incidents or congestion.
+   - Adaptive routing runs with `AdaptiveRoutingConfig(enabled=True)`, dynamically evaluating alternative routes upon receiving congestion or closure reports.
+
+### 27.3 Seed Determinism & State Isolation
+1. **`SeedPolicy` Allocation**:
+   - Trial seed is derived via `(base_seed + trial_index * 1000) % 2147483647`.
+   - Guaranteed deterministic across repeated benchmark invocations.
+2. **Complete State Isolation**:
+   - Every trial instantiates a brand-new `ScenarioDefinition` from its factory function, builds fresh graph structures, and runs in an isolated `ScenarioRunner`.
+   - Mutating a graph or triggering an incident in one trial never leaks into subsequent trials.
+   - Trial execution order does not contaminate input graphs or scenario conditions.
+
+### 27.4 Authoritative Metrics Collection & Honest Infeasibility Policy
+1. **Subsystem Metrics Integration**:
+   - Sourced directly from `ScenarioExecutionResult.metrics_summary`, capturing route feasibility, total length, objective cost, planning wall-clock duration (ms), simulation travel time (s), collision counts, near-misses, intersection crossings, reroutes evaluated/accepted, and V2V packet delivery ratio (PDR).
+2. **Strict Non-Fabrication of Infeasible Routes**:
+   - In scenarios where destinations are unreachable (e.g. `bench_infeasible_barrier`), trials are explicitly classified as `infeasible` with `route_feasible=False`.
+   - Infeasible and failed trials are strictly excluded from route cost and travel time samples (never treated as successful 0-cost routes).
+   - Incomplete runs do not record fabricated simulation travel times.
+
+### 27.5 Command-Line Interface (`python backend/manage.py run_benchmark`)
+1. **Supported Operations**:
+   - `--smoke`: Quick 1-trial verification comparing Dijkstra and A* on `bench_grid_sparse_3x3`.
+   - `--algorithms <csv>`: Comma-separated list of algorithms to evaluate.
+   - `--scenarios <csv>`: Comma-separated list of scenario IDs to evaluate.
+   - `--trials <N>`: Repetitions per (scenario, algorithm) pair.
+   - `--seed <N>`: Base integer random seed for reproducibility.
+   - `--export-dir <path>`: Output directory for JSON, CSV, and Markdown report export.
+   - `--list-algorithms` / `--list-scenarios`: Metadata inspection flags.
+

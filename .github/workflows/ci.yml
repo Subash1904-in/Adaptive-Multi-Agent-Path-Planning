@@ -63,6 +63,7 @@ jobs:
             "docs/progress/PHASE_28.md"
             "docs/progress/PHASE_29.md"
             "docs/progress/PHASE_30.md"
+            "docs/progress/PHASE_31.md"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"
@@ -134,6 +135,11 @@ jobs:
         shell: bash
         run: |
           pytest --cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+
+      - name: Run Reproducible Routing Benchmark Smoke Verification
+        shell: bash
+        run: |
+          python backend/manage.py run_benchmark --smoke
 
 
   frontend-quality:

@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 30 (Operational Metrics Dashboard, Live KPIs, and Simulation Analytics)
+- **Current Phase:** Phase 31 (Reproducible Routing Benchmarking Framework)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 31 (Benchmarking Framework) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 32 (Reinforcement-Learning Environment) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-22
 
 
@@ -46,8 +46,8 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 28** | **Adaptive routing visualization** | **COMPLETED** | Interactive Three.js routing layer: active routes at $y=0.12\text{m}$, baseline planned paths, candidate alternative paths, rotating 3D reroute markers, decision reasons, cost comparisons, EntityInspector routing telemetry, HUD toggles, collapsible legend, 166 frontend tests, 1,097 backend tests. |
 | **Phase 29** | **Traffic incidents and scenario controls** | **COMPLETED** | Interactive Three.js incident overlays (road closure, congestion, obstacle, signal override) at $y=0.10\text{m}$, backend-authoritative REST APIs (`/runs/{id}/incidents/`), WebSocket live events, IncidentControlPanel UI, 183 frontend tests, 1,112 backend tests (95.61% coverage). |
 | **Phase 30** | **Operational metrics dashboard** | **COMPLETED** | Live & historical operational metrics dashboard, pure SVG travel time histogram & step time-series charts, 8 KPI cards, time-window filtering, deterministic trip/throughput/PDR analytics, 192 frontend tests, 1,118 backend tests (95.60% coverage). |
-| **Phase 31** | Benchmarking framework | Pending | Repeatable experiments comparing A*, static baseline, adaptive policy; CSV & JSON export. |
-| **Phase 32** | Reinforcement-learning environment | Pending | Gymnasium-compatible route-selection environment, bounded observation/action spaces, reward balancing. |
+| **Phase 31** | **Benchmarking framework** | **COMPLETED** | Reproducible routing benchmarking framework, BaseRoutingBenchmarkAdapter, AlgorithmRegistry (Dijkstra, A*, Static, Adaptive, Learned RL extension point), 8 standardized scenarios, SeedPolicy determinism, honest failure/infeasibility accounting, RFC 8259 JSON & stable CSV exports, CLI management command, 1,144 backend tests passed (95.40% coverage). |
+| **Phase 32** | **Reinforcement-learning environment** | **Pending** | Gymnasium-compatible route-selection environment, bounded observation/action spaces, reward balancing. |
 | **Phase 33** | Train and save an RL baseline | Pending | Stable-Baselines3 PPO training with fixed seed, bounded budget, artifact persistence, baseline fallback. |
 | **Phase 34** | RL evaluation and policy integration | Pending | Evaluation on held-out scenarios, multi-seed metrics, policy adapter with fallback. |
 | **Phase 35** | Persistence and experiment history | Pending | Django models for runs, scenario configurations, experiment results, bounded summary storage. |
@@ -305,7 +305,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 9. Exact Next Steps
-1. Await user prompt for **Phase 31: Benchmarking Framework**.
-2. Build repeatable benchmarking framework comparing path-planning algorithms (A*, Dijkstra, static baseline, and future learned policies) across standard scenario test suites.
-3. Generate automated CSV and JSON benchmark reports.
+1. Await user prompt for **Phase 32: Reinforcement-Learning Environment**.
+2. Design and implement Gymnasium-compatible single- and multi-agent path-planning environment wrapping AMAPP simulation engine.
+3. Establish bounded observation spaces, discrete action spaces, reward shaping, and seed reproducibility.
 

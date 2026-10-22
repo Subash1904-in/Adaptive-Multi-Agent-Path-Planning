@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 30 (Operational Metrics Dashboard, Live KPIs, and Simulation Analytics)  
+**Current Phase:** Phase 31 (Reproducible Routing Benchmarking Framework)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 30 (Operational Metrics Dashboard, Live KPIs, and Simulation Analytics):* Phase 30 delivers a comprehensive operational metrics dashboard and deterministic analytics engine for simulation runs. Grounded strictly in authoritative backend simulation records without synthetic fabrication, it computes trip completion rates, travel-time distributions (sample count, mean, median, p90, p95, min, max, dynamic histogram bins), intersection throughput, collision and near-miss event frequencies, V2V packet delivery ratios (PDR) with loss breakdown, dynamic rerouting activity, active incident breakdowns by type, and discrete time-series points. Visualized via 8 summary KPI cards, category tab filters, time-window boundary filters, pure SVG travel-time distribution histograms, and pure SVG discrete step time-series charts, with deep historical playback review isolation and honest "Unavailable" labels for unobserved stats. 192 frontend tests, 1,118 backend tests passing (95.60% line coverage).
+> *Note on Phase 31 (Reproducible Routing Benchmarking Framework):* Phase 31 delivers an extensible, reproducible benchmarking framework comparing path-planning algorithms (`dijkstra`, `astar`, `static`, `adaptive`) across standardized autonomous-vehicle simulation scenarios. Features a unified adapter contract (`BaseRoutingBenchmarkAdapter`), algorithm registry (`AlgorithmRegistry`), 8 standardized scenarios with calibrated limits (`BenchmarkScenarioRegistry`), deterministic random seed policy (`SeedPolicy`), strict mutable state isolation between trials, authoritative metrics collection (never treating failures/infeasible routes as 0-cost successes), RFC 8259 JSON, RFC 4180 CSV, and Markdown export engines with path-traversal prevention, and a dedicated Django CLI command (`run_benchmark`). 192 frontend tests, 1,144 backend tests passing (95.40% line coverage).
 
 ---
 
@@ -22,7 +22,7 @@
 | **FR-02** | Multi-Agent Autonomous Vehicle Environment | `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 07, 08, 10, 20, 25 | `TESTED` | Phase 07, 08, 10, 20 Tested (`test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`, `test_runner_*.py`) |
 | **FR-03** | Real-World Map Integration | `backend/apps/core/graph/`, `frontend/src/features/scene3d/` | Phase 04, 05, 24 | `TESTED` | Phase 04 & 05 Foundation Tested (`test_osm_*.py`, `test_road_graph.py`); Phase 24 Frontend OSM Adapter Tested (`geometry.test.ts`) |
 | **FR-04** | Traffic and Pedestrian Simulation | `backend/apps/core/signals/`, `backend/apps/core/pedestrians/`, `backend/apps/core/safety/`, `backend/apps/core/incidents/` | Phase 09, 17, 25, 29 | `TESTED` | Phase 09 Signals, Phase 17 Pedestrians & Phase 29 Incidents Tested (`test_signals_*.py`, `test_pedestrian_*.py`, `test_incident_*.py`) |
-| **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/`, `backend/apps/core/telemetry/` | Phase 06, 07, 08, 10, 20, 30, 31 | `TESTED` | Phase 06–10 & Phase 20 Metrics Aggregation & Export Tested (`test_routing_*.py`, `test_runner_metrics_aggregation.py`, `test_runner_determinism_and_export.py`) |
+| **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/benchmarking/`, `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/`, `backend/apps/core/telemetry/` | Phase 06, 07, 08, 10, 20, 30, 31 | `TESTED` | Phase 06–10 & Phase 20 Metrics Aggregation & Export Tested; Phase 31 Benchmarking Framework Tested (`test_routing_*.py`, `test_runner_*.py`, `test_benchmarking.py`: 26 tests passing) |
 | **FR-06** | Decentralized Vehicle Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/` | Phase 11, 12, 13, 14 | `TESTED` | Phase 11–14 Protocol, Discovery, Neighbors, Knowledge & Outages Tested (`test_communication_*.py`, `test_coordination_*.py`) |
 | **FR-07** | Adaptive Path Planning | `backend/apps/core/routing/`, `frontend/src/features/scene3d/`, `frontend/src/features/simulation/` | Phase 06, 15, 28 | `TESTED` | Phase 06 & 15 Dynamic Rerouting & Phase 28 Three.js Route/Candidate Overlays Tested (`test_routing_*.py`, `routing.test.ts`, `components.test.tsx`) |
 | **FR-08** | AI-Based Decision-Making | `backend/apps/core/decision/`, `backend/apps/core/routing/adapter.py` | Phase 19, 34 | `TESTED` | Phase 19 Pluggable Rule-Based AI Decision Policies Tested (`test_decision_*.py`: 43 tests passing) |
@@ -78,9 +78,9 @@
 ### FR-05: Motion Planning and Performance Benchmarking
 - **Requirement Statement:** Implement and compare different path-planning algorithms; evaluate travel time, collision rate, route efficiency, safety, and communication performance.
 - **Target Phases:** Phase 06 (Route planning baseline), Phase 30 (Operational metrics dashboard), Phase 31 (Benchmarking framework).
-- **Components:** `sim_engine/planning/`, `sim_engine/benchmarks/metrics.py`, `sim_engine/benchmarks/evaluator.py`
-- **Verification Plan:** Comparative benchmark test suite evaluating A*, Dijkstra, and RL routes against standard baseline scenarios.
-- **Current Status:** `NOT STARTED`
+- **Components:** `backend/apps/core/routing/`, `backend/apps/core/benchmarking/`, `backend/apps/core/management/commands/run_benchmark.py`
+- **Verification Plan:** Comparative benchmark test suite evaluating Dijkstra, A*, Static, and Adaptive algorithms against standardized benchmark scenarios with controlled seeds, deterministic execution, and JSON/CSV/Markdown exports (`test_benchmarking.py`: 26 tests passing).
+- **Current Status:** `TESTED (Phase 06 Baselines, Phase 30 Operational Metrics, and Phase 31 Benchmarking Framework Complete)`
 
 ---
 
@@ -161,7 +161,7 @@
 - **Target Phases:** Phase 21 (Django REST API), Phase 22 (Real-time WebSocket streaming), Phase 23 (Frontend scaffold), Phase 24 (3D city and road rendering), Phase 25 (Vehicle and pedestrian visualization), Phase 26 (Live simulation controls), Phase 27 (V2V visualization), Phase 28 (Adaptive routing visualization), Phase 29 (Traffic incidents and scenario controls), Phase 30 (Operational metrics dashboard).
 - **Components:** `backend/apps/core/realtime/`, `backend/apps/core/api/`, `backend/apps/core/telemetry/analytics.py`, `frontend/src/features/scene3d/` (`SimulationViewer3D.tsx`, `geometry.ts`, `models.ts`, `interpolation.ts`, `v2vOverlay.ts`, `v2vAdapter.ts`, `routeOverlay.ts`, `routeAdapter.ts`, `incidentOverlay.ts`, `incidentAdapter.ts`), `frontend/src/features/playback/` (`playbackScheduler.ts`, `historyBuffer.ts`, `PlaybackBar.tsx`), `frontend/src/features/simulation/` (`EntityInspector.tsx`, `IncidentControlPanel.tsx`), `frontend/src/features/analytics/` (`OperationalDashboard.tsx`)
 - **Verification Plan:** WebSocket frame serialization tests, client connection lifecycle tests, Three.js mesh rendering verification, temporal interpolation unit tests, playback scheduler tests, history buffer tests with deep cloning, V2V overlay unit tests, route overlay unit tests, incident overlay unit tests, operational analytics engine aggregation tests, and component tests (`websocket-client.test.ts`, `api-client.test.ts`, `geometry.test.ts`, `interpolation.test.ts`, `models.test.ts`, `playback.test.ts`, `v2v.test.ts`, `routing.test.ts`, `incidents.test.ts`, `components.test.tsx`, `analytics.test.tsx`: 192 frontend tests, 1,118 backend tests passing).
-- **Current Status:** `TESTED (Phases 21–30 COMPLETED & TESTED; 192 frontend tests across 11 test suites, 1,118 backend tests passing with 95.60% coverage; Phase 31 Benchmarking Framework Next)`
+- **Current Status:** `TESTED (Phases 21–30 COMPLETED & TESTED; 192 frontend tests across 11 test suites; Phase 31 Benchmarking Framework COMPLETED & TESTED with 1,144 backend tests; Phase 32 Gymnasium Environment Next)`
 
 
 
