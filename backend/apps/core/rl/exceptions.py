@@ -8,10 +8,16 @@ from typing import Any, Optional
 class RLEnvironmentError(Exception):
     """Base exception for all RL environment errors."""
 
-    def __init__(self, message: str, details: Optional[dict[str, Any]] = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        details: Optional[dict[str, Any]] = None,
+        cause: Optional[Exception] = None,
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.details = details or {}
+        self.cause = cause
 
 
 class InvalidActionError(RLEnvironmentError):

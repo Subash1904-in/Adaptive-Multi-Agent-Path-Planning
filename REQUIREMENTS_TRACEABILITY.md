@@ -150,9 +150,10 @@
 ### FR-13: AI Model Training Using Reinforcement Learning
 - **Requirement Statement:** Develop and train a reinforcement learning model for intelligent route selection; improve vehicle decision-making through interaction with simulated traffic environments.
 - **Target Phases:** Phase 32 (Reinforcement-learning environment), Phase 33 (Train and save an RL baseline), Phase 34 (RL evaluation and policy integration).
-- **Components:** `backend/apps/core/rl/` (`env.py`, `multi_agent.py`, `features.py`, `rewards.py`, `config.py`, `adapter.py`, `exceptions.py`), `apps/core/tests/test_rl_environment.py`.
-- **Verification Plan:** Gymnasium `check_env` validation, deterministic reward progression tests, observation bounds, action masking, multi-agent coordination, and benchmark bridge execution (`test_rl_environment.py`: 26 tests passing).
-- **Current Status:** `IN PROGRESS (Phase 32 Gymnasium-Compatible Single-Agent and Multi-Agent Environments Completed, Validated with check_env, and Verified; Policy Training and Convergence Evaluation Strictly Deferred to Phase 33)`
+- **Components:** `backend/apps/core/rl/` (`env.py`, `multi_agent.py`, `features.py`, `rewards.py`, `config.py`, `adapter.py`, `exceptions.py`), `backend/apps/core/rl/training/` (`config.py`, `trainer.py`, `evaluator.py`, `policy.py`), `backend/apps/core/management/commands/train_rl_baseline.py`, `apps/core/tests/test_rl_environment.py`, `apps/core/tests/test_rl_training.py`.
+- **Verification Plan:** Gymnasium `check_env` validation, deterministic reward progression tests, observation bounds, action masking, multi-agent coordination, benchmark bridge execution, Stable-Baselines3/sb3-contrib MaskablePPO baseline training, model checkpointing in `artifacts/rl_models/`, deterministic model reload, and held-out multi-seed evaluation against heuristic baselines (`test_rl_environment.py`: 26 tests, `test_rl_training.py`: 22 tests passing).
+- **Current Status:** `IN PROGRESS (Phase 32 Gymnasium Environment & Phase 33 RL Baseline Training and Evaluation COMPLETED; 1,192 backend tests passing; Production Policy Integration and Runtime Fallback Deferred to Phase 34)`
+
 
 ---
 

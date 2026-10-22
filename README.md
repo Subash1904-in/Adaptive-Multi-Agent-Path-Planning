@@ -934,7 +934,39 @@ The platform exposes deterministic Gymnasium environments for route-selection tr
   - Runs benchmark episodes inside `AMAPPSingleAgentEnv` driven by test policies (`GreedyProgressTestPolicy`, `RandomTestPolicy`).
 - **Notice on Model Training**: Phase 32 establishes the standard training interface only. Model training, PPO baselines, and policy convergence belong to Phase 33.
 
-### 6.35 Troubleshooting
+### 6.35 Reinforcement Learning Baseline Training, Evaluation, and Model Management (Phase 33)
+The platform provides an end-to-end, reproducible training pipeline for route selection using Stable-Baselines3 and sb3-contrib `MaskablePPO` under `backend/apps/core/rl/training/`:
+- **Training Architecture**:
+  - `RLTrainingConfig`: Immutable configuration for hyperparameters, policy types (`maskable_ppo`, `ppo`), rollout buffers, learning rate, and artifact paths.
+  - `RLBaselineTrainer`: Executes real optimizer updates on CPU, tracks training loss metrics (`LossTrackingCallback`), saves periodic checkpoints to `artifacts/rl_models/<run>/checkpoints/`, serializes final model zip, and writes `training_metadata.json`.
+  - `RLModelPolicy`: Wraps trained model for deterministic inference with action masking to prevent invalid branch selection.
+  - `RLBaselineEvaluator`: Evaluates saved models on held-out seeds and scenarios against heuristic baselines (`GreedyProgressTestPolicy`, `RandomTestPolicy`), producing machine-readable `evaluation_report.json` and Markdown summaries.
+- **CLI Commands (`python backend/manage.py train_rl_baseline`)**:
+  - **Bounded CI / Local Smoke Test**:
+    ```bash
+    python backend/manage.py train_rl_baseline --smoke
+    ```
+    Runs a fast 64-timestep bounded training cycle, saves checkpoints and final model to `artifacts/rl_models/smoke_test/`, reloads the model, verifies deterministic inference, and runs held-out evaluation across 2 seeds.
+  - **Full Baseline Training**:
+    ```bash
+    python backend/manage.py train_rl_baseline --train \
+      --algorithm maskable_ppo \
+      --scenario bench_grid_sparse_3x3 \
+      --timesteps 2048 \
+      --seed 42 \
+      --output-dir artifacts/rl_models
+    ```
+  - **Model Evaluation Only**:
+    ```bash
+    python backend/manage.py train_rl_baseline --eval-only \
+      --model-dir artifacts/rl_models/maskableppo_bench_grid_sparse_3x3_s42 \
+      --eval-seeds 101 102 103 104 105
+    ```
+- **Scope Discipline (Phase 34 Boundary)**:
+  - The trained RL model is strictly isolated from production REST and WebSocket routing in Phase 33 (`LearnedRoutingBenchmarkAdapter.is_implemented = False`).
+  - Production runtime fallback and live routing integration belong strictly to Phase 34.
+
+### 6.36 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -979,6 +1011,7 @@ The platform exposes deterministic Gymnasium environments for route-selection tr
 - [docs/progress/PHASE_30.md](docs/progress/PHASE_30.md): Phase 30 operational metrics dashboard, live KPIs, and simulation analytics report.
 - [docs/progress/PHASE_31.md](docs/progress/PHASE_31.md): Phase 31 reproducible routing benchmarking framework report.
 - [docs/progress/PHASE_32.md](docs/progress/PHASE_32.md): Phase 32 Gymnasium-compatible single-agent and multi-agent RL environment report.
+- [docs/progress/PHASE_33.md](docs/progress/PHASE_33.md): Phase 33 train, evaluate, and save reinforcement-learning baseline report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

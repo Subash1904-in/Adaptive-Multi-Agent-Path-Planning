@@ -293,11 +293,28 @@ A fundamental requirement of AMAPP is the strict separation between global groun
 - **Subsystem Boundary with Adaptive Rerouting:**
   Collision avoidance reacts to immediate physical proximity via braking overrides; it does not alter road-graph topology, replace active route plans, or divert vehicles onto unvalidated paths.
 
-### 3.8 AI & Reinforcement Learning (`sim_engine/policies/` & `rl_engine/` — Planned Phases 19, 32–34)
-- **Interpretable Decision Policy (Phase 19):** Transparent, weighted scoring baseline evaluating travel time, congestion, risk, and communication confidence:
+### 3.8 AI & Reinforcement Learning Subsystem (`backend/apps/core/rl/` — Phases 19, 32–34)
+- **Interpretable Decision Policy (Phase 19 — IMPLEMENTED):** Transparent, weighted scoring baseline evaluating travel time, congestion, risk, and communication confidence:
   $$\text{Score}(\text{route}) = w_1 \cdot \text{Time} + w_2 \cdot \text{Congestion} + w_3 \cdot \text{Risk} - w_4 \cdot \text{Confidence}$$
-- **Gymnasium Environment (Phase 32):** Standard RL interface providing bounded vector observations and discrete/continuous action spaces for route selection.
-- **Stable-Baselines3 Model (Phases 33–34):** PPO agent trained on route selection with bounded training budget, fully decoupled from the baseline policy.
+- **Gymnasium Simulation Environment (Phase 32 — IMPLEMENTED):**
+  - Authoritative, deterministic single-agent (`AMAPPSingleAgentEnv`) and multi-agent (`AMAPPMultiAgentEnv`) Gymnasium environments.
+  - 32-dimensional continuous bounded observation space (`spaces.Box(low=-1.0, high=1.0)`).
+  - Discrete action space (`spaces.Discrete(K + 1)`) with dynamic action masking (`action_masks()`) preventing invalid branches and closed edge traversal.
+  - Multi-objective reward decomposition (`RewardBreakdown`): destination progress, time penalty, single-credit arrival bonus, safety penalties.
+- **Reinforcement Learning Baseline Training Pipeline (Phase 33 — IMPLEMENTED):**
+  - Dedicated training package `backend/apps/core/rl/training/`:
+    - `RLTrainingConfig`: Pydantic hyperparameters with explicit validation rules (timesteps > 0, batch size <= n_steps, 0 < gamma <= 1, train/eval seed isolation).
+    - `RLBaselineTrainer`: Reproducible training loop supporting `MaskablePPO` (from `sb3-contrib`) and standard `PPO` (from `stable-baselines3`), custom loss tracking via `MetricsAndCheckpointCallback`, intermediate model checkpointing in `artifacts/rl_models/<run>/checkpoints/`, final model saving, and generation of `training_metadata.json`.
+    - `RLModelPolicy`: Production-isolated policy wrapper converting saved neural network weights into callable policy interfaces `(obs, info) -> int` with dynamic action masking.
+    - `RLBaselineEvaluator`: Evaluates trained models across held-out seeds and scenarios against heuristic baselines (`GreedyProgressTestPolicy`, `RandomTestPolicy`), calculating aggregate metrics (completion rate, travel time, route length, collisions, planning duration) and exporting machine-readable `evaluation_report.json` and Markdown summaries.
+  - **CLI Management Command (`python manage.py train_rl_baseline`):**
+    - `--smoke`: Fast 64-timestep bounded training and evaluation smoke test for CI verification.
+    - `--train`: Full training run with custom hyperparameters and seed configurations.
+    - `--eval-only`: Evaluate an existing model checkpoint without retraining.
+  - **Production Routing Isolation (Phase 34 Boundary):**
+    - The trained policy is strictly decoupled from production REST and WebSocket routing.
+    - `LearnedRoutingBenchmarkAdapter.is_implemented` remains `False`.
+    - Conventional deterministic planners (Dijkstra, A*, Static, Adaptive) remain authoritative and unchanged.
 
 ### 3.9 Web Backend & Transport (`backend/` — Planned Phases 2, 21–22, 35)
 - **Responsibilities:** Django REST Framework API for scenario discovery, simulation lifecycle control (play/pause/step/reset), metrics querying, and experiment history persistence.

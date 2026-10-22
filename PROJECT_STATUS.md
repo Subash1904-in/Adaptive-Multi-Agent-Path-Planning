@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 32 (Reinforcement-Learning Environment)
+- **Current Phase:** Phase 33 (Train, Evaluate, and Save an RL Baseline)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 33 (Train and Save an RL Baseline) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 34 (Reinforcement Learning Policy Integration and Production Fallback) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-22
 
 
@@ -48,7 +48,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 30** | **Operational metrics dashboard** | **COMPLETED** | Live & historical operational metrics dashboard, pure SVG travel time histogram & step time-series charts, 8 KPI cards, time-window filtering, deterministic trip/throughput/PDR analytics, 192 frontend tests, 1,118 backend tests (95.60% coverage). |
 | **Phase 31** | **Benchmarking framework** | **COMPLETED** | Reproducible routing benchmarking framework, BaseRoutingBenchmarkAdapter, AlgorithmRegistry (Dijkstra, A*, Static, Adaptive, Learned RL extension point), 8 standardized scenarios, SeedPolicy determinism, honest failure/infeasibility accounting, RFC 8259 JSON & stable CSV exports, CLI management command, 1,144 backend tests passed (95.40% coverage). |
 | **Phase 32** | **Reinforcement-learning environment** | **COMPLETED** | Deterministic Gymnasium-compatible single-agent (`AMAPPSingleAgentEnv`) and multi-agent (`AMAPPMultiAgentEnv`) routing environments, 32-dim bounded observation space, discrete branch selection action space, objective-driven transparent reward breakdown, `check_env` compliant, Phase 31 benchmark bridge, 1,170 backend tests passed (95.12% coverage). |
-| **Phase 33** | Train and save an RL baseline | Pending | Stable-Baselines3 PPO training with fixed seed, bounded budget, artifact persistence, baseline fallback. |
+| **Phase 33** | **Train, evaluate, and save an RL baseline** | **COMPLETED** | Reproducible Stable-Baselines3 / sb3-contrib MaskablePPO baseline training pipeline, CPU execution, artifact checkpointing (`artifacts/rl_models/`), model reload & deterministic inference, held-out evaluation across seeds and scenarios, comparison with random/greedy baselines, CLI management command, 1,192 backend tests passed (95.08% coverage). |
 | **Phase 34** | RL evaluation and policy integration | Pending | Evaluation on held-out scenarios, multi-seed metrics, policy adapter with fallback. |
 | **Phase 35** | Persistence and experiment history | Pending | Django models for runs, scenario configurations, experiment results, bounded summary storage. |
 | **Phase 36** | Security and failure handling | Pending | Input validation, secrets, debug settings, CORS, permissions, client disconnect handling. |

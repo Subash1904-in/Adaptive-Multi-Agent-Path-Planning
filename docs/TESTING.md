@@ -466,6 +466,15 @@ python backend/manage.py check
   - Decentralized multi-agent environment (`AMAPPMultiAgentEnv`): per-agent observation/action spaces, simultaneous action stepping, and per-agent action masks.
   - Phase 31 benchmark bridge: `evaluate_rl_environment_episode` producing valid `BenchmarkTrialResult` records with `GreedyProgressTestPolicy` and `RandomTestPolicy`.
 
+- **Reinforcement Learning Baseline Training & Evaluation (`test_rl_training.py`, 22 passed)**
+  - Configuration validation (`RLTrainingConfig`): rejects non-positive timesteps, batch size > rollout buffer, invalid learning rates, and missing directories; properly constructs bounded smoke test configuration.
+  - Policy initialization and action selection (`RLModelPolicy`): verifies model inference with deterministic greedy selection, action masking to filter illegal/closed branches, and handling of unmasked fallback.
+  - Environment interaction & training cycle (`RLBaselineTrainer`): verifies clean environment instantiation, seeding, optimizer updates via Stable-Baselines3 / sb3-contrib `MaskablePPO` and standard `PPO`, training loss tracking callback (`LossTrackingCallback`), and finite diagnostic metrics.
+  - Checkpoint and artifact persistence: verifies periodic checkpoint saving in `artifacts/rl_models/<run>/checkpoints/`, final model zip serialization, atomic saving, and non-creation of success artifacts on aborted runs.
+  - Model reload & post-reload inference: loads saved model into fresh policy instance, verifies identical deterministic action output on identical observation and action mask.
+  - Held-out evaluation & baseline comparison (`RLBaselineEvaluator`): runs multi-seed evaluation across held-out seeds (101..105), computes statistical metrics (completion rate, travel time, route length, collisions, planning latency), compares against `GreedyProgressTestPolicy` and `RandomTestPolicy`, exports valid machine-readable `evaluation_report.json` and Markdown summaries.
+  - Error and resource handling: verifies environment closure upon training termination or exception, invalid scenario handling, and missing file error resilience.
+
 ---
 
 ### 4.3 Frontend Test Suites & Commands (Phases 23–30)
@@ -503,9 +512,9 @@ npm run build
 
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
-- **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`, `node`, `npm`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 32: **95.12%** coverage across 1,170 passing backend tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_32.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `gymnasium`, `stable_baselines3`, `sb3_contrib`, `torch`, `pytest_cov`, `node`, `npm`).
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 33: **95.08%** coverage across 1,192 passing backend tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_33.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend CI Gate:** `frontend-quality` executes `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` inside `frontend/`. No skipping or conditional deferral.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.
