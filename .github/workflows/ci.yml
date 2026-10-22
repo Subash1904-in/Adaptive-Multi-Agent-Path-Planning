@@ -145,7 +145,7 @@ jobs:
       - name: Verify Experiment History & Persistence Integrity
         shell: bash
         run: |
-          python -c "import sys; sys.path.insert(0, 'backend'); import django; django.setup(); from apps.core.models import SimulationRun, BenchmarkConfiguration, BenchmarkTrial, ExperimentMetric; print('Phase 35 models successfully verified in Django environment.')"
+          python backend/manage.py shell -c "from apps.core.models import SimulationRun, BenchmarkConfiguration, BenchmarkTrial, ExperimentMetric; print('Phase 35 models successfully verified in Django environment.')"
 
       - name: Run Full Automated Test Suite with Coverage (Phases 2-22, WebSockets, Channels ASGI)
         shell: bash
