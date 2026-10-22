@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 38 (Performance Optimization and Scalability)  
+**Current Phase:** Phase 39 (Docker, Containerization, and Reproducible Deployment)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 38 (Performance Optimization and Scalability):* Phase 38 implements empirical, profiling-driven performance optimizations across simulation step execution, routing heuristics, collision detection, and database queries. Key improvements include $O(1)$ topological adjacency index, heuristic admissibility caching, OBB SAT orientation vector pre-computation, inner-loop collision memoization, and zero-copy rollback buffers. Evaluated via reproducible 10-dimension profiling suite showing 1.54x-2.18x speedups across 50-100 vehicle stress workloads. Total backend tests reached 1,338 passing at 95% coverage, with 193 frontend tests passing cleanly.
+> *Note on Phase 39 (Docker, Containerization, and Reproducible Deployment):* Phase 39 delivers production-grade multi-stage containerization across the platform: (1) Python 3.11 Daphne ASGI backend container running under dedicated non-root user `amapp`, supporting both REST API and WebSocket protocols concurrently with zero-dependency `InMemoryChannelLayer`, (2) Node 22 / Nginx 1.27 multi-stage frontend container serving the production SPA build with automated reverse proxy routing for `/api/` and `/ws/` and client-side SPA fallback, (3) root `docker-compose.yml` with health check probes, startup dependency ordering, and named persistent volume `amapp-backend-data` for SQLite persistence across container lifecycles, and (4) automated deployment smoke test suite executed in GitHub Actions CI.
 
 ---
 
@@ -35,6 +35,7 @@
 | **NFR-04** | Security Hardening & Failure Handling | `backend/config/`, `backend/apps/core/api/`, `backend/apps/core/realtime/`, `backend/apps/core/rl/`, `backend/apps/core/persistence/` | Phase 36 | `TESTED` | Phase 36 Complete (37 security tests across 5 test suites; 1,284 backend tests passing at 94.91% coverage; settings checks, headers, throttling, path regex, finite numeric validation, WebSocket framing, Zip Slip mitigation, database failure tolerance) |
 | **NFR-05** | Comprehensive Automated Regression & E2E Testing | `backend/apps/core/tests/`, `frontend/src/test/` | Phase 37 | `TESTED` | Phase 37 Complete (49 regression tests across 8 modules + frontend E2E workflow; 1,333 backend tests passing at 95.06% coverage, 193 frontend tests passing; full multi-agent simulation lifecycle, invariants, and performance smoke verified) |
 | **NFR-06** | Performance Optimization & Scalability | `backend/apps/core/graph/`, `backend/apps/core/routing/`, `backend/apps/core/safety/`, `backend/apps/core/simulation/`, `backend/apps/core/api/` | Phase 38 | `TESTED` | Phase 38 Complete (Graph adjacency index, admissibility caching, OBB SAT pre-computed vectors, inner-loop memoization, zero-copy rollback, query optimization; 9 performance smoke regression tests passing, 1,338 backend tests at 95% coverage) |
+| **NFR-07** | Docker, Containerization & Reproducible Deployment | `docker/`, `docker-compose.yml`, `docs/DEPLOYMENT.md`, `scripts/test_deployment_smoke.py` | Phase 39 | `TESTED` | Phase 39 Complete (Multi-stage Dockerfiles for backend and frontend, docker-compose.yml orchestration, named volume persistence, reverse proxy routing, container healthchecks, and CI automated deployment smoke gate passing) |
 
 
 

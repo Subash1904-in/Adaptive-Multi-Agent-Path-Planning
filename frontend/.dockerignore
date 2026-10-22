@@ -1,0 +1,11 @@
+# Frontend Docker Ignore
+node_modules/
+dist/
+build/
+.git
+.vscode/
+coverage/
+*.log
+.env
+.env.*
+*.tsbuildinfo

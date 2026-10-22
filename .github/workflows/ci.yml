@@ -71,6 +71,10 @@ jobs:
             "docs/progress/PHASE_36.md"
             "docs/progress/PHASE_37.md"
             "docs/progress/PHASE_38.md"
+            "docs/progress/PHASE_39.md"
+            "docs/DEPLOYMENT.md"
+            "docker-compose.yml"
+            ".dockerignore"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"
@@ -228,5 +232,87 @@ jobs:
       - name: Run Production Bundle Build (Vite)
         working-directory: frontend
         run: npm run build
+
+  deployment-smoke:
+    name: Docker Build, Healthcheck & Container Deployment Smoke Verification
+    runs-on: ubuntu-latest
+    needs: [backend-quality, frontend-quality]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Docker Compose Configuration
+        run: docker compose config
+
+      - name: Build and Start Containers
+        run: |
+          docker compose up -d --build
+        env:
+          DJANGO_SECRET_KEY: ci-deployment-smoke-verification-secret-key-32chars
+          DEBUG: "False"
+          RUN_MIGRATIONS: "true"
+
+      - name: Wait for Services to Become Healthy
+        run: |
+          echo "Waiting for services to become healthy..."
+          for i in {1..30}; do
+            STATUS_BACKEND=$(docker inspect --format='{{json .State.Health.Status}}' amapp-backend 2>/dev/null || echo '"starting"')
+            STATUS_FRONTEND=$(docker inspect --format='{{json .State.Health.Status}}' amapp-frontend 2>/dev/null || echo '"starting"')
+            echo "Check $i/30: Backend=$STATUS_BACKEND, Frontend=$STATUS_FRONTEND"
+            if [ "$STATUS_BACKEND" = '"healthy"' ] && [ "$STATUS_FRONTEND" = '"healthy"' ]; then
+              echo "All services report healthy!"
+              break
+            fi
+            sleep 2
+          done
+          if [ "$STATUS_BACKEND" != '"healthy"' ] || [ "$STATUS_FRONTEND" != '"healthy"' ]; then
+            echo "::error::Services failed to become healthy within timeout!"
+            docker compose logs
+            exit 1
+          fi
+
+      - name: Set up Python for Smoke Client
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Smoke Test Dependencies
+        run: pip install websockets
+
+      - name: Run End-to-End Deployment Smoke Verification
+        run: |
+          python scripts/test_deployment_smoke.py \
+            --frontend-url http://localhost:3000 \
+            --backend-url http://localhost:8000 \
+            --ws-url ws://localhost:3000
+
+      - name: Verify Persistence Across Container Recreation
+        run: |
+          echo "Testing container restart and volume persistence..."
+          docker compose down
+          docker compose up -d
+          for i in {1..20}; do
+            STATUS=$(docker inspect --format='{{json .State.Health.Status}}' amapp-backend 2>/dev/null || echo '"starting"')
+            if [ "$STATUS" = '"healthy"' ]; then
+              break
+            fi
+            sleep 2
+          done
+          RUNS=$(curl -f -s http://localhost:8000/api/v1/simulations/)
+          echo "Persisted simulation runs: $RUNS"
+          if [ -z "$RUNS" ] || [ "$RUNS" = "[]" ]; then
+            echo "::error::Simulation runs were not preserved in persistent volume!"
+            exit 1
+          fi
+          echo "✓ Volume persistence successfully verified across container restart."
+
+      - name: Dump Logs on Failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Clean Teardown
+        if: always()
+        run: docker compose down -v
+
 
 

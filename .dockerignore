@@ -1,0 +1,65 @@
+# ==============================================================================
+# AMAPP Docker Ignore Configuration
+# ==============================================================================
+
+# Git and CI
+.git
+.github
+.gitignore
+
+# Python virtual environments & bytecode
+.venv
+venv
+env
+ENV
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing and coverage artifacts
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+.ruff_cache/
+reports/
+test-results/
+
+# Local databases and secrets
+*.sqlite3
+*.sqlite3-journal
+.env
+.env.*
+!frontend/.env.example
+local_settings.py
+secrets/
+*.pem
+*.key
+
+# Model artifacts and local cache
+artifacts/benchmark_results/
+artifacts/rl_models/
+data/cache/
+data/osm_cache/
+models/checkpoints/
+models/saved/
+runs/
+tensorboard_logs/
+wandb/
+
+# Node and frontend artifacts
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+*.tsbuildinfo
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+tmp/
+temp/
+scratch/

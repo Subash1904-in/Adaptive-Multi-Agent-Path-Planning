@@ -96,14 +96,34 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-# Database
-# Default: lightweight SQLite for development and testing
+# Database (Phase 35 & Phase 39)
+# Default: lightweight SQLite; supports volume-persisted directory via AMAPP_DATA_DIR or external DB
+_data_dir = os.environ.get("AMAPP_DATA_DIR")
+if _data_dir:
+    _data_path = Path(_data_dir)
+    _data_path.mkdir(parents=True, exist_ok=True)
+    _default_db_path = _data_path / "db.sqlite3"
+else:
+    _default_db_path = BASE_DIR / "db.sqlite3"
+
+_db_name = os.environ.get("DATABASE_NAME", str(_default_db_path))
+_db_engine = os.environ.get("DB_ENGINE", "django.db.backends.sqlite3")
+
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE": _db_engine,
+        "NAME": _db_name,
     }
 }
+
+if os.environ.get("DB_USER"):
+    DATABASES["default"]["USER"] = os.environ.get("DB_USER")
+if os.environ.get("DB_PASSWORD"):
+    DATABASES["default"]["PASSWORD"] = os.environ.get("DB_PASSWORD")
+if os.environ.get("DB_HOST"):
+    DATABASES["default"]["HOST"] = os.environ.get("DB_HOST")
+if os.environ.get("DB_PORT"):
+    DATABASES["default"]["PORT"] = os.environ.get("DB_PORT")
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -178,14 +198,25 @@ REST_FRAMEWORK = {
     "UNAUTHENTICATED_USER": None,
 }
 
-# Django Channels in-memory channel layer (Phase 22)
-# Suitable for single-process development and deterministic automated test execution.
-# For production multi-worker deployment, an external Redis channel layer is recommended.
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",
-    },
-}
+# Django Channels channel layer (Phase 22 & Phase 39)
+# In single-process Daphne deployments, InMemoryChannelLayer provides zero-dependency streaming.
+# For multi-worker configurations with external Redis, configure REDIS_URL.
+_redis_url = os.environ.get("REDIS_URL")
+if _redis_url:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [_redis_url],
+            },
+        },
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        },
+    }
 
 # Real-time WebSocket streaming configuration (Phase 22 & Phase 36)
 AMAPP_WS_MAX_QUEUE_SIZE = 128

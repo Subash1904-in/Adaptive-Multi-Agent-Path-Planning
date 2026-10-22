@@ -634,14 +634,24 @@ Phase 37 introduces 49 targeted regression tests across 8 specialized backend mo
 - **Frontend End-to-End Workflow (`frontend/src/test/e2e-workflow.test.ts`, 1 passed):**
   - Complete user journey in Vitest/jsdom: load catalog, create run, connect WebSocket, stream telemetry, inject incident, step simulation, inspect reroute, scrub historical buffer.
 
+- **Container Deployment Smoke Verification (`scripts/test_deployment_smoke.py`):**
+  - Frontend health probe verification (`GET /healthz` -> 200 OK).
+  - Direct backend health verification (`GET /api/v1/health/` -> 200 OK, database connected).
+  - Nginx reverse proxy routing verification for `/api/` REST requests.
+  - Scenario catalog retrieval via frontend proxy (`GET /api/v1/scenarios/`).
+  - Simulation run creation and discrete multi-step advancement (`POST /api/v1/simulations/` and `/step/`).
+  - Real-time WebSocket connection upgrade and bidirectional stepping over reverse proxy (`/ws/v1/runs/{id}/`).
+  - Persistent volume survival verification across full container restart (`docker compose down && docker compose up -d`).
+
 ---
 
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `gymnasium`, `stable_baselines3`, `sb3_contrib`, `torch`, `pytest_cov`, `node`, `npm`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 38: **95%** coverage across 1,338 passing backend tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_38.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current: **95%** coverage across 1,338 passing backend tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_39.md`), `docs/DEPLOYMENT.md`, `docker-compose.yml`, and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend CI Gate:** `frontend-quality` executes `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` inside `frontend/`. No skipping or conditional deferral (193 tests passing across 12 suites).
+- **Deployment Smoke CI Gate:** `deployment-smoke` executes `docker compose config`, builds multi-stage images, starts containers, validates service health checks, runs `scripts/test_deployment_smoke.py`, tests volume data persistence across container recreation, and cleans up test volumes.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.
 
