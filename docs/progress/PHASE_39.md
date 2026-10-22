@@ -76,13 +76,13 @@ Execution results:
 3. `test_backend_health_via_proxy`: HTTP 200 forwarded via Nginx reverse proxy `http://localhost:3000/api/v1/health/`.
 4. `test_rest_api_workflow`:
    - Retrieves scenario catalog (`GET /api/v1/scenarios/`).
-   - Creates simulation run (`POST /api/v1/simulations/`).
-   - Advances simulation by 2 ticks (`POST /api/v1/simulations/{id}/step/`).
-   - Verifies persistent metric aggregation (`GET /api/v1/simulations/{id}/metrics/`).
+   - Creates simulation run (`POST /api/v1/runs/`).
+   - Advances simulation by 2 ticks (`POST /api/v1/runs/{id}/step/`).
+   - Verifies persistent metric aggregation (`GET /api/v1/runs/{id}/metrics/`).
 5. `async_test_websocket_streaming`:
    - Connects to `ws://localhost:3000/ws/v1/runs/{id}/`.
-   - Receives initial handshake envelope with schema protocol version `1.0.0`.
-   - Sends discrete step action over WebSocket and verifies received response envelope.
+   - Receives initial handshake envelope with schema protocol version `1.0.0` and `event_type: "run.status"`.
+   - Sends ping / heartbeat action over WebSocket and verifies received response envelope (`server.heartbeat`).
 
 ---
 
@@ -92,7 +92,7 @@ To guarantee zero data loss during container upgrades and restarts:
 1. The smoke test creates a persistent simulation run in `db.sqlite3` on volume `amapp-backend-data`.
 2. The containers are stopped and destroyed via `docker compose down`.
 3. The containers are recreated via `docker compose up -d`.
-4. The backend reattaches to `/app/data/db.sqlite3` and queries `GET /api/v1/simulations/`.
+4. The backend reattaches to `/app/data/db.sqlite3` and queries `GET /api/v1/runs/?historical=true`.
 5. Confirms the previously created simulation run is preserved and queryable.
 
 ---
@@ -149,16 +149,35 @@ The `.github/workflows/ci.yml` pipeline was updated to include:
 
 ### 8.1 Authoritative Verification & Provenance
 - **Starting Commit:** `cb079c9`
-- **Implementation Commit:** `[To be populated upon commit]`
+- **Implementation Commit:** `af579b3`
+- **Fix Commits:** `1f37063`, `446f316`, `b0bcf8e`, `27a8fd2`, `cd200e4`
+- **Tested Final Commit:** `cd200e4`
 - **Backend Test Count:** 1,338 passed, 0 failed, 0 skipped (95.06% coverage)
-- **Frontend Test Count:** 193 passed, 0 failed, 0 skipped
+- **Frontend Test Count:** 193 passed, 0 failed, 0 skipped across 12 suites
 - **Deployment Smoke Gate:** Passed (Docker build, healthchecks, REST, WebSockets, volume persistence)
-- **Authoritative CI Run URL:** [To be populated upon GitHub Actions execution]
+- **Authoritative CI Run URL:** [https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39832687829](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39832687829)
 - **Job Outcomes:**
-  1. `Repository Hygiene & Documentation Integrity` — SUCCESS
-  2. `Backend Lint, Test & Coverage` — SUCCESS
-  3. `Frontend Lint, Typecheck, Test & Production Build` — SUCCESS
-  4. `Docker Build, Healthcheck & Container Deployment Smoke Verification` — SUCCESS
+  1. `Frontend Lint, Typecheck, Test & Production Build` — SUCCESS (31s, ID 120012701526)
+  2. `Repository Hygiene & Documentation Integrity` — SUCCESS (4s, ID 120012701887)
+  3. `Backend Lint, Test & Coverage` — SUCCESS (1m42s, ID 120012702184)
+  4. `Docker Build, Healthcheck & Container Deployment Smoke Verification` — SUCCESS (55s, ID 120013571757)
+
+### 8.2 Failures Encountered & Systematic Resolutions
+1. **Frontend Dockerfile Asset Paths:**
+   - *Failure:* Initial frontend Dockerfile referenced non-existent `frontend/public`, `tsconfig.app.json`, and `tsconfig.node.json`, failing buildx bake.
+   - *Resolution:* Aligned COPY commands with the actual Vite structure (`tsconfig.json`, `vite.config.ts`, `eslint.config.js`, `index.html`, `src/`).
+2. **Frontend Container Health Check Resolution (Alpine Musl IPv6 Mismatch):**
+   - *Failure:* `wget -q -O - http://localhost/healthz` failed in Alpine Linux because `localhost` resolved to `::1` under musl libc, whereas Nginx was only listening on IPv4 (`listen 80;`).
+   - *Resolution:* Added `listen [::]:80;` to `docker/frontend/nginx.conf` and updated health probes to use `http://127.0.0.1/healthz`.
+3. **Smoke Test API Endpoints & Field Names:**
+   - *Failure:* Smoke test queried non-existent `/api/v1/simulations/` and sent `steps` instead of `ticks`.
+   - *Resolution:* Corrected URLs to `/api/v1/runs/`, updated step payload to `{"ticks": 2}`, and inspected `lifecycle_state` and `run_id`.
+4. **Scenario Registry ID Resolution:**
+   - *Failure:* `POST /api/v1/runs/` with `scenario_id='scn_ambulance_corridor'` failed with `SCENARIO_NOT_FOUND` because `ScenarioRegistry.preload_defaults()` registered with alias `'scn_ambulance'`.
+   - *Resolution:* Enhanced `ScenarioRegistry.get()` and `exists()` in `backend/apps/core/api/services.py` to seamlessly resolve by either registered key or `scenario.metadata.id`.
+5. **WebSocket Client Verification Schema:**
+   - *Failure:* Smoke test asserted envelope field `type` instead of `event_type`.
+   - *Resolution:* Aligned client assertion with `SimulationEventType` schema (`event_type == 'run.status'`).
 
 ---
 
