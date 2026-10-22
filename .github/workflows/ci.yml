@@ -64,6 +64,7 @@ jobs:
             "docs/progress/PHASE_29.md"
             "docs/progress/PHASE_30.md"
             "docs/progress/PHASE_31.md"
+            "docs/progress/PHASE_32.md"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"
@@ -119,7 +120,7 @@ jobs:
       - name: Verify Environment & Installed Dependencies
         shell: bash
         run: |
-          python -c "import sys, django, rest_framework, channels, daphne, pytest_asyncio, networkx, osmnx, pytest, pytest_cov, ruff; print(f'Environment verification:\n- Python: {sys.version}\n- Django: {django.__version__}\n- DRF: {rest_framework.__version__}\n- Channels: {channels.__version__}\n- Daphne: {daphne.__version__}\n- Pytest-Asyncio: {pytest_asyncio.__version__}\n- NetworkX: {networkx.__version__}\n- OSMnx: {osmnx.__version__}\n- Pytest: {pytest.__version__}\n- Pytest-Cov: {pytest_cov.__version__}')"
+          python -c "import sys, django, rest_framework, channels, daphne, pytest_asyncio, networkx, osmnx, pytest, pytest_cov, ruff, gymnasium; print(f'Environment verification:\n- Python: {sys.version}\n- Django: {django.__version__}\n- DRF: {rest_framework.__version__}\n- Channels: {channels.__version__}\n- Daphne: {daphne.__version__}\n- Pytest-Asyncio: {pytest_asyncio.__version__}\n- NetworkX: {networkx.__version__}\n- OSMnx: {osmnx.__version__}\n- Pytest: {pytest.__version__}\n- Pytest-Cov: {pytest_cov.__version__}\n- Gymnasium: {gymnasium.__version__}')"
 
       - name: Run Ruff Linting
         shell: bash
@@ -140,6 +141,11 @@ jobs:
         shell: bash
         run: |
           python backend/manage.py run_benchmark --smoke
+
+      - name: Run Gymnasium RL Environment Smoke Verification
+        shell: bash
+        run: |
+          python -c "import sys; sys.path.insert(0, 'backend'); from apps.core.rl.env import AMAPPSingleAgentEnv; from gymnasium.utils.env_checker import check_env; env = AMAPPSingleAgentEnv(); check_env(env); print('RL Environment check_env smoke test PASSED')"
 
 
   frontend-quality:

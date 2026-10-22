@@ -904,7 +904,37 @@ Phase 31 implements an extensible, reproducible benchmarking framework that eval
     --export-dir artifacts/benchmark_results
   ```
 
-### 6.34 Troubleshooting
+### 6.34 Gymnasium-Compatible Reinforcement Learning Environment (Phase 32)
+The platform exposes deterministic Gymnasium environments for route-selection training under `backend/apps/core/rl/`:
+- **Single-Agent Environment (`AMAPPSingleAgentEnv`)**:
+  - Full compliance with `gymnasium.utils.env_checker.check_env`.
+  - **Observation Space**: `spaces.Box(low=-1.0, high=1.0, shape=(32,), dtype=np.float32)`. Normalizes vehicle position, speed, heading trigonometry, destination distance, route progress, edge speed limit/length/congestion/closure, junction branch density, traffic signal phases, neighbor distances, incidents, and emergency vehicles.
+  - **Action Space**: `spaces.Discrete(K + 1)` (default size 9). Action 0 keeps the current route; actions $1 \le a \le K$ select alternative outgoing branches at upcoming intersections.
+  - **Action Masking**: `action_masks() -> np.ndarray[bool]` masks out closed or non-existent branches.
+  - **Objective-Driven Reward Function**: Computes progress toward goal, step duration cost, arrival bonus (+100 credited strictly once), collision (-20) and near-miss (-2) penalties, invalid action penalty (-1), and truncation penalty (-10).
+  - **Minimal Reset/Step Example**:
+    ```python
+    from apps.core.rl import AMAPPSingleAgentEnv, SingleAgentRLConfig
+
+    config = SingleAgentRLConfig(scenario_id="bench_grid_sparse_3x3", max_steps=100)
+    env = AMAPPSingleAgentEnv(config=config)
+
+    obs, info = env.reset(seed=42)
+    mask = info["action_mask"]
+
+    # Choose action 0 (Keep Route) or sample from valid actions
+    obs, reward, terminated, truncated, info = env.step(0)
+    print(f"Step reward: {reward:.3f}, Arrived: {info['is_arrived']}, Terminated: {terminated}")
+    env.close()
+    ```
+- **Multi-Agent Environment Extension (`AMAPPMultiAgentEnv`)**:
+  - Decentralized multi-vehicle routing environment supporting simultaneous action selection across vehicles.
+  - Returns dictionaries of observations, rewards, terminations, truncations, and action masks keyed by `agent_id`.
+- **Phase 31 Benchmark Bridge (`evaluate_rl_environment_episode`)**:
+  - Runs benchmark episodes inside `AMAPPSingleAgentEnv` driven by test policies (`GreedyProgressTestPolicy`, `RandomTestPolicy`).
+- **Notice on Model Training**: Phase 32 establishes the standard training interface only. Model training, PPO baselines, and policy convergence belong to Phase 33.
+
+### 6.35 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
 - **PowerShell Execution Policy Error:** If `.venv\Scripts\Activate.ps1` is blocked, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 - **Port 8000 in use:** Launch on an alternative port: `python backend/manage.py runserver 127.0.0.1:8001`.
@@ -948,6 +978,7 @@ Phase 31 implements an extensible, reproducible benchmarking framework that eval
 - [docs/progress/PHASE_29.md](docs/progress/PHASE_29.md): Phase 29 interactive traffic incident injection and scenario controls report.
 - [docs/progress/PHASE_30.md](docs/progress/PHASE_30.md): Phase 30 operational metrics dashboard, live KPIs, and simulation analytics report.
 - [docs/progress/PHASE_31.md](docs/progress/PHASE_31.md): Phase 31 reproducible routing benchmarking framework report.
+- [docs/progress/PHASE_32.md](docs/progress/PHASE_32.md): Phase 32 Gymnasium-compatible single-agent and multi-agent RL environment report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

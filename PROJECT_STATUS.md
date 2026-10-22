@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 31 (Reproducible Routing Benchmarking Framework)
+- **Current Phase:** Phase 32 (Reinforcement-Learning Environment)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 32 (Reinforcement-Learning Environment) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 33 (Train and Save an RL Baseline) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-22
 
 
@@ -47,7 +47,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 29** | **Traffic incidents and scenario controls** | **COMPLETED** | Interactive Three.js incident overlays (road closure, congestion, obstacle, signal override) at $y=0.10\text{m}$, backend-authoritative REST APIs (`/runs/{id}/incidents/`), WebSocket live events, IncidentControlPanel UI, 183 frontend tests, 1,112 backend tests (95.61% coverage). |
 | **Phase 30** | **Operational metrics dashboard** | **COMPLETED** | Live & historical operational metrics dashboard, pure SVG travel time histogram & step time-series charts, 8 KPI cards, time-window filtering, deterministic trip/throughput/PDR analytics, 192 frontend tests, 1,118 backend tests (95.60% coverage). |
 | **Phase 31** | **Benchmarking framework** | **COMPLETED** | Reproducible routing benchmarking framework, BaseRoutingBenchmarkAdapter, AlgorithmRegistry (Dijkstra, A*, Static, Adaptive, Learned RL extension point), 8 standardized scenarios, SeedPolicy determinism, honest failure/infeasibility accounting, RFC 8259 JSON & stable CSV exports, CLI management command, 1,144 backend tests passed (95.40% coverage). |
-| **Phase 32** | **Reinforcement-learning environment** | **Pending** | Gymnasium-compatible route-selection environment, bounded observation/action spaces, reward balancing. |
+| **Phase 32** | **Reinforcement-learning environment** | **COMPLETED** | Deterministic Gymnasium-compatible single-agent (`AMAPPSingleAgentEnv`) and multi-agent (`AMAPPMultiAgentEnv`) routing environments, 32-dim bounded observation space, discrete branch selection action space, objective-driven transparent reward breakdown, `check_env` compliant, Phase 31 benchmark bridge, 1,170 backend tests passed (95.12% coverage). |
 | **Phase 33** | Train and save an RL baseline | Pending | Stable-Baselines3 PPO training with fixed seed, bounded budget, artifact persistence, baseline fallback. |
 | **Phase 34** | RL evaluation and policy integration | Pending | Evaluation on held-out scenarios, multi-seed metrics, policy adapter with fallback. |
 | **Phase 35** | Persistence and experiment history | Pending | Django models for runs, scenario configurations, experiment results, bounded summary storage. |
@@ -259,8 +259,10 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Road Graph & City Generator (`test_road_graph.py`, `test_city_generator.py`):** 41 passed.
 - **Domain Models, Values & Codecs (`test_domain_*.py`):** 105 passed.
 - **Operational Analytics & Metrics Tests (`test_operational_analytics.py`):** 6 passed.
+- **Reproducible Routing Benchmarking (`test_benchmarking.py`):** 26 passed.
+- **Gymnasium RL Environments (`test_rl_environment.py`):** 26 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total Backend:** **1,118 passed, 0 failed**, **95.60% line coverage** (exceeds 80% threshold).
+- **Total Backend:** **1,170 passed, 0 failed**, **95.12% line coverage** (exceeds 80% threshold).
 - **Frontend Unit & Component Suites:** **192 passed across 11 test suites** (`analytics.test.tsx`: 8 passed; `incidents.test.ts`: 13 passed; `components.test.tsx`: 27 passed; `routing.test.ts`: 16 passed; `v2v.test.ts`: 20 passed; `playback.test.ts`: 14 passed; `interpolation.test.ts`: 25 passed; `models.test.ts`: 18 passed; `geometry.test.ts`: 34 passed; `api-client.test.ts`: 9 passed; `websocket-client.test.ts`: 8 passed).
 
 ---

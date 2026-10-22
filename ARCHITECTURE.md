@@ -1791,3 +1791,72 @@ The AMAPP benchmarking subsystem provides an isolated, reproducible framework fo
    - `--export-dir <path>`: Output directory for JSON, CSV, and Markdown report export.
    - `--list-algorithms` / `--list-scenarios`: Metadata inspection flags.
 
+---
+
+## 28. Gymnasium-Compatible Single-Agent and Multi-Agent RL Environment (Phase 32)
+
+### 28.1 Architectural Principles and Decision Boundary
+Phase 32 introduces a standard Gymnasium environment package under `apps.core.rl`:
+1. **Decision Boundary**:
+   - Rather than low-level steering or pedal throttle commands, the agent controls routing decisions at intersection nodes.
+   - Low-level physical kinematics, bounded acceleration, lane tracking, and collision-avoidance braking remain governed by authoritative simulation subsystems (`VehicleAgent`, `CollisionDetector`, `SafetyPolicy`).
+2. **Simulation Ownership**:
+   - Each environment instance owns an isolated `WorldState` and `SimulationEngine` constructed from fresh scenario factories upon `reset()`.
+   - Resets release stale states, graph mutations, and incident buffers. Separate environment instances never share mutable simulation state.
+   - The authoritative discrete simulation clock (`SimulationClock`) drives all time progression; the environment never creates a competing simulation clock.
+3. **No Trained Policy Claim**:
+   - Phase 32 establishes the standard Gym training interface and evaluation bridge only. No trained reinforcement-learning policy is introduced or claimed in this phase.
+
+### 28.2 Single-Agent Gymnasium Environment (`AMAPPSingleAgentEnv`)
+Subclasses `gymnasium.Env` and complies fully with `gymnasium.utils.env_checker.check_env`:
+- **Observation Space**: `spaces.Box(low=-1.0, high=1.0, shape=(32,), dtype=np.float32)`
+  - Index 0–1: Normalized vehicle planar coordinate $(x, y) \in [-1, 1]$.
+  - Index 2: Normalized speed $v / v_{\max} \in [0, 1]$.
+  - Index 3–4: Vehicle heading trigonometry $(\sin \theta, \cos \theta) \in [-1, 1]$.
+  - Index 5–6: Destination coordinate $(x_{\text{dest}}, y_{\text{dest}}) \in [-1, 1]$.
+  - Index 7–9: Relative destination delta $(\Delta x / D, \Delta y / D, \|\Delta \mathbf{p}\| / D)$.
+  - Index 10–11: Route progress ratios (remaining distance norm, progress ratio).
+  - Index 12–14: Agent lifecycle state flags (`is_en_route`, `is_blocked`, `is_arrived`).
+  - Index 15–18: Current edge features (speed limit, length, congestion factor, closed flag).
+  - Index 19: Outgoing candidate branch density $K_{\text{outgoing}} / K_{\max}$.
+  - Index 20–21: Approaching traffic signal phase encoding and distance.
+  - Index 22–25: Nearest neighbor vehicle distance, relative speed, and relative bearing.
+  - Index 26–27: Active incident count and distance to nearest road closure.
+  - Index 28: Nearby emergency vehicle awareness flag.
+  - Index 29: Consecutive invalid action count penalty fraction.
+  - Index 30: Episode progress fraction $t_{\text{step}} / T_{\max}$.
+  - Index 31: Reserved alignment feature ($0.0$).
+- **Action Space**: `spaces.Discrete(K + 1)` where $K = \text{max\_outgoing\_actions}$ (default 8, action space size 9):
+  - **Action 0 (`Keep Route`)**: Vehicle continues along its currently assigned authoritative route.
+  - **Action $1 \le a \le K$ (`Branch Selection`)**: Selects the $(a-1)$-th outgoing road edge from the vehicle's upcoming junction anchor node, computing and replacing the remaining path suffix via `RoutePlanner.find_route()`.
+- **Action Masking**:
+  - `action_masks() -> np.ndarray[bool]`: Action 0 is always structurally permissible. Actions $1 \le a \le K$ are masked out if the branch index does not exist, or if the target outgoing road edge is impassable due to an active road closure.
+  - Stepping an invalid or closed branch is rejected without corrupting graph internals, incrementing a consecutive invalid counter and incurring a calibrated penalty.
+
+### 28.3 Objective-Driven Reward Formulation
+Step rewards are computed directly from authoritative simulation measurements:
+$$R_{\text{step}} = R_{\text{progress}} + R_{\text{step\_penalty}} + R_{\text{arrival}} + R_{\text{collision}} + R_{\text{near\_miss}} + R_{\text{invalid}} + R_{\text{truncation}} + R_{\text{reroute}}$$
+- **Progress Reward**: $R_{\text{progress}} = w_{\text{prog}} \cdot \frac{d_{t-1} - d_t}{D_{\text{span}}}$. Positive when approaching the goal, negative when moving away.
+- **Step Penalty**: $R_{\text{step\_penalty}} = -c_{\text{step}}$ (default $-0.05$), penalizing excessive transit duration.
+- **Arrival Bonus**: $R_{\text{arrival}} = +A$ (default $+100.0$), credited strictly once upon reaching destination (`is_arrived=True`).
+- **Safety Penalties**: $R_{\text{collision}} = -c_{\text{col}} \cdot N_{\text{new\_col}}$ (default $-20.0$), $R_{\text{near\_miss}} = -c_{\text{nm}} \cdot N_{\text{new\_nm}}$ (default $-2.0$).
+- **Invalid Action Penalty**: $R_{\text{invalid}} = -c_{\text{inv}}$ (default $-1.0$) whenever an agent selects a blocked or non-existent action.
+- **Truncation Penalty**: $R_{\text{truncation}} = -c_{\text{trunc}}$ (default $-10.0$) applied upon reaching `max_steps` without arriving.
+- **Reroute Cost**: $R_{\text{reroute}} = -c_{\text{reroute}}$ (default $-0.1$) discouraging route chattering.
+- **Reward Diagnostics**: The environment returns a full `RewardBreakdown` dictionary in `info["reward_components"]` for inspection.
+
+### 28.4 Multi-Agent Environment Extension (`AMAPPMultiAgentEnv`)
+Provides a decentralized multi-vehicle routing interface:
+- **Agents Set**: Enumerates controlled vehicle identifiers (`agents: list[str]`).
+- **Parallel Spaces**: `observation_spaces: dict[str, spaces.Box]`, `action_spaces: dict[str, spaces.Discrete]`.
+- **Simultaneous Action Stepping**: `step(actions: dict[str, int]) -> (obs_dict, rew_dict, term_dict, trunc_dict, info_dict)`.
+- **Per-Agent Action Masks**: `action_masks(agent_id: str) -> np.ndarray[bool]` isolates legal branch choices per vehicle without cross-agent contamination.
+- **Shared Physics & Decentralized V2V**: All controlled vehicles interact in the shared road graph and spatial V2V communication layer while maintaining vehicle-private decision boundaries.
+
+### 28.5 Phase 31 Benchmark Integration Bridge (`evaluate_rl_environment_episode`)
+Integrates the RL environment with the reproducible benchmarking framework:
+- Reuses standardized benchmark scenarios from `BenchmarkScenarioRegistry`.
+- Executes benchmark trials within `AMAPPSingleAgentEnv` driven by test policies (`GreedyProgressTestPolicy`, `RandomTestPolicy`).
+- Produces authoritative `BenchmarkTrialResult` records containing true simulation ticks, travel times, collision counts, near-misses, and V2V communication PDR.
+
+

@@ -453,7 +453,18 @@ python backend/manage.py check
   - Statistical aggregation correctness: sample counts, mean, median, min, max, stdev, p90/p95 calculation, and missing-value preservation.
   - Export integrity: JSON schema (`amapp.benchmark.v1`), CSV row stability (`trials.csv`, `summary.csv`), and Markdown report generation.
   - Security validation: path traversal rejection for illegal export directory paths (`../`, `..\\`).
-  - Django CLI command integration: testing `python backend/manage.py run_benchmark` with `--smoke`, `--list-*`, and execution flags.
+- **Gymnasium-Compatible RL Environments (`test_rl_environment.py`, 26 passed)**
+  - Full Gymnasium API compliance: `observation_space.shape == (32,)`, `action_space.n == K + 1`, reset returning `(obs, info)`, step returning `(obs, reward, terminated, truncated, info)`.
+  - Automated `gymnasium.utils.env_checker.check_env` validation passing cleanly without errors.
+  - Deterministic seeded resets: identical seeds produce bit-identical initial observations and action masks.
+  - Deterministic action trajectory verification: identical action sequences yield matching state trajectories.
+  - State isolation: separate environment instances and repeated resets clear counters and never leak graph mutations or incidents.
+  - Bounded continuous observation features: all 32 dimensions strictly bounded in `[-1.0, 1.0]` with finite numbers and no NaNs.
+  - Outgoing branch action masking: legal actions reflect available road edges; closed edges are dynamically masked out.
+  - Invalid action rejection: out-of-bounds or masked actions incur calibrated penalties without corrupting simulation state.
+  - Objective-driven reward calculation: verifies progress rewards, step duration penalty, arrival bonus (+100.0 credited strictly once upon arrival), collision/near-miss penalties, invalid action penalty, and truncation penalty.
+  - Decentralized multi-agent environment (`AMAPPMultiAgentEnv`): per-agent observation/action spaces, simultaneous action stepping, and per-agent action masks.
+  - Phase 31 benchmark bridge: `evaluate_rl_environment_episode` producing valid `BenchmarkTrialResult` records with `GreedyProgressTestPolicy` and `RandomTestPolicy`.
 
 ---
 
@@ -493,8 +504,8 @@ npm run build
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `pytest_cov`, `node`, `npm`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 31: **95.40%** coverage across 1,144 passing backend tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_31.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 32: **95.12%** coverage across 1,170 passing backend tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_32.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend CI Gate:** `frontend-quality` executes `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` inside `frontend/`. No skipping or conditional deferral.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.

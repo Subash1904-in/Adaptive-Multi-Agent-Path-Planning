@@ -150,9 +150,9 @@
 ### FR-13: AI Model Training Using Reinforcement Learning
 - **Requirement Statement:** Develop and train a reinforcement learning model for intelligent route selection; improve vehicle decision-making through interaction with simulated traffic environments.
 - **Target Phases:** Phase 32 (Reinforcement-learning environment), Phase 33 (Train and save an RL baseline), Phase 34 (RL evaluation and policy integration).
-- **Components:** `rl_engine/envs/ma_nav_env.py`, `rl_engine/training/train_agent.py`, `rl_engine/policies/`
-- **Verification Plan:** Gymnasium `check_env` validation, deterministic reward progression tests, and bounded headless training execution.
-- **Current Status:** `NOT STARTED`
+- **Components:** `backend/apps/core/rl/` (`env.py`, `multi_agent.py`, `features.py`, `rewards.py`, `config.py`, `adapter.py`, `exceptions.py`), `apps/core/tests/test_rl_environment.py`.
+- **Verification Plan:** Gymnasium `check_env` validation, deterministic reward progression tests, observation bounds, action masking, multi-agent coordination, and benchmark bridge execution (`test_rl_environment.py`: 26 tests passing).
+- **Current Status:** `IN PROGRESS (Phase 32 Gymnasium-Compatible Single-Agent and Multi-Agent Environments Completed, Validated with check_env, and Verified; Policy Training and Convergence Evaluation Strictly Deferred to Phase 33)`
 
 ---
 
@@ -160,8 +160,8 @@
 - **Requirement Statement:** Develop a web-based dashboard using Django and Three.js; visualize realistic roads, buildings, autonomous vehicles, pedestrians, and traffic conditions; display real-time vehicle movements, V2V communication, route changes, and AI decisions.
 - **Target Phases:** Phase 21 (Django REST API), Phase 22 (Real-time WebSocket streaming), Phase 23 (Frontend scaffold), Phase 24 (3D city and road rendering), Phase 25 (Vehicle and pedestrian visualization), Phase 26 (Live simulation controls), Phase 27 (V2V visualization), Phase 28 (Adaptive routing visualization), Phase 29 (Traffic incidents and scenario controls), Phase 30 (Operational metrics dashboard).
 - **Components:** `backend/apps/core/realtime/`, `backend/apps/core/api/`, `backend/apps/core/telemetry/analytics.py`, `frontend/src/features/scene3d/` (`SimulationViewer3D.tsx`, `geometry.ts`, `models.ts`, `interpolation.ts`, `v2vOverlay.ts`, `v2vAdapter.ts`, `routeOverlay.ts`, `routeAdapter.ts`, `incidentOverlay.ts`, `incidentAdapter.ts`), `frontend/src/features/playback/` (`playbackScheduler.ts`, `historyBuffer.ts`, `PlaybackBar.tsx`), `frontend/src/features/simulation/` (`EntityInspector.tsx`, `IncidentControlPanel.tsx`), `frontend/src/features/analytics/` (`OperationalDashboard.tsx`)
-- **Verification Plan:** WebSocket frame serialization tests, client connection lifecycle tests, Three.js mesh rendering verification, temporal interpolation unit tests, playback scheduler tests, history buffer tests with deep cloning, V2V overlay unit tests, route overlay unit tests, incident overlay unit tests, operational analytics engine aggregation tests, and component tests (`websocket-client.test.ts`, `api-client.test.ts`, `geometry.test.ts`, `interpolation.test.ts`, `models.test.ts`, `playback.test.ts`, `v2v.test.ts`, `routing.test.ts`, `incidents.test.ts`, `components.test.tsx`, `analytics.test.tsx`: 192 frontend tests, 1,118 backend tests passing).
-- **Current Status:** `TESTED (Phases 21–30 COMPLETED & TESTED; 192 frontend tests across 11 test suites; Phase 31 Benchmarking Framework COMPLETED & TESTED with 1,144 backend tests; Phase 32 Gymnasium Environment Next)`
+- **Verification Plan:** WebSocket frame serialization tests, client connection lifecycle tests, Three.js mesh rendering verification, temporal interpolation unit tests, playback scheduler tests, history buffer tests with deep cloning, V2V overlay unit tests, route overlay unit tests, incident overlay unit tests, operational analytics engine aggregation tests, and component tests (`websocket-client.test.ts`, `api-client.test.ts`, `geometry.test.ts`, `interpolation.test.ts`, `models.test.ts`, `playback.test.ts`, `v2v.test.ts`, `routing.test.ts`, `incidents.test.ts`, `components.test.tsx`, `analytics.test.tsx`: 192 frontend tests, 1,170 backend tests passing).
+- **Current Status:** `TESTED (Phases 21–30 COMPLETED & TESTED; 192 frontend tests across 11 test suites; Phase 31 Benchmarking Framework COMPLETED & TESTED; Phase 32 Gymnasium RL Environments COMPLETED & TESTED with 1,170 backend tests; Phase 33 Model Training Next)`
 
 
 
