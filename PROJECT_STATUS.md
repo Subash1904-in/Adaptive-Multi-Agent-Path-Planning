@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 33 (Train, Evaluate, and Save an RL Baseline)
+- **Current Phase:** Phase 34 (Reinforcement Learning Policy Integration and Production Fallback)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 34 (Reinforcement Learning Policy Integration and Production Fallback) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 35 (Persistence and Experiment History) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-22
 
 
@@ -49,7 +49,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 31** | **Benchmarking framework** | **COMPLETED** | Reproducible routing benchmarking framework, BaseRoutingBenchmarkAdapter, AlgorithmRegistry (Dijkstra, A*, Static, Adaptive, Learned RL extension point), 8 standardized scenarios, SeedPolicy determinism, honest failure/infeasibility accounting, RFC 8259 JSON & stable CSV exports, CLI management command, 1,144 backend tests passed (95.40% coverage). |
 | **Phase 32** | **Reinforcement-learning environment** | **COMPLETED** | Deterministic Gymnasium-compatible single-agent (`AMAPPSingleAgentEnv`) and multi-agent (`AMAPPMultiAgentEnv`) routing environments, 32-dim bounded observation space, discrete branch selection action space, objective-driven transparent reward breakdown, `check_env` compliant, Phase 31 benchmark bridge, 1,170 backend tests passed (95.12% coverage). |
 | **Phase 33** | **Train, evaluate, and save an RL baseline** | **COMPLETED** | Reproducible Stable-Baselines3 / sb3-contrib MaskablePPO baseline training pipeline, CPU execution, artifact checkpointing (`artifacts/rl_models/`), model reload & deterministic inference, held-out evaluation across seeds and scenarios, comparison with random/greedy baselines, CLI management command, 1,192 backend tests passed (95.08% coverage). |
-| **Phase 34** | RL evaluation and policy integration | Pending | Evaluation on held-out scenarios, multi-seed metrics, policy adapter with fallback. |
+| **Phase 34** | **RL evaluation and policy integration** | **COMPLETED** | Verified MaskablePPO policy adapter (`LearnedRoutingBenchmarkAdapter`), safe conventional fallback (`SafeFallbackPolicyWrapper`), artifact discovery/caching (`RLModelManager`), opt-in configuration, 8-scenario benchmark evaluation, 1,217 backend tests passed (95% coverage). |
 | **Phase 35** | Persistence and experiment history | Pending | Django models for runs, scenario configurations, experiment results, bounded summary storage. |
 | **Phase 36** | Security and failure handling | Pending | Input validation, secrets, debug settings, CORS, permissions, client disconnect handling. |
 | **Phase 37** | Automated testing and regression | Pending | Full test suite: unit, integration, API, WebSocket, frontend typecheck, end-to-end scenarios. |
@@ -261,8 +261,10 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Operational Analytics & Metrics Tests (`test_operational_analytics.py`):** 6 passed.
 - **Reproducible Routing Benchmarking (`test_benchmarking.py`):** 26 passed.
 - **Gymnasium RL Environments (`test_rl_environment.py`):** 26 passed.
+- **RL Baseline Training & Evaluation (`test_rl_training.py`):** 22 passed.
+- **Learned Policy Integration & Safe Fallback (`test_rl_learned_policy_integration.py`):** 25 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total Backend:** **1,170 passed, 0 failed**, **95.12% line coverage** (exceeds 80% threshold).
+- **Total Backend:** **1,217 passed, 0 failed**, **95% line coverage** (exceeds 80% threshold).
 - **Frontend Unit & Component Suites:** **192 passed across 11 test suites** (`analytics.test.tsx`: 8 passed; `incidents.test.ts`: 13 passed; `components.test.tsx`: 27 passed; `routing.test.ts`: 16 passed; `v2v.test.ts`: 20 passed; `playback.test.ts`: 14 passed; `interpolation.test.ts`: 25 passed; `models.test.ts`: 18 passed; `geometry.test.ts`: 34 passed; `api-client.test.ts`: 9 passed; `websocket-client.test.ts`: 8 passed).
 
 ---
@@ -307,7 +309,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 9. Exact Next Steps
-1. Await user prompt for **Phase 32: Reinforcement-Learning Environment**.
-2. Design and implement Gymnasium-compatible single- and multi-agent path-planning environment wrapping AMAPP simulation engine.
-3. Establish bounded observation spaces, discrete action spaces, reward shaping, and seed reproducibility.
+1. Await user prompt for **Phase 35: Persistence and Experiment History**.
+2. Design and implement Django ORM models for scenario definitions, simulation run records, benchmark configs, and experiment summaries.
+3. Establish bounded storage, query endpoints, and SQLite schema migrations while preserving in-memory runner independence.
 

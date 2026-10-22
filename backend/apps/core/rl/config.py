@@ -113,3 +113,38 @@ class MultiAgentRLConfig:
             "reward_config": self.reward_config.to_dict(),
             "scenario_options": dict(self.scenario_options),
         }
+
+
+@dataclass(frozen=True)
+class LearnedRoutingConfig:
+    """Runtime configuration for optional learned RL routing strategy
+    with safe conventional fallback.
+
+    Ensures learned routing is strictly opt-in, preserving conventional Dijkstra, A*,
+    static, and adaptive algorithms by default.
+    """
+
+    enabled: bool = False
+    strategy_id: str = "learned"
+    model_path: Optional[str] = None
+    algorithm: str = "MaskablePPO"
+    deterministic: bool = True
+    fallback_algorithm: str = "astar"
+    fallback_cost_mode: str = "travel_time"
+    inference_timeout_s: Optional[float] = 1.0
+    lazy_load: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert runtime configuration to JSON-serializable dictionary."""
+        return {
+            "enabled": self.enabled,
+            "strategy_id": self.strategy_id,
+            "model_path": self.model_path,
+            "algorithm": self.algorithm,
+            "deterministic": self.deterministic,
+            "fallback_algorithm": self.fallback_algorithm,
+            "fallback_cost_mode": self.fallback_cost_mode,
+            "inference_timeout_s": self.inference_timeout_s,
+            "lazy_load": self.lazy_load,
+        }
+

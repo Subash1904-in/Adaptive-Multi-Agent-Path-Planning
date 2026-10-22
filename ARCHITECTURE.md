@@ -311,10 +311,12 @@ A fundamental requirement of AMAPP is the strict separation between global groun
     - `--smoke`: Fast 64-timestep bounded training and evaluation smoke test for CI verification.
     - `--train`: Full training run with custom hyperparameters and seed configurations.
     - `--eval-only`: Evaluate an existing model checkpoint without retraining.
-  - **Production Routing Isolation (Phase 34 Boundary):**
-    - The trained policy is strictly decoupled from production REST and WebSocket routing.
-    - `LearnedRoutingBenchmarkAdapter.is_implemented` remains `False`.
-    - Conventional deterministic planners (Dijkstra, A*, Static, Adaptive) remain authoritative and unchanged.
+  - **Reinforcement Learning Policy Integration & Safe Fallback (Phase 34 — IMPLEMENTED):**
+    - `RLModelManager` (`backend/apps/core/rl/model_manager.py`): Authoritative model artifact discovery, path resolution relative to repository root, zip archive integrity checking, metadata validation (`algorithm`, `policy_type`), observation space shape `(32,)` and action space discrete dimension `(K + 1)` compatibility checking, thread-safe cache, and explicit reload API.
+    - `LearnedRoutingBenchmarkAdapter` (`backend/apps/core/benchmarking/adapters.py`): Full implementation of `BaseRoutingBenchmarkAdapter` (`is_implemented = True`), pre-flight route reachability checking (clean `BenchmarkStatus.INFEASIBLE` on partitioned scenarios like `bench_infeasible_barrier`), and benchmark trial execution via `evaluate_rl_environment_episode`.
+    - `SafeFallbackPolicyWrapper` (`backend/apps/core/benchmarking/adapters.py`): Multi-tier defensive wrapper enforcing non-fatal fallback to conventional routing (A* / Dijkstra) or Action 0 (`Keep Route`) upon missing artifacts, corrupt archives, model exceptions, inference timeouts (`inference_timeout_s`), non-finite outputs, out-of-bounds discrete actions, or masked illegal/closed road edges.
+    - `LearnedRoutingConfig` (`backend/apps/core/rl/config.py`): Opt-in configuration dataclass (`enabled = False`, `lazy_load = True`). Conventional planners remain the default.
+    - **Simulation-Only Safety Invariant:** Learned routing is strictly advisory; physical vehicle kinematics, speed limits, traffic signals, road closures, and Phase 16 SAT OBB collision avoidance overrides remain 100% authoritative. No physical vehicle or real-world traffic infrastructure control is introduced.
 
 ### 3.9 Web Backend & Transport (`backend/` — Planned Phases 2, 21–22, 35)
 - **Responsibilities:** Django REST Framework API for scenario discovery, simulation lifecycle control (play/pause/step/reset), metrics querying, and experiment history persistence.

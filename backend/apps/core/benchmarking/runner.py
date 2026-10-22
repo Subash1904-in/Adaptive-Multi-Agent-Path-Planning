@@ -96,6 +96,17 @@ class BenchmarkRunner:
         scenario_def = self.scenarios.get(scenario_id)
         adapter = self.algorithms.get(algorithm_id)
 
+        # Delegate to specialized trial executor if implemented
+        # (e.g. LearnedRoutingBenchmarkAdapter)
+        if hasattr(adapter, "execute_trial"):
+            return adapter.execute_trial(
+                scenario_id=scenario_id,
+                trial_index=trial_index,
+                seed=seed,
+                benchmark_run_id=benchmark_run_id,
+                max_ticks_override=max_ticks_override,
+            )
+
         started_at = datetime.now(timezone.utc).isoformat()
 
         # 1. Instantiate isolated scenario definition with explicit seed

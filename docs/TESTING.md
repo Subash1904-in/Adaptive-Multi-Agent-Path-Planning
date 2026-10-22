@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles (AMAPP)  
 **Testing Frameworks:** `pytest`, `pytest-cov`, `pytest-django`, `pytest-asyncio`  
-**Current Status:** Active Test Strategy Enforced (Phase 31 — 1,144 Backend Tests Passing at 95.40% Coverage; 192 Frontend Tests Passing across 11 test suites)
+**Current Status:** Active Test Strategy Enforced (Phase 34 — 1,217 Backend Tests Passing at 95% Coverage; 192 Frontend Tests Passing across 11 test suites)
 
 ---
 
@@ -474,6 +474,18 @@ python backend/manage.py check
   - Model reload & post-reload inference: loads saved model into fresh policy instance, verifies identical deterministic action output on identical observation and action mask.
   - Held-out evaluation & baseline comparison (`RLBaselineEvaluator`): runs multi-seed evaluation across held-out seeds (101..105), computes statistical metrics (completion rate, travel time, route length, collisions, planning latency), compares against `GreedyProgressTestPolicy` and `RandomTestPolicy`, exports valid machine-readable `evaluation_report.json` and Markdown summaries.
   - Error and resource handling: verifies environment closure upon training termination or exception, invalid scenario handling, and missing file error resilience.
+
+- **Reinforcement Learning Learned Policy Integration & Safe Fallback (`test_rl_learned_policy_integration.py`, 25 passed)**
+  - Model artifact discovery & path resolution: relative paths resolved against repo root, non-existent paths rejected with descriptive `ModelValidationResult`.
+  - Format and metadata verification: detects non-zip or corrupt archives, validates internal files (`data`, `policy.pth`), checks metadata algorithm and policy types.
+  - Space compatibility verification: checks observation dimension `(32,)`, dtype `float32`, and action space discrete bounds `(K + 1)`.
+  - Thread-safe caching and reload: verifies singleton cache reuse, thread locking, and forced reload on demand.
+  - Deterministic greedy inference: identical observations and action masks yield identical action choices.
+  - Action-space and action-mask validation: out-of-range actions or masked illegal branches are rejected and routed to fallback.
+  - Timeout and exception safety: inference exceeding `inference_timeout_s` or raising PyTorch exceptions triggers fallback without crashing.
+  - World immutability: verifies neural network inference does not mutate road graph or vehicle state.
+  - Safe conventional fallback: verifies fallback on missing model, corrupt archive, exception, and closed road, with Action 0 fail-safe on secondary failure.
+  - Benchmark registry integration: verifies `AlgorithmRegistry.get("learned")`, `adapter.is_implemented = True`, trial execution on reachable scenarios, and clean `INFEASIBLE` status on partitioned barriers.
 
 ---
 

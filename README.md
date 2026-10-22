@@ -962,9 +962,31 @@ The platform provides an end-to-end, reproducible training pipeline for route se
       --model-dir artifacts/rl_models/maskableppo_bench_grid_sparse_3x3_s42 \
       --eval-seeds 101 102 103 104 105
     ```
-- **Scope Discipline (Phase 34 Boundary)**:
-  - The trained RL model is strictly isolated from production REST and WebSocket routing in Phase 33 (`LearnedRoutingBenchmarkAdapter.is_implemented = False`).
-  - Production runtime fallback and live routing integration belong strictly to Phase 34.
+- **Scope Discipline**:
+  - The trained RL model baseline was established in Phase 33 and safely integrated in Phase 34.
+
+### 6.36 Reinforcement Learning Policy Integration and Safe Fallback (Phase 34)
+The platform integrates the trained RL routing policy into the simulation and benchmarking framework as an optional, explicitly configured strategy with multi-tier safe conventional fallback:
+- **Model Discovery and Lifecycle (`RLModelManager`)**:
+  - Validates model archive integrity, observation space shape `(32,)`, dtype `float32`, and action space dimension `(K + 1)` against `AMAPPSingleAgentEnv`.
+  - Enforces thread-safe caching and explicit reload mechanisms.
+- **Multi-Layer Defensive Fallback (`SafeFallbackPolicyWrapper`)**:
+  - Automatically catches missing/corrupt models, PyTorch exceptions, inference timeouts (`inference_timeout_s`), non-finite outputs, out-of-bounds discrete actions, and masked illegal branches.
+  - Safely falls back to conventional graph planners (A* / Dijkstra) or Action 0 (`Keep Route`) without corrupting simulation or graph state.
+- **Benchmark Registry Integration (`LearnedRoutingBenchmarkAdapter`)**:
+  - Conforms to `BaseRoutingBenchmarkAdapter` (`is_implemented = True`).
+  - Pre-evaluates initial graph feasibility, returning `BenchmarkStatus.INFEASIBLE` directly on unreachable network partitions.
+- **Runtime Configuration (`LearnedRoutingConfig`)**:
+  - Strictly opt-in (`enabled = False`, `lazy_load = True`). Conventional planners remain the authoritative default.
+- **Benchmark Execution Example**:
+  ```bash
+  python backend/manage.py run_benchmark \
+    --algorithms dijkstra astar static adaptive learned \
+    --scenarios bench_grid_sparse_3x3,bench_infeasible_barrier \
+    --trials 1 \
+    --seed 42
+  ```
+- **Safety Boundary**: This is an academic research simulation. The learned policy provides advisory branch suggestions only; vehicle kinematics, traffic signals, speed limits, road closures, and collision avoidance overrides remain strictly authoritative. Real vehicle or physical traffic control is prohibited.
 
 ### 6.36 Troubleshooting
 - **ModuleNotFoundError for `config` or `apps`:** Ensure you run commands from the repository root or that `backend/` is in `PYTHONPATH`. `backend/manage.py` automatically injects `backend/` into `sys.path`.
@@ -1012,6 +1034,7 @@ The platform provides an end-to-end, reproducible training pipeline for route se
 - [docs/progress/PHASE_31.md](docs/progress/PHASE_31.md): Phase 31 reproducible routing benchmarking framework report.
 - [docs/progress/PHASE_32.md](docs/progress/PHASE_32.md): Phase 32 Gymnasium-compatible single-agent and multi-agent RL environment report.
 - [docs/progress/PHASE_33.md](docs/progress/PHASE_33.md): Phase 33 train, evaluate, and save reinforcement-learning baseline report.
+- [docs/progress/PHASE_34.md](docs/progress/PHASE_34.md): Phase 34 evaluate and integrate learned routing policy with safe fallback report.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

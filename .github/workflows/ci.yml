@@ -66,6 +66,7 @@ jobs:
             "docs/progress/PHASE_31.md"
             "docs/progress/PHASE_32.md"
             "docs/progress/PHASE_33.md"
+            "docs/progress/PHASE_34.md"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"
@@ -153,6 +154,11 @@ jobs:
         shell: bash
         run: |
           python backend/manage.py train_rl_baseline --smoke
+
+      - name: Run Learned RL Policy & Safe Fallback Benchmark Smoke Verification
+        shell: bash
+        run: |
+          python backend/manage.py run_benchmark --algorithms learned --scenarios bench_grid_sparse_3x3,bench_infeasible_barrier --trials 1 --seed 42
 
 
 

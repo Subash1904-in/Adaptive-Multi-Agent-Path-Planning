@@ -316,10 +316,10 @@ class TestRLManagementCommand:
 class TestProductionIsolationAndRegressions:
     """Ensure baseline routing interfaces and production boundaries remain uncompromised."""
 
-    def test_learned_routing_adapter_is_not_implemented(self) -> None:
+    def test_learned_routing_adapter_is_implemented(self) -> None:
         adapter = LearnedRoutingBenchmarkAdapter()
         assert adapter.algorithm_id == "learned"
-        assert adapter.is_implemented is False
+        assert adapter.is_implemented is True
 
     def test_gymnasium_env_checker_preserved(self) -> None:
         from gymnasium.utils.env_checker import check_env

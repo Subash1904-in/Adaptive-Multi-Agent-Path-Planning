@@ -10,6 +10,7 @@ from apps.core.rl.adapter import (
     evaluate_rl_environment_episode,
 )
 from apps.core.rl.config import (
+    LearnedRoutingConfig,
     MultiAgentRLConfig,
     RewardConfig,
     SingleAgentRLConfig,
@@ -27,6 +28,16 @@ from apps.core.rl.features import (
     OBSERVATION_FEATURE_NAMES,
     extract_agent_observation,
 )
+from apps.core.rl.model_manager import (
+    CorruptModelArtifactError,
+    IncompatibleModelArtifactError,
+    ModelArtifactError,
+    ModelArtifactNotFoundError,
+    ModelValidationResult,
+    RLModelManager,
+    resolve_model_artifact_path,
+    validate_model_artifact,
+)
 from apps.core.rl.multi_agent import AMAPPMultiAgentEnv
 from apps.core.rl.rewards import (
     RewardBreakdown,
@@ -38,6 +49,7 @@ __all__ = [
     "AMAPPMultiAgentEnv",
     "SingleAgentRLConfig",
     "MultiAgentRLConfig",
+    "LearnedRoutingConfig",
     "RewardConfig",
     "RewardBreakdown",
     "RewardCalculator",
@@ -52,4 +64,12 @@ __all__ = [
     "ScenarioResetError",
     "ActionMaskError",
     "AgentNotFoundError",
+    "RLModelManager",
+    "resolve_model_artifact_path",
+    "validate_model_artifact",
+    "ModelValidationResult",
+    "ModelArtifactError",
+    "ModelArtifactNotFoundError",
+    "CorruptModelArtifactError",
+    "IncompatibleModelArtifactError",
 ]

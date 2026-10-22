@@ -385,8 +385,6 @@ def _create_bench_emergency_corridor(seed: int) -> ScenarioDefinition:
         destination_node_id="node_r3_c1",
         emergency_type=EmergencyType.AMBULANCE,
         priority_level=1,
-        algorithm=RoutingAlgorithm.ASTAR,
-        cost_mode=CostMode.TRAVEL_TIME,
     )
     return ScenarioDefinition(
         metadata=ScenarioMetadata(
@@ -464,9 +462,9 @@ def _create_bench_v2v_degradation(seed: int) -> ScenarioDefinition:
         seed=seed,
         v2v_config=CommunicationConfig(
             enabled=True,
-            communication_range_m=40.0,
-            packet_loss_probability=0.15,
-            broadcast_interval_ticks=5,
+            range_m=40.0,
+            packet_loss_rate=0.15,
+            broadcast_interval_s=0.5,
         ),
     )
 

@@ -93,23 +93,18 @@ class TestAlgorithmRegistryAndAdapters:
         assert err.algorithm_id == "non_existent_algo"
         assert "dijkstra" in err.available_algorithms
 
-    def test_learned_algorithm_raises_clear_error_when_accessed_or_executed(self) -> None:
+    def test_learned_algorithm_registered_and_implemented(self) -> None:
         registry = AlgorithmRegistry.get_default_registry()
-        with pytest.raises(UnsupportedAlgorithmError) as exc_info:
-            registry.get("learned")
+        adapter = registry.get("learned")
+        assert isinstance(adapter, LearnedRoutingBenchmarkAdapter)
+        assert adapter.algorithm_id == "learned"
+        assert adapter.is_implemented is True
+        assert adapter.is_adaptive is True
 
-        err = exc_info.value
-        assert "learned" in err.algorithm_id
-        assert "Phases 32-34" in str(err)
-
-        # Directly testing adapter instance methods
-        learned_adapter = LearnedRoutingBenchmarkAdapter()
-        assert learned_adapter.is_implemented is False
-        assert learned_adapter.is_adaptive is True
-
-        grid = generate_synthetic_city_grid(CityGridConfig(rows=2, cols=2))
-        with pytest.raises(UnsupportedAlgorithmError):
-            learned_adapter.plan_initial_route(grid, "node_r0_c0", "node_r1_c1")
+        grid = generate_synthetic_city_grid(CityGridConfig(rows=2, cols=2, spacing_m=50.0))
+        res, dur = adapter.plan_initial_route(grid, "node_r0_c0", "node_r1_c1")
+        assert res is not None and res.success
+        assert dur >= 0.0
 
     def test_dijkstra_and_astar_route_cost_parity_on_grid(self) -> None:
         """Dijkstra and A* must compute identical optimal objective costs on identical graphs."""
