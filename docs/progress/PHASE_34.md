@@ -236,12 +236,13 @@ pytest --cov=backend/apps/core --cov-report=term-missing --cov-fail-under=80
 ## 7. CI Workflow & Verification Evidence
 
 ### GitHub Actions Workflow Execution
-- **Run URL:** Pending push & CI trigger
-- **Commit SHA:** Pending final commit
-- **Workflow Jobs:**
-  - `Repository Hygiene & Documentation Integrity`: Verified all mandatory documents, including `docs/progress/PHASE_34.md`.
-  - `Backend Lint, Test & Coverage`: Ruff clean, Django check clean, 1,217 pytest tests passed, 95% coverage, benchmark smoke passed, Gymnasium check_env passed, RL training smoke passed, learned policy benchmark smoke passed.
-  - `Frontend Lint, Typecheck, Test & Production Build`: ESLint clean, strict TypeScript clean, 192 Vitest tests passed, production bundle built cleanly.
+- **Run URL:** https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39735103638
+- **Commit SHA:** `e028018`
+- **Workflow Status:** SUCCESS (All jobs passed)
+- **Individual Job Outcomes:**
+  - `Repository Hygiene & Documentation Integrity (ID 119678838700)`: SUCCESS (Duration: 3s). Verified all 43 mandatory project documents including `docs/progress/PHASE_34.md` and confirmed 0 prohibited files/secrets.
+  - `Backend Lint, Test & Coverage (ID 119678838574)`: SUCCESS (Duration: 1m 59s). Ruff linting clean, Django system checks clean (0 issues), full pytest suite passed (**1,217 passed, 0 failed, 94.92% line coverage**, exceeding 80% threshold), routing benchmark smoke passed, Gymnasium environment check_env smoke passed, RL baseline training smoke passed, and learned RL policy & safe fallback smoke check passed.
+  - `Frontend Lint, Typecheck, Test & Production Build (ID 119678838192)`: SUCCESS (Duration: 32s). ESLint clean, strict TypeScript compiler clean (`tsc --noEmit`), Vitest suite passed (**192 passed across 11 test suites**), and production bundle built cleanly via Vite in 1.79s.
 
 ---
 
