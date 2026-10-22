@@ -291,14 +291,14 @@ jobs:
           echo "Testing container restart and volume persistence..."
           docker compose down
           docker compose up -d
-          for i in {1..20}; do
-            STATUS=$(docker inspect --format='{{json .State.Health.Status}}' amapp-backend 2>/dev/null || echo '"starting"')
-            if [ "$STATUS" = '"healthy"' ]; then
+          for i in {1..30}; do
+            STATUS_BACKEND=$(docker inspect --format='{{json .State.Health.Status}}' amapp-backend 2>/dev/null || echo '"starting"')
+            if [ "$STATUS_BACKEND" = '"healthy"' ]; then
               break
             fi
             sleep 2
           done
-          RUNS=$(curl -f -s http://localhost:8000/api/v1/simulations/)
+          RUNS=$(curl -f -s "http://localhost:8000/api/v1/runs/?historical=true")
           echo "Persisted simulation runs: $RUNS"
           if [ -z "$RUNS" ] || [ "$RUNS" = "[]" ]; then
             echo "::error::Simulation runs were not preserved in persistent volume!"

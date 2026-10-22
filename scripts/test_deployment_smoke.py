@@ -100,26 +100,25 @@ def test_rest_api_workflow(frontend_url: str) -> str:
     print(f"✓ Retrieved {len(scenarios)} scenarios. Using scenario '{scenario_id}'.")
 
     # 2. Create simulation run
-    sim_url = f"{base_url}/simulations/"
+    sim_url = f"{base_url}/runs/"
     print(f"Creating simulation run: {sim_url} ...")
     code, run_data = http_request(
         sim_url,
         method="POST",
         data={
             "scenario_id": scenario_id,
-            "name": "docker_smoke_trial",
             "seed": 42,
         },
     )
     assert code == 201, f"Create run failed with {code}: {run_data}"
-    assert isinstance(run_data, dict) and "id" in run_data, f"Invalid run response: {run_data}"
-    run_id = run_data["id"]
-    print(f"✓ Created simulation run '{run_id}' in state '{run_data.get('status')}'.")
+    assert isinstance(run_data, dict) and "run_id" in run_data, f"Invalid run response: {run_data}"
+    run_id = run_data["run_id"]
+    print(f"✓ Created simulation run '{run_id}' in state '{run_data.get('lifecycle_state')}'.")
 
     # 3. Discrete stepping
-    step_url = f"{base_url}/simulations/{run_id}/step/"
+    step_url = f"{base_url}/runs/{run_id}/step/"
     print(f"Stepping simulation run: {step_url} ...")
-    code, step_data = http_request(step_url, method="POST", data={"steps": 2})
+    code, step_data = http_request(step_url, method="POST", data={"ticks": 2})
     assert code == 200, f"Step run failed with {code}: {step_data}"
     assert isinstance(step_data, dict) and step_data.get("current_tick") == 2, (
         f"Unexpected step response: {step_data}"
@@ -127,7 +126,7 @@ def test_rest_api_workflow(frontend_url: str) -> str:
     print("✓ Advanced simulation run by 2 ticks (current_tick == 2).")
 
     # 4. Metrics
-    metrics_url = f"{base_url}/simulations/{run_id}/metrics/"
+    metrics_url = f"{base_url}/runs/{run_id}/metrics/"
     print(f"Querying metrics: {metrics_url} ...")
     code, metrics_data = http_request(metrics_url)
     assert code == 200, f"Metrics query failed with {code}: {metrics_data}"
