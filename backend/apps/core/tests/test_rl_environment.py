@@ -360,9 +360,7 @@ class TestRewardFunction:
 
     def test_arrival_bonus_awarded_only_once(self):
         """Arrival bonus is credited strictly once upon reaching destination."""
-        cfg = SingleAgentRLConfig(
-            reward_config=RewardConfig(arrival_reward=50.0, step_penalty=0.0)
-        )
+        cfg = SingleAgentRLConfig(reward_config=RewardConfig(arrival_reward=50.0, step_penalty=0.0))
         env = AMAPPSingleAgentEnv(config=cfg)
         env.reset(seed=42)
 

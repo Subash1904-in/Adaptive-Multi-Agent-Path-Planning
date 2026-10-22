@@ -537,6 +537,24 @@ class BenchmarkRunner:
             "os": sys.platform,
         }
 
+        # Persist benchmark suite if persistence is enabled
+        try:
+            from apps.core.persistence.service import default_persistence_service
+
+            default_persistence_service.record_benchmark_suite(
+                benchmark_run_id=benchmark_run_id,
+                name=f"Benchmark Suite {benchmark_run_id}",
+                scenario_ids=validated_scenarios,
+                algorithm_ids=validated_algorithms,
+                trial_count=trials_per_pair,
+                base_seed=base_seed,
+                trial_results=all_trials,
+                parameters={"max_ticks_override": max_ticks_override},
+            )
+        except Exception:
+            # Safe non-blocking fallback
+            pass
+
         return BenchmarkRunReport(
             benchmark_run_id=benchmark_run_id,
             created_at=created_at,

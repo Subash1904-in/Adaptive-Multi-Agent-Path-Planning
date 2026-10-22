@@ -380,6 +380,19 @@ class RunConfig:
                 "max_export_bytes must be positive.", field="max_export_bytes"
             )
 
+    def to_dict(self) -> dict[str, Any]:
+        """Return serializable dictionary snapshot of run configuration parameters."""
+        return {
+            "run_id": self.run_id,
+            "max_ticks": self.max_ticks,
+            "max_duration_s": self.max_duration_s,
+            "stop_on_all_arrived": self.stop_on_all_arrived,
+            "time_step_s": self.time_step_s,
+            "seed": self.seed,
+            "max_export_bytes": self.max_export_bytes,
+        }
+
+
 
 @dataclass(frozen=True)
 class RunMetadata:

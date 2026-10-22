@@ -504,6 +504,7 @@ class SafeFallbackPolicyWrapper:
             self.fallback_policy = fallback_policy
         else:
             from apps.core.rl.adapter import GreedyProgressTestPolicy
+
             self.fallback_policy = GreedyProgressTestPolicy()
         self.timeout_s = timeout_s
         self.forced_fallback_reason = forced_fallback_reason
@@ -636,6 +637,7 @@ class LearnedRoutingBenchmarkAdapter(BaseRoutingBenchmarkAdapter):
             self.algorithm = algorithm
         else:
             from apps.core.rl.training.config import RLAlgorithm
+
             self.algorithm = RLAlgorithm.MASKABLE_PPO
         self.fallback_algorithm = fallback_algorithm
         self.deterministic = deterministic
@@ -644,6 +646,7 @@ class LearnedRoutingBenchmarkAdapter(BaseRoutingBenchmarkAdapter):
             self.model_manager = model_manager
         else:
             from apps.core.rl.model_manager import RLModelManager
+
             self.model_manager = RLModelManager.get_instance()
 
     @property
@@ -807,6 +810,7 @@ class LearnedRoutingBenchmarkAdapter(BaseRoutingBenchmarkAdapter):
 
         # 3. Pre-evaluate initial routing feasibility for primary vehicle
         from apps.core.scenarios.builder import ScenarioBuilder
+
         road_graph = ScenarioBuilder(configured_scenario)._resolve_road_graph()
         initial_route_feasible = False
         init_plan_ms = 0.0
@@ -986,9 +990,7 @@ class LearnedRoutingBenchmarkAdapter(BaseRoutingBenchmarkAdapter):
                 pdr = float(round((cm.successful_deliveries / cm.delivery_attempts) * 100.0, 2))
 
         total_planning_ms = (
-            init_plan_ms
-            + sum(wrapper.inference_latencies_ms)
-            + sum(wrapper.fallback_latencies_ms)
+            init_plan_ms + sum(wrapper.inference_latencies_ms) + sum(wrapper.fallback_latencies_ms)
         )
         mean_inf_latency = (
             sum(wrapper.inference_latencies_ms) / len(wrapper.inference_latencies_ms)

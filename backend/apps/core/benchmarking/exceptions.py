@@ -65,7 +65,6 @@ class BenchmarkExecutionError(BenchmarkError):
 
 
 class BenchmarkExportError(BenchmarkError):
-    """Raised when benchmark result export fails due to invalid paths, security violations, or I/O.
-    """
+    """Raised when benchmark result export fails due to invalid paths or I/O."""
 
     pass

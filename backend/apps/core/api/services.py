@@ -342,7 +342,30 @@ class SimulationService:
             run_config=run_cfg,
             telemetry_config=telemetry_config,
         )
-        return self.run_registry.register(runner)
+        registered_runner = self.run_registry.register(runner)
+
+        try:
+            from apps.core.persistence.service import default_persistence_service
+
+            strat = ""
+            if target_scenario.adaptive_routing_config:
+                algo = target_scenario.adaptive_routing_config.algorithm
+                strat = getattr(algo, "value", str(algo))
+
+            default_persistence_service.record_run_created(
+                run_id=resolved_run_id,
+                scenario_id=target_scenario.metadata.id,
+                scenario_version=target_scenario.metadata.version,
+                seed=run_cfg.seed,
+                routing_strategy=strat,
+                configuration_snapshot=run_cfg.to_dict(),
+                git_commit_sha=runner.commit_sha,
+                initial_status=runner.lifecycle_state,
+            )
+        except Exception as exc:
+            logger.warning("Failed to persist initial SimulationRun '%s': %s", resolved_run_id, exc)
+
+        return registered_runner
 
     def get_run(self, run_id: str) -> ScenarioRunner:
         """Retrieve an active or completed simulation runner."""
@@ -384,6 +407,8 @@ class SimulationService:
                 run_id=run_id,
             )
 
+        state_before = runner.lifecycle_state
+
         try:
             if run_to_completion:
                 exec_result = runner.run_to_completion()
@@ -392,6 +417,43 @@ class SimulationService:
                 exec_result = runner.run(ticks=ticks, target_accels_by_tick=accels_by_tick)
         finally:
             runner._execution_lock.release()
+
+        # Update persistence state on lifecycle changes
+        try:
+            from apps.core.persistence.service import default_persistence_service
+
+            if (
+                state_before != RunLifecycleState.RUNNING
+                and runner.lifecycle_state == RunLifecycleState.RUNNING
+            ):
+                default_persistence_service.record_run_started(run_id=run_id)
+            elif runner.is_terminal:
+                if runner.lifecycle_state in (
+                    RunLifecycleState.COMPLETED,
+                    RunLifecycleState.LIMIT_REACHED,
+                ):
+                    default_persistence_service.record_run_completed(
+                        run_id=run_id,
+                        completed_ticks=runner.current_tick,
+                        simulation_duration_s=runner.elapsed_time_s,
+                        target_state=runner.lifecycle_state,
+                    )
+
+                elif runner.lifecycle_state == RunLifecycleState.FAILED:
+                    default_persistence_service.record_run_failed(
+                        run_id=run_id,
+                        completed_ticks=runner.current_tick,
+                        simulation_duration_s=runner.elapsed_time_s,
+                        error_category="SIMULATION_FAILED",
+                    )
+                elif runner.lifecycle_state == RunLifecycleState.CANCELLED:
+                    default_persistence_service.record_run_cancelled(
+                        run_id=run_id,
+                        completed_ticks=runner.current_tick,
+                        simulation_duration_s=runner.elapsed_time_s,
+                    )
+        except Exception as exc:
+            logger.warning("Failed to persist run '%s' state update: %s", run_id, exc)
 
         agents = runner.world.get_agents()
         arrived_cnt = sum(1 for a in agents if a.is_arrived)
@@ -428,6 +490,19 @@ class SimulationService:
         runner.cancel(reason=reason)
         if runner.lifecycle_state == RunLifecycleState.RUNNING:
             runner._transition_to(RunLifecycleState.CANCELLED)
+
+        try:
+            from apps.core.persistence.service import default_persistence_service
+
+            default_persistence_service.record_run_cancelled(
+                run_id=run_id,
+                completed_ticks=runner.current_tick,
+                simulation_duration_s=runner.elapsed_time_s,
+                reason=reason,
+            )
+        except Exception as exc:
+            logger.warning("Failed to persist run '%s' cancellation: %s", run_id, exc)
+
         return {
             "run_id": runner.run_id,
             "lifecycle_state": runner.lifecycle_state.value,

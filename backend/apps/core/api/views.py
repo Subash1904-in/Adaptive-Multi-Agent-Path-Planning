@@ -8,19 +8,32 @@ from __future__ import annotations
 
 from django.http import HttpResponse
 from rest_framework import status
+from rest_framework.exceptions import NotFound
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.models import (
+    BenchmarkConfiguration,
+    BenchmarkTrial,
+    ExperimentMetric,
+    SimulationRun,
+)
 from apps.core.scenarios.models import ScenarioDefinition
 from apps.core.telemetry.models import TelemetryConfig
 
+from .exceptions import RunNotFoundError
+from .pagination import AMAPPHistoryPagination
 from .permissions import SimulationApiPermission
 from .serializers import (
+    BenchmarkConfigurationSerializer,
+    BenchmarkTrialSerializer,
     CreateIncidentRequestSerializer,
+    ExperimentMetricSerializer,
     ExportQuerySerializer,
     IncidentListResponseSerializer,
     MetricsQuerySerializer,
+    PersistentSimulationRunSerializer,
     RunCancelRequestSerializer,
     RunCreateRequestSerializer,
     RunStatusResponseSerializer,
@@ -101,7 +114,38 @@ class RunListCreateView(BaseSimulationView):
     """
 
     def get(self, request: Request) -> Response:
-        """List all active or past simulation runs."""
+        """List all active or past simulation runs with optional pagination and filtering."""
+        history_params = {
+            "limit",
+            "offset",
+            "page",
+            "status",
+            "scenario_id",
+            "from_date",
+            "to_date",
+            "historical",
+        }
+        if any(p in request.query_params for p in history_params):
+            qs = SimulationRun.objects.all().order_by("-created_at", "-id")
+            if "status" in request.query_params:
+                qs = qs.filter(status=request.query_params["status"])
+            if "scenario_id" in request.query_params:
+                qs = qs.filter(scenario_id=request.query_params["scenario_id"])
+            if "from_date" in request.query_params:
+                qs = qs.filter(created_at__gte=request.query_params["from_date"])
+            if "to_date" in request.query_params:
+                qs = qs.filter(created_at__lte=request.query_params["to_date"])
+
+            paginator = AMAPPHistoryPagination()
+            page = paginator.paginate_queryset(qs, request)
+            if page is not None:
+                serializer = PersistentSimulationRunSerializer(page, many=True)
+                return paginator.get_paginated_response(serializer.data)
+
+            serializer = PersistentSimulationRunSerializer(qs, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        # Default unpaginated in-memory runners list for backward-compatibility
         runners = self.service.list_runs()
         serializer = RunStatusResponseSerializer(runners, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -143,10 +187,19 @@ class RunDetailView(BaseSimulationView):
     """GET: Retrieve point-in-time lifecycle status of a simulation run."""
 
     def get(self, request: Request, run_id: str) -> Response:
-        """Retrieve run status."""
-        runner = self.service.get_run(run_id)
-        serializer = RunStatusResponseSerializer(runner)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        """Retrieve run status from active runner or persistent history."""
+        if self.service.run_registry.exists(run_id):
+            runner = self.service.get_run(run_id)
+            serializer = RunStatusResponseSerializer(runner)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        # Fallback to persisted database record
+        db_run = SimulationRun.objects.filter(run_id=run_id).first()
+        if db_run is not None:
+            serializer = PersistentSimulationRunSerializer(db_run)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        raise RunNotFoundError(run_id)
 
 
 class RunStepView(BaseSimulationView):
@@ -198,18 +251,41 @@ class RunMetricsView(BaseSimulationView):
     """GET: Retrieve aggregated metrics and operational analytics for a simulation run."""
 
     def get(self, request: Request, run_id: str) -> Response:
-        """Retrieve run aggregated metrics with optional time window filtering."""
-        serializer = MetricsQuerySerializer(data=request.query_params)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
+        """Retrieve aggregated metrics with optional window filtering or persistent metrics."""
+        # If in-memory runner exists and not querying persisted history explicitly
+        if self.service.run_registry.exists(run_id) and not request.query_params.get("persisted"):
+            serializer = MetricsQuerySerializer(data=request.query_params)
+            serializer.is_valid(raise_exception=True)
+            data = serializer.validated_data
 
-        metrics = self.service.get_run_metrics(
-            run_id=run_id,
-            time_window_start_s=data.get("time_window_start_s"),
-            time_window_end_s=data.get("time_window_end_s"),
-            limit_samples=data.get("limit_samples", 500),
+            metrics = self.service.get_run_metrics(
+                run_id=run_id,
+                time_window_start_s=data.get("time_window_start_s"),
+                time_window_end_s=data.get("time_window_end_s"),
+                limit_samples=data.get("limit_samples", 500),
+            )
+            return Response(metrics, status=status.HTTP_200_OK)
+
+        # Fallback to persistent metrics
+        run = SimulationRun.objects.filter(run_id=run_id).first()
+        if not run and not self.service.run_registry.exists(run_id):
+            raise RunNotFoundError(run_id)
+
+        qs = ExperimentMetric.objects.filter(simulation_run__run_id=run_id).order_by(
+            "-created_at", "-id"
         )
-        return Response(metrics, status=status.HTTP_200_OK)
+        metric_name = request.query_params.get("metric_name")
+        if metric_name:
+            qs = qs.filter(metric_name=metric_name)
+
+        paginator = AMAPPHistoryPagination()
+        page = paginator.paginate_queryset(qs, request)
+        if page is not None:
+            serializer = ExperimentMetricSerializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        serializer = ExperimentMetricSerializer(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class RunTelemetryView(BaseSimulationView):
@@ -291,3 +367,85 @@ class RunIncidentDetailView(BaseSimulationView):
         """Resolve and remove an active incident."""
         result = self.service.remove_incident(run_id, incident_id)
         return Response(result, status=status.HTTP_200_OK)
+
+
+# ==============================================================================
+# Historical Benchmark Configuration and Trial Endpoints
+# ==============================================================================
+
+
+class BenchmarkConfigurationListView(BaseSimulationView):
+    """GET: List persisted reproducible BenchmarkConfigurations."""
+
+    def get(self, request: Request) -> Response:
+        """List benchmark configurations with pagination and filtering."""
+        qs = BenchmarkConfiguration.objects.all().order_by("-created_at", "-id")
+        name = request.query_params.get("name")
+        if name:
+            qs = qs.filter(name__icontains=name)
+
+        paginator = AMAPPHistoryPagination()
+        page = paginator.paginate_queryset(qs, request)
+        if page is not None:
+            serializer = BenchmarkConfigurationSerializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        serializer = BenchmarkConfigurationSerializer(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class BenchmarkConfigurationDetailView(BaseSimulationView):
+    """GET: Retrieve details of a specific BenchmarkConfiguration."""
+
+    def get(self, request: Request, configuration_id: str) -> Response:
+        """Retrieve single benchmark configuration."""
+        cfg = BenchmarkConfiguration.objects.filter(configuration_id=configuration_id).first()
+        if not cfg:
+            raise NotFound(f"Benchmark configuration '{configuration_id}' not found.")
+        serializer = BenchmarkConfigurationSerializer(cfg)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class BenchmarkTrialListView(BaseSimulationView):
+    """GET: Query historical benchmark trial execution outcomes."""
+
+    def get(self, request: Request) -> Response:
+        """List benchmark trials with bounded filtering and pagination."""
+        qs = (
+            BenchmarkTrial.objects.select_related("benchmark_config", "simulation_run")
+            .all()
+            .order_by("-created_at", "-id")
+        )
+        if "benchmark_run_id" in request.query_params:
+            qs = qs.filter(benchmark_run_id=request.query_params["benchmark_run_id"])
+        if "scenario_id" in request.query_params:
+            qs = qs.filter(scenario_id=request.query_params["scenario_id"])
+        if "algorithm_id" in request.query_params:
+            qs = qs.filter(algorithm_id=request.query_params["algorithm_id"])
+        if "status" in request.query_params:
+            qs = qs.filter(status=request.query_params["status"])
+
+        paginator = AMAPPHistoryPagination()
+        page = paginator.paginate_queryset(qs, request)
+        if page is not None:
+            serializer = BenchmarkTrialSerializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        serializer = BenchmarkTrialSerializer(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class BenchmarkTrialDetailView(BaseSimulationView):
+    """GET: Retrieve single benchmark trial details."""
+
+    def get(self, request: Request, trial_id: int) -> Response:
+        """Retrieve single trial by numeric ID."""
+        trial = (
+            BenchmarkTrial.objects.select_related("benchmark_config", "simulation_run")
+            .filter(id=trial_id)
+            .first()
+        )
+        if not trial:
+            raise NotFound(f"Benchmark trial with ID '{trial_id}' not found.")
+        serializer = BenchmarkTrialSerializer(trial)
+        return Response(serializer.data, status=status.HTTP_200_OK)

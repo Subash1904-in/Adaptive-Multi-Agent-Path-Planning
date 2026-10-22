@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 31 (Reproducible Routing Benchmarking Framework)  
+**Current Phase:** Phase 35 (Persistence and Experiment History)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 31 (Reproducible Routing Benchmarking Framework):* Phase 31 delivers an extensible, reproducible benchmarking framework comparing path-planning algorithms (`dijkstra`, `astar`, `static`, `adaptive`) across standardized autonomous-vehicle simulation scenarios. Features a unified adapter contract (`BaseRoutingBenchmarkAdapter`), algorithm registry (`AlgorithmRegistry`), 8 standardized scenarios with calibrated limits (`BenchmarkScenarioRegistry`), deterministic random seed policy (`SeedPolicy`), strict mutable state isolation between trials, authoritative metrics collection (never treating failures/infeasible routes as 0-cost successes), RFC 8259 JSON, RFC 4180 CSV, and Markdown export engines with path-traversal prevention, and a dedicated Django CLI command (`run_benchmark`). 192 frontend tests, 1,144 backend tests passing (95.40% line coverage).
+> *Note on Phase 35 (Persistence and Experiment History):* Phase 35 implements authoritative Django models (`SimulationRun`, `BenchmarkConfiguration`, `BenchmarkTrial`, `ExperimentMetric`), deterministic SHA-256 configuration fingerprinting, lifecycle state machine enforcement, non-blocking resilience containment, and REST historical query endpoints with limit-offset pagination. 192 frontend tests, 1,247 backend tests passing (95% line coverage).
 
 ---
 
@@ -22,7 +22,7 @@
 | **FR-02** | Multi-Agent Autonomous Vehicle Environment | `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/` | Phase 07, 08, 10, 20, 25 | `TESTED` | Phase 07, 08, 10, 20 Tested (`test_kinematics_*.py`, `test_simulation_*.py`, `test_scenarios_*.py`, `test_runner_*.py`) |
 | **FR-03** | Real-World Map Integration | `backend/apps/core/graph/`, `frontend/src/features/scene3d/` | Phase 04, 05, 24 | `TESTED` | Phase 04 & 05 Foundation Tested (`test_osm_*.py`, `test_road_graph.py`); Phase 24 Frontend OSM Adapter Tested (`geometry.test.ts`) |
 | **FR-04** | Traffic and Pedestrian Simulation | `backend/apps/core/signals/`, `backend/apps/core/pedestrians/`, `backend/apps/core/safety/`, `backend/apps/core/incidents/` | Phase 09, 17, 25, 29 | `TESTED` | Phase 09 Signals, Phase 17 Pedestrians & Phase 29 Incidents Tested (`test_signals_*.py`, `test_pedestrian_*.py`, `test_incident_*.py`) |
-| **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/benchmarking/`, `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/`, `backend/apps/core/telemetry/` | Phase 06, 07, 08, 10, 20, 30, 31 | `TESTED` | Phase 06–10 & Phase 20 Metrics Aggregation & Export Tested; Phase 31 Benchmarking Framework Tested (`test_routing_*.py`, `test_runner_*.py`, `test_benchmarking.py`: 26 tests passing) |
+| **FR-05** | Motion Planning and Performance Benchmarking | `backend/apps/core/routing/`, `backend/apps/core/benchmarking/`, `backend/apps/core/persistence/`, `backend/apps/core/models.py`, `backend/apps/core/kinematics/`, `backend/apps/core/simulation/`, `backend/apps/core/scenarios/`, `backend/apps/core/telemetry/` | Phase 06, 07, 08, 10, 20, 30, 31, 35 | `TESTED` | Phase 06–10 & Phase 20 Metrics Aggregation; Phase 31 Benchmarking; Phase 35 Persistent Models, Fingerprinting, and History API Tested (`test_persistence_*.py`, `test_api_persistence_history.py`, `test_benchmarking.py`) |
 | **FR-06** | Decentralized Vehicle Communication | `backend/apps/core/communication/`, `backend/apps/core/coordination/` | Phase 11, 12, 13, 14 | `TESTED` | Phase 11–14 Protocol, Discovery, Neighbors, Knowledge & Outages Tested (`test_communication_*.py`, `test_coordination_*.py`) |
 | **FR-07** | Adaptive Path Planning | `backend/apps/core/routing/`, `frontend/src/features/scene3d/`, `frontend/src/features/simulation/` | Phase 06, 15, 28 | `TESTED` | Phase 06 & 15 Dynamic Rerouting & Phase 28 Three.js Route/Candidate Overlays Tested (`test_routing_*.py`, `routing.test.ts`, `components.test.tsx`) |
 | **FR-08** | AI-Based Decision-Making | `backend/apps/core/decision/`, `backend/apps/core/routing/adapter.py` | Phase 19, 34 | `TESTED` | Phase 19 Pluggable Rule-Based AI Decision Policies Tested (`test_decision_*.py`: 43 tests passing) |

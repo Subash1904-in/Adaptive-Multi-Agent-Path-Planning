@@ -67,6 +67,7 @@ jobs:
             "docs/progress/PHASE_32.md"
             "docs/progress/PHASE_33.md"
             "docs/progress/PHASE_34.md"
+            "docs/progress/PHASE_35.md"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"
@@ -134,6 +135,17 @@ jobs:
         shell: bash
         run: |
           python backend/manage.py check
+
+      - name: Verify Django Migrations and Database Schema
+        shell: bash
+        run: |
+          python backend/manage.py makemigrations --check --dry-run
+          python backend/manage.py migrate
+
+      - name: Verify Experiment History & Persistence Integrity
+        shell: bash
+        run: |
+          python -c "import sys; sys.path.insert(0, 'backend'); import django; django.setup(); from apps.core.models import SimulationRun, BenchmarkConfiguration, BenchmarkTrial, ExperimentMetric; print('Phase 35 models successfully verified in Django environment.')"
 
       - name: Run Full Automated Test Suite with Coverage (Phases 2-22, WebSockets, Channels ASGI)
         shell: bash

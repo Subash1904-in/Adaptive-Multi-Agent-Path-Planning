@@ -167,11 +167,7 @@ def extract_agent_observation(
         ]
         if signals:
             sig = signals[0]
-            st = (
-                sig.state.value
-                if hasattr(sig.state, "value")
-                else str(sig.state)
-            )
+            st = sig.state.value if hasattr(sig.state, "value") else str(sig.state)
             if "GREEN" in st.upper():
                 signal_state_val = 0.33
             elif "YELLOW" in st.upper():

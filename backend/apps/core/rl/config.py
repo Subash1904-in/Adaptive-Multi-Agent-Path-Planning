@@ -147,4 +147,3 @@ class LearnedRoutingConfig:
             "inference_timeout_s": self.inference_timeout_s,
             "lazy_load": self.lazy_load,
         }
-

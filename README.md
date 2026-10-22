@@ -21,6 +21,7 @@ The **Adaptive Multi-Agent Path Planning (AMAPP)** platform is a comprehensive s
 - **Dynamic Traffic & Pedestrian Elements:** Signalized intersections, pedestrian crosswalks, jaywalking events, and emergency vehicle priority corridors.
 - **Real-Time 3D Visualization Dashboard:** Interactive web dashboard powered by Django Channels (WebSockets) and Three.js for real-time telemetry rendering and simulation steering.
 - **Operational Metrics Dashboard & Live KPIs:** Live KPI summary cards, pure SVG travel time distribution histogram and discrete step time-series charts, category filters, time-window query filters, and honest unavailable metric labels without data fabrication.
+- **Persistence & Historical Experiment Tracking:** Authoritative Django ORM data models, deterministic SHA-256 configuration fingerprinting, lifecycle state machines, non-blocking resilience containment, and REST historical query endpoints with limit-offset pagination.
 
 ---
 

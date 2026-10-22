@@ -95,9 +95,7 @@ class TripAnalytics:
             "completed_trips": self.completed_trips,
             "active_trips": self.active_trips,
             "completion_rate_pct": (
-                round(self.completion_rate_pct, 2)
-                if self.completion_rate_pct is not None
-                else None
+                round(self.completion_rate_pct, 2) if self.completion_rate_pct is not None else None
             ),
             "travel_time": self.travel_time.to_dict(),
         }
@@ -148,9 +146,7 @@ class SafetyAnalytics:
                 else None
             ),
             "min_ttc_observed_s": (
-                round(self.min_ttc_observed_s, 2)
-                if self.min_ttc_observed_s is not None
-                else None
+                round(self.min_ttc_observed_s, 2) if self.min_ttc_observed_s is not None else None
             ),
             "collision_rate_per_minute": round(self.collision_rate_per_minute, 2),
             "near_miss_rate_per_minute": round(self.near_miss_rate_per_minute, 2),
@@ -192,14 +188,10 @@ class CommunicationAnalytics:
                 else None
             ),
             "packet_loss_rate": (
-                round(self.packet_loss_rate, 4)
-                if self.packet_loss_rate is not None
-                else None
+                round(self.packet_loss_rate, 4) if self.packet_loss_rate is not None else None
             ),
             "loss_rate": (
-                round(self.packet_loss_rate, 4)
-                if self.packet_loss_rate is not None
-                else None
+                round(self.packet_loss_rate, 4) if self.packet_loss_rate is not None else None
             ),
             "loss_by_reason": dict(self.loss_by_reason),
             "loss_breakdown": dict(self.loss_by_reason),
@@ -226,9 +218,7 @@ class RoutingAnalytics:
             "reroutes_accepted": self.reroutes_accepted,
             "reroutes_rejected": self.reroutes_rejected,
             "acceptance_rate_pct": (
-                round(self.acceptance_rate_pct, 2)
-                if self.acceptance_rate_pct is not None
-                else None
+                round(self.acceptance_rate_pct, 2) if self.acceptance_rate_pct is not None else None
             ),
         }
 
@@ -315,9 +305,7 @@ class OperationalAnalyticsAggregator:
         if time_window_start_s is not None and time_window_end_s is not None:
             effective_duration = max(0.0, time_window_end_s - time_window_start_s)
         elif filtered_ticks:
-            effective_duration = filtered_ticks[-1].elapsed_time_s - (
-                time_window_start_s or 0.0
-            )
+            effective_duration = filtered_ticks[-1].elapsed_time_s - (time_window_start_s or 0.0)
 
         trips = cls._compute_trips(world, tick_history)
         throughput = cls._compute_throughput(world, filtered_ticks, effective_duration)
@@ -360,15 +348,11 @@ class OperationalAnalyticsAggregator:
                 getattr(a.vehicle, "id", None) if hasattr(a, "vehicle") else None
             )
             if vid and getattr(a, "is_arrived", False) and vid not in arrival_times:
-                arrival_times[vid] = (
-                    tick_history[-1].elapsed_time_s if tick_history else 0.0
-                )
+                arrival_times[vid] = tick_history[-1].elapsed_time_s if tick_history else 0.0
 
         completed_trips = len(arrival_times)
         active_trips = max(0, total_trips - completed_trips)
-        completion_rate = (
-            (completed_trips / total_trips * 100.0) if total_trips > 0 else None
-        )
+        completion_rate = (completed_trips / total_trips * 100.0) if total_trips > 0 else None
 
         # Travel times in seconds (start time is assumed t=0.0 in current AMAPP scenarios)
         travel_times = sorted(arrival_times.values())
@@ -398,9 +382,7 @@ class OperationalAnalyticsAggregator:
                     b_end = min_s + (i + 1) * bin_width
                     bins.append(HistogramBin(b_start, b_end, bin_counts[i]).to_dict())
             else:
-                bins.append(
-                    HistogramBin(min_s, max_s + 1.0, sample_count).to_dict()
-                )
+                bins.append(HistogramBin(min_s, max_s + 1.0, sample_count).to_dict())
 
             distribution = TravelTimeDistribution(
                 sample_count=sample_count,
@@ -475,9 +457,7 @@ class OperationalAnalyticsAggregator:
 
                     if crossed_node:
                         total_crossings += 1
-                        crossings_by_node[crossed_node] = (
-                            crossings_by_node.get(crossed_node, 0) + 1
-                        )
+                        crossings_by_node[crossed_node] = crossings_by_node.get(crossed_node, 0) + 1
                         if crossed_node in signalized_nodes:
                             signalized_count += 1
                         else:
@@ -599,8 +579,8 @@ class OperationalAnalyticsAggregator:
                 expired = cm.get("messages_expired", 0)
                 loss_by_reason["packet_loss"] = cm.get("dropped_packet_loss", 0)
                 loss_by_reason["burst_loss"] = cm.get("dropped_burst_loss", 0)
-                loss_by_reason["out_of_range"] = (
-                    cm.get("messages_lost_out_of_range", 0) or cm.get("dropped_out_of_range", 0)
+                loss_by_reason["out_of_range"] = cm.get("messages_lost_out_of_range", 0) or cm.get(
+                    "dropped_out_of_range", 0
                 )
                 loss_by_reason["link_outage"] = cm.get("dropped_link_outage", 0)
                 loss_by_reason["partition"] = cm.get("dropped_partition", 0)
@@ -612,9 +592,7 @@ class OperationalAnalyticsAggregator:
                 queued_lat = cm.get("packets_queued_latency", 0)
                 deliv_lat = cm.get("packets_delivered_latency", 0)
             else:
-                sent = getattr(cm, "broadcasts_attempted", 0) + getattr(
-                    cm, "unicasts_attempted", 0
-                )
+                sent = getattr(cm, "broadcasts_attempted", 0) + getattr(cm, "unicasts_attempted", 0)
                 delivered = getattr(cm, "successful_deliveries", 0)
                 loss_by_reason["packet_loss"] = getattr(cm, "dropped_packet_loss", 0)
                 loss_by_reason["burst_loss"] = getattr(cm, "dropped_burst_loss", 0)
@@ -655,9 +633,7 @@ class OperationalAnalyticsAggregator:
         )
 
     @classmethod
-    def _compute_routing(
-        cls, world: Any, tick_history: Sequence[TickResult]
-    ) -> RoutingAnalytics:
+    def _compute_routing(cls, world: Any, tick_history: Sequence[TickResult]) -> RoutingAnalytics:
         """Compute rerouting adjustments and acceptance rate."""
         evals = 0
         accepted = 0
@@ -781,9 +757,7 @@ class OperationalAnalyticsAggregator:
                     else (res.get("new_speed_mps", 0.0) if isinstance(res, dict) else 0.0)
                     for res in tr.step_results.values()
                 ]
-                avg_speed = (
-                    sum(point_speeds) / len(point_speeds) if point_speeds else 0.0
-                )
+                avg_speed = sum(point_speeds) / len(point_speeds) if point_speeds else 0.0
 
                 # Point PDR
                 pdr = None

@@ -35,16 +35,19 @@ class ModelArtifactError(RLEnvironmentError):
 
 class ModelArtifactNotFoundError(ModelArtifactError):
     """Raised when the specified or discovered model artifact file does not exist."""
+
     pass
 
 
 class CorruptModelArtifactError(ModelArtifactError):
     """Raised when the model artifact file is damaged, unreadable, or not a valid zip archive."""
+
     pass
 
 
 class IncompatibleModelArtifactError(ModelArtifactError):
     """Raised when model observation space, action space, or algorithm mismatches requirements."""
+
     pass
 
 

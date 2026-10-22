@@ -3,6 +3,10 @@
 from django.urls import path
 
 from .views import (
+    BenchmarkConfigurationDetailView,
+    BenchmarkConfigurationListView,
+    BenchmarkTrialDetailView,
+    BenchmarkTrialListView,
     RunCancelView,
     RunDetailView,
     RunExportView,
@@ -46,5 +50,26 @@ urlpatterns = [
         "runs/<str:run_id>/incidents/<str:incident_id>/",
         RunIncidentDetailView.as_view(),
         name="api_run_incident_detail",
+    ),
+    # Historical Benchmarks
+    path(
+        "benchmarks/configurations/",
+        BenchmarkConfigurationListView.as_view(),
+        name="api_benchmark_config_list",
+    ),
+    path(
+        "benchmarks/configurations/<str:configuration_id>/",
+        BenchmarkConfigurationDetailView.as_view(),
+        name="api_benchmark_config_detail",
+    ),
+    path(
+        "benchmarks/trials/",
+        BenchmarkTrialListView.as_view(),
+        name="api_benchmark_trial_list",
+    ),
+    path(
+        "benchmarks/trials/<int:trial_id>/",
+        BenchmarkTrialDetailView.as_view(),
+        name="api_benchmark_trial_detail",
     ),
 ]

@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 34 (Reinforcement Learning Policy Integration and Production Fallback)
+- **Current Phase:** Phase 35 (Persistence and Experiment History)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 35 (Persistence and Experiment History) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 36 (Security, Resilience, and Production Hardening) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-22
 
 
@@ -50,7 +50,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 32** | **Reinforcement-learning environment** | **COMPLETED** | Deterministic Gymnasium-compatible single-agent (`AMAPPSingleAgentEnv`) and multi-agent (`AMAPPMultiAgentEnv`) routing environments, 32-dim bounded observation space, discrete branch selection action space, objective-driven transparent reward breakdown, `check_env` compliant, Phase 31 benchmark bridge, 1,170 backend tests passed (95.12% coverage). |
 | **Phase 33** | **Train, evaluate, and save an RL baseline** | **COMPLETED** | Reproducible Stable-Baselines3 / sb3-contrib MaskablePPO baseline training pipeline, CPU execution, artifact checkpointing (`artifacts/rl_models/`), model reload & deterministic inference, held-out evaluation across seeds and scenarios, comparison with random/greedy baselines, CLI management command, 1,192 backend tests passed (95.08% coverage). |
 | **Phase 34** | **RL evaluation and policy integration** | **COMPLETED** | Verified MaskablePPO policy adapter (`LearnedRoutingBenchmarkAdapter`), safe conventional fallback (`SafeFallbackPolicyWrapper`), artifact discovery/caching (`RLModelManager`), opt-in configuration, 8-scenario benchmark evaluation, 1,217 backend tests passed (95% coverage). |
-| **Phase 35** | Persistence and experiment history | Pending | Django models for runs, scenario configurations, experiment results, bounded summary storage. |
+| **Phase 35** | **Persistence and experiment history** | **COMPLETED** | Authoritative Django models (SimulationRun, BenchmarkConfiguration, BenchmarkTrial, ExperimentMetric), deterministic SHA-256 fingerprinting, lifecycle transitions, non-blocking resilience, REST history endpoints with limit-offset pagination, 1,247 backend tests passed (95% coverage). |
 | **Phase 36** | Security and failure handling | Pending | Input validation, secrets, debug settings, CORS, permissions, client disconnect handling. |
 | **Phase 37** | Automated testing and regression | Pending | Full test suite: unit, integration, API, WebSocket, frontend typecheck, end-to-end scenarios. |
 | **Phase 38** | Performance and stability pass | Pending | Profiling simulation & rendering loop, vehicle count limits, sustained simulation run limits. |

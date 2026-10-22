@@ -533,3 +533,159 @@ class IncidentListResponseSerializer(serializers.Serializer):
     resolved_count = serializers.IntegerField()
     incidents = IncidentSerializer(many=True)
     disclaimer = serializers.CharField(default=EDUCATIONAL_DISCLAIMER)
+
+
+# ==============================================================================
+# Historical Persistence Models Serializers
+# ==============================================================================
+
+
+class PersistentSimulationRunSerializer(serializers.ModelSerializer):
+    """Serializes a persistent SimulationRun ORM record."""
+
+    is_terminal = serializers.BooleanField(read_only=True)
+    disclaimer = serializers.CharField(default=EDUCATIONAL_DISCLAIMER, read_only=True)
+
+    class Meta:
+        from apps.core.models import SimulationRun
+
+        model = SimulationRun
+        fields = [
+            "id",
+            "run_id",
+            "scenario_id",
+            "scenario_version",
+            "status",
+            "start_time",
+            "completion_time",
+            "simulation_duration_s",
+            "completed_ticks",
+            "configuration_snapshot",
+            "configuration_fingerprint",
+            "seed",
+            "seed_policy",
+            "routing_strategy",
+            "git_commit_sha",
+            "schema_version",
+            "error_category",
+            "error_summary",
+            "created_at",
+            "updated_at",
+            "is_terminal",
+            "disclaimer",
+        ]
+        read_only_fields = fields
+
+
+class BenchmarkConfigurationSerializer(serializers.ModelSerializer):
+    """Serializes a reproducible BenchmarkConfiguration ORM record."""
+
+    disclaimer = serializers.CharField(default=EDUCATIONAL_DISCLAIMER, read_only=True)
+
+    class Meta:
+        from apps.core.models import BenchmarkConfiguration
+
+        model = BenchmarkConfiguration
+        fields = [
+            "id",
+            "configuration_id",
+            "name",
+            "description",
+            "scenario_ids",
+            "algorithm_ids",
+            "trial_count",
+            "base_seed",
+            "seed_policy",
+            "parameters",
+            "configuration_fingerprint",
+            "created_at",
+            "disclaimer",
+        ]
+        read_only_fields = fields
+
+
+class BenchmarkTrialSerializer(serializers.ModelSerializer):
+    """Serializes a single BenchmarkTrial ORM record."""
+
+    benchmark_config_id = serializers.CharField(
+        source="benchmark_config.configuration_id", read_only=True, allow_null=True
+    )
+    simulation_run_id = serializers.CharField(
+        source="simulation_run.run_id", read_only=True, allow_null=True
+    )
+    disclaimer = serializers.CharField(default=EDUCATIONAL_DISCLAIMER, read_only=True)
+
+    class Meta:
+        from apps.core.models import BenchmarkTrial
+
+        model = BenchmarkTrial
+        fields = [
+            "id",
+            "benchmark_run_id",
+            "benchmark_config_id",
+            "simulation_run_id",
+            "scenario_id",
+            "scenario_version",
+            "algorithm_id",
+            "algorithm_version",
+            "trial_index",
+            "seed",
+            "status",
+            "route_feasible",
+            "route_cost",
+            "route_length_m",
+            "planning_duration_ms",
+            "simulation_duration_s",
+            "simulation_ticks",
+            "travel_time_s",
+            "completed_trips",
+            "total_trips",
+            "completion_rate_pct",
+            "collision_count",
+            "near_miss_count",
+            "intersection_crossings",
+            "reroutes_evaluated",
+            "reroutes_accepted",
+            "messages_sent",
+            "messages_delivered",
+            "pdr",
+            "incident_count",
+            "fallback_count",
+            "started_at",
+            "completed_at",
+            "failure_reason",
+            "diagnostic_summary",
+            "created_at",
+            "disclaimer",
+        ]
+        read_only_fields = fields
+
+
+class ExperimentMetricSerializer(serializers.ModelSerializer):
+    """Serializes structured experiment metric data."""
+
+    simulation_run_id = serializers.CharField(
+        source="simulation_run.run_id", read_only=True, allow_null=True
+    )
+    benchmark_trial_id = serializers.IntegerField(
+        source="benchmark_trial.id", read_only=True, allow_null=True
+    )
+
+    class Meta:
+        from apps.core.models import ExperimentMetric
+
+        model = ExperimentMetric
+        fields = [
+            "id",
+            "simulation_run_id",
+            "benchmark_trial_id",
+            "metric_name",
+            "metric_type",
+            "numeric_value",
+            "unit",
+            "sample_tick",
+            "sample_timestamp_s",
+            "metadata",
+            "created_at",
+        ]
+        read_only_fields = fields

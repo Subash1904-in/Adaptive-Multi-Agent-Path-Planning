@@ -364,11 +364,62 @@ Endpoints for querying, creating, and removing dynamic traffic incidents (road c
 
 ---
 
-### 1.7 Experiment History & Persistence (Target Phase: Phase 35)
-- **`GET /api/v1/experiments/`**
-  - **Purpose:** Lists stored benchmarking runs and historical evaluation metrics.
-- **`POST /api/v1/experiments/export/`**
-  - **Purpose:** Generates downloadable CSV/JSON archive of trajectory and benchmark data.
+### 1.6 Experiment History & Persistence (Status: IMPLEMENTED & TESTED in Phase 35)
+
+Authoritative REST endpoints for querying persistent simulation runs, benchmark suites, trials, and granular time-series metrics. All listing endpoints utilize `AMAPPHistoryPagination` (limit-offset, default limit=20, max limit=100) and enforce read-only safety (POST/PUT/DELETE return 405 Method Not Allowed).
+
+- **`GET /api/v1/runs/`**
+  - **Purpose:** Lists stored historical simulation runs with structured filtering and pagination.
+  - **Query Parameters:**
+    - `status`: Lifecycle state filter (`CREATED`, `READY`, `RUNNING`, `COMPLETED`, `CANCELLED`, `FAILED`, `LIMIT_REACHED`).
+    - `scenario_id`: Filter by scenario identifier (e.g. `scn_single_veh`).
+    - `fingerprint`: Filter by exact 64-character SHA-256 configuration fingerprint.
+    - `date_from` / `date_to`: ISO-8601 creation timestamp bounds (`YYYY-MM-DDTHH:MM:SSZ`).
+    - `limit` (default 20, max 100) & `offset` (default 0).
+  - **Success Response (`200 OK`):**
+    ```json
+    {
+      "count": 42,
+      "next": "http://.../api/v1/runs/?limit=20&offset=20",
+      "previous": null,
+      "results": [
+        {
+          "run_id": "run_01",
+          "scenario_id": "scn_single_veh",
+          "status": "COMPLETED",
+          "configuration_fingerprint": "a3b1...",
+          "completed_ticks": 142,
+          "simulation_duration_s": 14.2,
+          "created_at": "2026-10-22T08:00:00Z",
+          "started_at": "2026-10-22T08:00:01Z",
+          "completion_time": "2026-10-22T08:00:15Z",
+          "error_category": null
+        }
+      ]
+    }
+    ```
+
+- **`GET /api/v1/runs/{run_id}/`**
+  - **Purpose:** Retrieves detail of an active or historical simulation run from persistence.
+  - **Success Response (`200 OK`):** Full run record including `configuration_payload` and error diagnostics.
+
+- **`GET /api/v1/runs/{run_id}/metrics/`**
+  - **Purpose:** Retrieves historical time-series or summary experiment metrics recorded for the run.
+  - **Query Parameters:** `metric_name`, `sample_tick`.
+
+- **`GET /api/v1/benchmarks/configurations/`**
+  - **Purpose:** Lists persisted benchmark configurations.
+  - **Query Parameters:** `fingerprint`, `limit`, `offset`.
+
+- **`GET /api/v1/benchmarks/configurations/{config_id}/`**
+  - **Purpose:** Retrieves benchmark configuration specification, evaluated algorithms, and scenarios.
+
+- **`GET /api/v1/benchmarks/trials/`**
+  - **Purpose:** Lists individual benchmark trials with execution metrics (route cost, route length, planning time, travel time, PDR).
+  - **Query Parameters:** `config_id`, `scenario_id`, `algorithm`, `status`, `limit`, `offset`.
+
+- **`GET /api/v1/benchmarks/trials/{trial_id}/`**
+  - **Purpose:** Retrieves detailed benchmark trial metrics and links to associated simulation runs.
 
 ---
 
