@@ -235,14 +235,27 @@ Evaluations were performed across 5 held-out seeds (`101, 102, 103, 104, 105`) a
 4. Added an automated `Run RL Baseline Training Smoke Verification` step executing `python backend/manage.py train_rl_baseline --smoke`.
 
 ### GitHub Actions CI Verification Gate (Rule 1 Non-Negotiable)
-- **Workflow Run URL:** Pending push & CI run
-- **Implementation Commit SHA:** Pending commit
+- **Workflow Run URL:** `https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39721490468`
+- **Implementation Commit SHA:** `c17b630`
 - **Required Job Outcomes:**
-  - `Repository Hygiene & Documentation Integrity`: Pending CI run
-  - `Backend Lint, Test & Coverage`: Pending CI run
-  - `Frontend Lint, Typecheck, Test & Production Build`: Pending CI run
-
-*(This section will be updated with the exact run URL and job IDs upon CI completion.)*
+  - `Repository Hygiene & Documentation Integrity`: **PASSED** in 4s (Job ID: `119635724646`)
+    - Mandatory files verified present (including `docs/progress/PHASE_33.md`)
+    - Prohibited binary / secret patterns check clean
+  - `Backend Lint, Test & Coverage`: **PASSED** in 1m53s (Job ID: `119635724623`)
+    - Environment & dependencies verified: Python 3.11.17, Django 5.1.15, DRF 3.16.1, Channels 4.2.2, Daphne 4.2.1, NetworkX 3.3, OSMnx 2.0.7, Gymnasium 1.0.0, PyTorch 2.1.0+cpu, Stable-Baselines3 2.4.0, sb3-contrib 2.4.0
+    - Ruff linting: 0 errors
+    - Django system checks: 0 issues
+    - Pytest full suite: **1,192 passed, 0 failed** in 41.79s
+    - Backend line coverage: **95.06%** (enforced gate $\ge 80\%$)
+    - Phase 31 benchmark smoke verification: PASSED
+    - Phase 32 Gymnasium environment `check_env` smoke verification: PASSED
+    - Phase 33 RL baseline training smoke (`train_rl_baseline --smoke`): PASSED
+  - `Frontend Lint, Typecheck, Test & Production Build`: **PASSED** in 37s (Job ID: `119635724536`)
+    - Reproducible `npm ci`: PASSED
+    - ESLint: 0 errors
+    - Strict TypeScript typechecking (`tsc --noEmit`): 0 errors
+    - Vitest unit tests: **192 passed across 11 test suites** in 5.92s
+    - Production bundle build (`npm run build`): PASSED (optimized bundle generated in `dist/`)
 
 ---
 
