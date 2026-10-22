@@ -255,10 +255,10 @@ jobs:
       - name: Wait for Services to Become Healthy
         run: |
           echo "Waiting for services to become healthy..."
-          for i in {1..30}; do
+          for i in {1..40}; do
             STATUS_BACKEND=$(docker inspect --format='{{json .State.Health.Status}}' amapp-backend 2>/dev/null || echo '"starting"')
             STATUS_FRONTEND=$(docker inspect --format='{{json .State.Health.Status}}' amapp-frontend 2>/dev/null || echo '"starting"')
-            echo "Check $i/30: Backend=$STATUS_BACKEND, Frontend=$STATUS_FRONTEND"
+            echo "Check $i/40: Backend=$STATUS_BACKEND, Frontend=$STATUS_FRONTEND"
             if [ "$STATUS_BACKEND" = '"healthy"' ] && [ "$STATUS_FRONTEND" = '"healthy"' ]; then
               echo "All services report healthy!"
               break

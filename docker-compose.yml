@@ -25,7 +25,7 @@ services:
     networks:
       - amapp-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/v1/health/"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -45,11 +45,11 @@ services:
     networks:
       - amapp-network
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost/healthz"]
-      interval: 10s
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/healthz"]
+      interval: 5s
       timeout: 3s
       retries: 3
-      start_period: 5s
+      start_period: 2s
 
 volumes:
   backend-data:

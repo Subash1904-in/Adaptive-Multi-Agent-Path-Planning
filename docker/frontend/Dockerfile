@@ -29,8 +29,8 @@ COPY docker/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Health check
-HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
-    CMD wget -q -O - http://localhost/healthz || exit 1
+HEALTHCHECK --interval=5s --timeout=3s --retries=3 \
+    CMD wget -q -O - http://127.0.0.1/healthz || exit 1
 
 EXPOSE 80
 
