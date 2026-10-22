@@ -1040,6 +1040,14 @@ The platform integrates the trained RL routing policy into the simulation and be
 - [docs/progress/PHASE_32.md](docs/progress/PHASE_32.md): Phase 32 Gymnasium-compatible single-agent and multi-agent RL environment report.
 - [docs/progress/PHASE_33.md](docs/progress/PHASE_33.md): Phase 33 train, evaluate, and save reinforcement-learning baseline report.
 - [docs/progress/PHASE_34.md](docs/progress/PHASE_34.md): Phase 34 evaluate and integrate learned routing policy with safe fallback report.
+- [docs/progress/PHASE_35.md](docs/progress/PHASE_35.md): Phase 35 persistence and experiment history report.
+- [docs/progress/PHASE_36.md](docs/progress/PHASE_36.md): Phase 36 security hardening and failure handling report.
+- [docs/progress/PHASE_37.md](docs/progress/PHASE_37.md): Phase 37 comprehensive automated testing and regression report.
+- [docs/progress/PHASE_38.md](docs/progress/PHASE_38.md): Phase 38 performance optimization and scalability report.
+- [docs/progress/PHASE_39.md](docs/progress/PHASE_39.md): Phase 39 Docker, containerization, and reproducible deployment report.
+- [docs/progress/PHASE_40.md](docs/progress/PHASE_40.md): Phase 40 final acceptance audit, end-to-end demonstration, and project sign-off report.
+- [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md): Complete acceptance demonstration walkthrough and CLI instructions.
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): Containerization, multi-stage Docker build, and deployment guide.
 - [docs/TESTING.md](docs/TESTING.md): Testing standards, fixtures, and regression policies.
 - [docs/API.md](docs/API.md): API and WebSocket telemetry protocol contracts.
 - [docs/decisions/ADR-001-modular-simulation-architecture.md](docs/decisions/ADR-001-modular-simulation-architecture.md): Architectural Decision Record on simulation decoupling.

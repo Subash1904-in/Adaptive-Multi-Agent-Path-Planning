@@ -72,7 +72,10 @@ jobs:
             "docs/progress/PHASE_37.md"
             "docs/progress/PHASE_38.md"
             "docs/progress/PHASE_39.md"
+            "docs/progress/PHASE_40.md"
+            "docs/DEMO_GUIDE.md"
             "docs/DEPLOYMENT.md"
+            "scripts/demo_acceptance.py"
             "docker-compose.yml"
             ".dockerignore"
             "pytest.ini"
@@ -282,6 +285,13 @@ jobs:
       - name: Run End-to-End Deployment Smoke Verification
         run: |
           python scripts/test_deployment_smoke.py \
+            --frontend-url http://localhost:3000 \
+            --backend-url http://localhost:8000 \
+            --ws-url ws://localhost:3000
+
+      - name: Run End-to-End Acceptance Demonstration
+        run: |
+          python scripts/demo_acceptance.py \
             --frontend-url http://localhost:3000 \
             --backend-url http://localhost:8000 \
             --ws-url ws://localhost:3000
