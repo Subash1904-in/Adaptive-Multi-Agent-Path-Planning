@@ -204,12 +204,13 @@ Reward diagnostics are exposed transparently in `info["reward_components"]` usin
 3. Added an automated `Run Gymnasium RL Environment Smoke Verification` step executing `check_env(AMAPPSingleAgentEnv())`.
 
 ### GitHub Actions CI Verification Gate (Rule 1 Non-Negotiable)
-- **Workflow Run URL:** `https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/18706307399` (to be recorded upon push)
-- **Commit SHA:** (to be recorded upon push)
+- **Workflow Run URL:** `https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39714625371`
+- **Implementation Commit SHA:** `aa7d759`
 - **Required Job Outcomes:**
-  - `repo-hygiene`: PASSED
-  - `backend-quality`: PASSED
-  - `frontend-quality`: PASSED
+  - `Repository Hygiene & Documentation Integrity`: **PASSED** (ID: 119613674920, 6s)
+  - `Backend Lint, Test & Coverage`: **PASSED** (ID: 119613674860, 1m6s, 1,170 tests passed, 95.12% line coverage, RL env smoke passed)
+  - `Frontend Lint, Typecheck, Test & Production Build`: **PASSED** (ID: 119613674702, 7m30s, 192 tests passed, build succeeded)
+
 
 ---
 
