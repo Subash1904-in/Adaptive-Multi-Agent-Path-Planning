@@ -12,6 +12,7 @@ Validates:
 
 from __future__ import annotations
 
+import os
 import tempfile
 import zipfile
 from pathlib import Path
@@ -120,7 +121,11 @@ def test_validate_model_artifact_rejects_corrupt_and_non_zip_files():
 
 def test_validate_model_artifact_rejects_unapproved_path():
     """validate_model_artifact rejects paths located outside approved directories."""
-    external_path = Path("C:/Windows/System32/drivers/etc/hosts")
+    external_path = (
+        Path("C:/Windows/System32/drivers/etc/hosts")
+        if os.name == "nt"
+        else Path("/etc/hosts")
+    )
     result = validate_model_artifact(external_path, raise_on_error=False)
     assert result.is_valid is False
     assert "outside approved project directory" in (result.error_message or "")

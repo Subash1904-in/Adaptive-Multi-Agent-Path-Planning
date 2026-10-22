@@ -90,6 +90,11 @@ def _get_project_root() -> Path:
 def is_safe_contained_path(path: Union[str, Path]) -> bool:
     """Verify path is contained within approved project, working, or temp directories."""
     try:
+        raw_str = str(path)
+        # On POSIX, Windows drive letters (e.g. C:/ or C:\) are external paths
+        if os.name != "nt" and len(raw_str) >= 2 and raw_str[1] == ":" and raw_str[0].isalpha():
+            return False
+
         resolved = Path(path).resolve()
         approved_roots = [
             _get_project_root().resolve(),
@@ -129,6 +134,9 @@ def resolve_model_artifact_path(
             candidates = [p]
         for cand in candidates:
             try:
+                if not is_safe_contained_path(cand):
+                    logger.warning("Rejecting unsafe path outside approved root: %s", cand)
+                    continue
                 cand_resolved = cand.resolve()
                 if not is_safe_contained_path(cand_resolved):
                     logger.warning("Rejecting unsafe path outside approved root: %s", cand)
@@ -149,6 +157,9 @@ def resolve_model_artifact_path(
             candidates = [p]
         for cand in candidates:
             try:
+                if not is_safe_contained_path(cand):
+                    logger.warning("Rejecting unsafe path outside approved root: %s", cand)
+                    continue
                 cand_resolved = cand.resolve()
                 if not is_safe_contained_path(cand_resolved):
                     logger.warning("Rejecting unsafe path outside approved root: %s", cand)
@@ -210,7 +221,7 @@ def validate_model_artifact(
     path_str = str(path)
 
     # 0. Path traversal and approved root containment check
-    if not is_safe_contained_path(path):
+    if not is_safe_contained_path(model_path) or not is_safe_contained_path(path):
         msg = f"Model artifact path is outside approved project directory: '{path_str}'"
         if raise_on_error:
             raise ModelArtifactError(msg, model_path=path_str)
