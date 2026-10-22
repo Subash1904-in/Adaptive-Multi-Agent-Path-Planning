@@ -234,4 +234,37 @@ The GitHub Actions pipeline (`.github/workflows/ci.yml`) validates:
 2. `backend-quality`: Ruff linting, Django check, Django dry-run migration check (`makemigrations --check --dry-run`), database migration execution (`migrate`), persistence model validation check, complete pytest suite with `--cov-fail-under=80`, benchmark smoke test, Gymnasium env checker, RL baseline training smoke test, and learned policy benchmark smoke test.
 3. `frontend-quality`: `npm ci`, ESLint, strict TypeScript typecheck, Vitest unit tests, and production build bundle.
 
-*(GitHub Actions Run URL and Job logs will be appended following commit push).*
+- **GitHub Actions Run URL:** [Run #39746773012](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39746773012)
+- **Commit SHA:** `c06df01`
+- **Workflow Status:** **100% SUCCESS / ALL GATES PASSED**
+
+### Completed Jobs & Evidence
+
+1. **Repository Hygiene & Documentation Integrity (`119717073015`):**
+   - Duration: 5s
+   - Outcome: `SUCCESS`
+   - Verified present: `docs/progress/PHASE_35.md`, `README.md`, `PROJECT_STATUS.md`, `ARCHITECTURE.md`, `REQUIREMENTS_TRACEABILITY.md`, and all previous phase progress artifacts.
+   - Secret Leak Scan: No prohibited extensions or secret patterns detected.
+
+2. **Frontend Lint, Typecheck, Test & Production Build (`119717073144`):**
+   - Duration: 28s
+   - Outcome: `SUCCESS`
+   - `npm ci`: Clean reproducible installation.
+   - ESLint: 0 errors.
+   - TypeScript: Strict typecheck passed (`tsc -b`).
+   - Vitest Unit Tests: 192 passed across 11 test files.
+   - Production Build: Vite production bundle built cleanly in 1.75s.
+
+3. **Backend Lint, Test & Coverage (`119717072679`):**
+   - Duration: 2m 3s
+   - Outcome: `SUCCESS`
+   - Ruff: All checks passed.
+   - Django System Checks: 0 issues identified.
+   - Database Migrations: `makemigrations --check --dry-run` detected 0 unstaged schema changes; `migrate` successfully applied `core.0001_initial` on SQLite.
+   - Persistence Verification: Phase 35 models (`SimulationRun`, `BenchmarkConfiguration`, `BenchmarkTrial`, `ExperimentMetric`) verified in Django environment.
+   - Full Test Suite: **1,247 passed, 0 failed** in 69.48s.
+   - Coverage: **95%** (enforced threshold $\ge 80\%$).
+   - Benchmarking Smoke Verification: `run_benchmark --smoke` passed.
+   - Gymnasium Environment Check: `check_env` compliant.
+   - RL Baseline Training Smoke: `train_rl_baseline --smoke` passed.
+   - Learned Routing Policy & Safe Fallback Benchmark: `run_benchmark --algorithms learned` passed with honest `INFEASIBLE` accounting for partitioned scenarios.
