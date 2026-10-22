@@ -13,11 +13,8 @@ WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 
-# Copy frontend source and configuration
-COPY frontend/tsconfig.json frontend/tsconfig.app.json frontend/tsconfig.node.json ./
-COPY frontend/vite.config.ts frontend/eslint.config.js frontend/index.html ./
+COPY frontend/tsconfig.json frontend/vite.config.ts frontend/eslint.config.js frontend/index.html ./
 COPY frontend/src/ ./src/
-COPY frontend/public/ ./public/
 
 # Compile production bundle
 RUN npm run build

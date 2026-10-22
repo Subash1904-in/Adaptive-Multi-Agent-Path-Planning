@@ -147,19 +147,21 @@ async def async_test_websocket_streaming(ws_base_url: str, run_id: str) -> None:
     url = f"{ws_base_url.rstrip('/')}/ws/v1/runs/{run_id}/"
     print(f"Connecting to WebSocket: {url} ...")
 
-    async with websockets.connect(url, close_timeout=5.0) as ws:
+    async with websockets.connect(url, origin="http://localhost:3000", close_timeout=5.0) as ws:
         # Initial envelope handshake
         msg = await asyncio.wait_for(ws.recv(), timeout=5.0)
         data = json.loads(msg)
         print(f"✓ Received initial WS handshake envelope: type={data.get('type')}")
         assert "type" in data, f"Missing event type in {data}"
 
-        # Send step command
-        await ws.send(json.dumps({"action": "step", "steps": 1}))
-        # Wait for state or step response
+        # Send heartbeat/ping command
+        await ws.send(json.dumps({"type": "ping"}))
         resp_msg = await asyncio.wait_for(ws.recv(), timeout=5.0)
         resp_data = json.loads(resp_msg)
         print(f"✓ Received response over WebSocket: type={resp_data.get('type')}")
+        assert resp_data.get("type") in ("server.heartbeat", "run.status"), (
+            f"Unexpected WS response: {resp_data}"
+        )
 
 
 def main() -> None:
