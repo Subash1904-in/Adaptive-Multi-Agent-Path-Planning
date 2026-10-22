@@ -68,6 +68,7 @@ jobs:
             "docs/progress/PHASE_33.md"
             "docs/progress/PHASE_34.md"
             "docs/progress/PHASE_35.md"
+            "docs/progress/PHASE_36.md"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"
@@ -146,6 +147,11 @@ jobs:
         shell: bash
         run: |
           python backend/manage.py shell -c "from apps.core.models import SimulationRun, BenchmarkConfiguration, BenchmarkTrial, ExperimentMetric; print('Phase 35 models successfully verified in Django environment.')"
+
+      - name: Verify Security Hardening & Safe Containment Configuration
+        shell: bash
+        run: |
+          python backend/manage.py shell -c "from config import settings; assert settings.DATA_UPLOAD_MAX_MEMORY_SIZE == 5242880; from apps.core.api.permissions import SimulationApiPermission; from apps.core.rl.model_manager import is_safe_contained_path; print('Phase 36 security settings and policies verified.')"
 
       - name: Run Full Automated Test Suite with Coverage (Phases 2-22, WebSockets, Channels ASGI)
         shell: bash

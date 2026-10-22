@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import tempfile
 import threading
 import zipfile
 from dataclasses import dataclass, field
@@ -86,6 +87,20 @@ def _get_project_root() -> Path:
     return Path.cwd()
 
 
+def is_safe_contained_path(path: Union[str, Path]) -> bool:
+    """Verify path is contained within approved project, working, or temp directories."""
+    try:
+        resolved = Path(path).resolve()
+        approved_roots = [
+            _get_project_root().resolve(),
+            Path.cwd().resolve(),
+            Path(tempfile.gettempdir()).resolve(),
+        ]
+        return any(resolved.is_relative_to(root) for root in approved_roots)
+    except (ValueError, AttributeError, OSError):
+        return False
+
+
 def resolve_model_artifact_path(
     configured_path: Optional[Union[str, Path]] = None,
 ) -> Optional[Path]:
@@ -99,7 +114,7 @@ def resolve_model_artifact_path(
        - `artifacts/rl_models/smoke_training_run/final_model.zip`
 
     Returns:
-        Resolved absolute Path if an existing readable file is found, else None.
+        Resolved absolute Path if readable file is found in project bounds, else None.
     """
     candidates: list[Path] = []
     root = _get_project_root()
@@ -115,6 +130,9 @@ def resolve_model_artifact_path(
         for cand in candidates:
             try:
                 cand_resolved = cand.resolve()
+                if not is_safe_contained_path(cand_resolved):
+                    logger.warning("Rejecting unsafe path outside approved root: %s", cand)
+                    continue
                 if cand_resolved.is_file() and os.access(cand_resolved, os.R_OK):
                     return cand_resolved
             except (OSError, PermissionError):
@@ -132,6 +150,9 @@ def resolve_model_artifact_path(
         for cand in candidates:
             try:
                 cand_resolved = cand.resolve()
+                if not is_safe_contained_path(cand_resolved):
+                    logger.warning("Rejecting unsafe path outside approved root: %s", cand)
+                    continue
                 if cand_resolved.is_file() and os.access(cand_resolved, os.R_OK):
                     return cand_resolved
             except (OSError, PermissionError):
@@ -151,6 +172,8 @@ def resolve_model_artifact_path(
     for cand in candidates:
         try:
             cand_resolved = cand.resolve()
+            if not is_safe_contained_path(cand_resolved):
+                continue
             if cand_resolved.is_file() and os.access(cand_resolved, os.R_OK):
                 return cand_resolved
         except (OSError, PermissionError):
@@ -185,6 +208,17 @@ def validate_model_artifact(
     """
     path = Path(model_path).resolve()
     path_str = str(path)
+
+    # 0. Path traversal and approved root containment check
+    if not is_safe_contained_path(path):
+        msg = f"Model artifact path is outside approved project directory: '{path_str}'"
+        if raise_on_error:
+            raise ModelArtifactError(msg, model_path=path_str)
+        return ModelValidationResult(
+            is_valid=False,
+            model_path=path_str,
+            error_message=msg,
+        )
 
     # 1. Existence and readability check
     if not path.is_file():
@@ -221,6 +255,23 @@ def validate_model_artifact(
                     error_message=msg,
                 )
             namelist = zf.namelist()
+            for entry_name in namelist:
+                if (
+                    ".." in entry_name
+                    or entry_name.startswith(("/", "\\"))
+                    or (len(entry_name) > 1 and entry_name[1] == ":")
+                ):
+                    msg = (
+                        f"Zip slip / unsafe path traversal detected in model archive '{path_str}': "
+                        f"{entry_name}"
+                    )
+                    if raise_on_error:
+                        raise CorruptModelArtifactError(msg, model_path=path_str)
+                    return ModelValidationResult(
+                        is_valid=False,
+                        model_path=path_str,
+                        error_message=msg,
+                    )
             if "data" not in namelist:
                 msg = f"Model artifact missing SB3 serialization entry 'data': '{path_str}'"
                 if raise_on_error:

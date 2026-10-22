@@ -42,6 +42,19 @@ class PersistenceResult:
     error: str | None = None
 
 
+def _safe_finite_float(val: Any) -> float | None:
+    """Coerce value to a finite float, returning None if non-numeric, NaN, or infinite."""
+    if val is None:
+        return None
+    try:
+        f = float(val)
+        if math.isfinite(f):
+            return f
+    except (ValueError, TypeError):
+        pass
+    return None
+
+
 class SimulationPersistenceService:
     """Manages transactional database persistence for simulation runs and benchmarks."""
 
@@ -170,7 +183,8 @@ class SimulationPersistenceService:
                     return PersistenceResult(success=True, record_id=run_id)
 
                 run.completed_ticks = completed_ticks
-                run.simulation_duration_s = round(simulation_duration_s, 6)
+                safe_duration = _safe_finite_float(simulation_duration_s) or 0.0
+                run.simulation_duration_s = round(safe_duration, 6)
                 run.completion_time = timezone.now()
                 run.status = target_state.value
                 run.save(
@@ -221,7 +235,8 @@ class SimulationPersistenceService:
                     return PersistenceResult(success=True, record_id=run_id)
 
                 run.completed_ticks = completed_ticks
-                run.simulation_duration_s = round(simulation_duration_s, 6)
+                safe_duration = _safe_finite_float(simulation_duration_s) or 0.0
+                run.simulation_duration_s = round(safe_duration, 6)
                 run.completion_time = timezone.now()
                 run.error_category = error_category or "EXECUTION_ERROR"
                 run.error_summary = (error_summary or "Simulation failed during execution")[:2000]
@@ -266,7 +281,8 @@ class SimulationPersistenceService:
                     return PersistenceResult(success=True, record_id=run_id)
 
                 run.completed_ticks = completed_ticks
-                run.simulation_duration_s = round(simulation_duration_s, 6)
+                safe_duration = _safe_finite_float(simulation_duration_s) or 0.0
+                run.simulation_duration_s = round(safe_duration, 6)
                 run.completion_time = timezone.now()
                 run.error_category = "USER_CANCELLED"
                 run.error_summary = (reason or "User requested cancellation")[:2000]
@@ -357,31 +373,19 @@ class SimulationPersistenceService:
                         seed=int(t_dict.get("seed", 0)),
                         status=str(status_val),
                         route_feasible=bool(t_dict.get("route_feasible", True)),
-                        route_cost=(
-                            float(t_dict["route_cost"])
-                            if t_dict.get("route_cost") is not None
-                            else None
+                        route_cost=_safe_finite_float(t_dict.get("route_cost")),
+                        route_length_m=_safe_finite_float(t_dict.get("route_length_m")),
+                        planning_duration_ms=(
+                            _safe_finite_float(t_dict.get("planning_duration_ms")) or 0.0
                         ),
-                        route_length_m=(
-                            float(t_dict["route_length_m"])
-                            if t_dict.get("route_length_m") is not None
-                            else None
+                        simulation_duration_s=(
+                            _safe_finite_float(t_dict.get("simulation_duration_s")) or 0.0
                         ),
-                        planning_duration_ms=float(t_dict.get("planning_duration_ms", 0.0)),
-                        simulation_duration_s=float(t_dict.get("simulation_duration_s", 0.0)),
                         simulation_ticks=int(t_dict.get("simulation_ticks", 0)),
-                        travel_time_s=(
-                            float(t_dict["travel_time_s"])
-                            if t_dict.get("travel_time_s") is not None
-                            else None
-                        ),
+                        travel_time_s=_safe_finite_float(t_dict.get("travel_time_s")),
                         completed_trips=int(t_dict.get("completed_trips", 0)),
                         total_trips=int(t_dict.get("total_trips", 0)),
-                        completion_rate_pct=(
-                            float(t_dict["completion_rate_pct"])
-                            if t_dict.get("completion_rate_pct") is not None
-                            else None
-                        ),
+                        completion_rate_pct=_safe_finite_float(t_dict.get("completion_rate_pct")),
                         collision_count=int(t_dict.get("collision_count", 0)),
                         near_miss_count=int(t_dict.get("near_miss_count", 0)),
                         intersection_crossings=int(t_dict.get("intersection_crossings", 0)),
@@ -389,7 +393,7 @@ class SimulationPersistenceService:
                         reroutes_accepted=int(t_dict.get("reroutes_accepted", 0)),
                         messages_sent=int(t_dict.get("messages_sent", 0)),
                         messages_delivered=int(t_dict.get("messages_delivered", 0)),
-                        pdr=float(t_dict["pdr"]) if t_dict.get("pdr") is not None else None,
+                        pdr=_safe_finite_float(t_dict.get("pdr")),
                         incident_count=int(t_dict.get("incident_count", 0)),
                         fallback_count=int(t_dict.get("fallback_count", 0)),
                         started_at=t_dict.get("started_at"),

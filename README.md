@@ -22,6 +22,7 @@ The **Adaptive Multi-Agent Path Planning (AMAPP)** platform is a comprehensive s
 - **Real-Time 3D Visualization Dashboard:** Interactive web dashboard powered by Django Channels (WebSockets) and Three.js for real-time telemetry rendering and simulation steering.
 - **Operational Metrics Dashboard & Live KPIs:** Live KPI summary cards, pure SVG travel time distribution histogram and discrete step time-series charts, category filters, time-window query filters, and honest unavailable metric labels without data fabrication.
 - **Persistence & Historical Experiment Tracking:** Authoritative Django ORM data models, deterministic SHA-256 configuration fingerprinting, lifecycle state machines, non-blocking resilience containment, and REST historical query endpoints with limit-offset pagination.
+- **Security Hardening & Defensive Failure Handling:** Strict settings validation, HTTP security headers, 5MB request body limits, DRF rate limiting, RFC 7807 error translation, path parameter sanitization, finite numeric validation, WebSocket 64KB framing & origin whitelist, role-based mutation policies, Zip Slip mitigation, and database failure containment.
 
 ---
 

@@ -557,3 +557,53 @@ To protect server responsiveness against slow WebSocket clients:
 - **Non-Critical Drop Policy:** If the outbound queue is full when high-frequency state updates arrive, non-critical events are discarded, and an internal drop counter increments.
 - **Gap Notification:** When queue space recovers, a `telemetry.gap` event with `"reason": "buffer_overflow"` and `"dropped_count": N` is immediately queued to inform the client of the gap.
 
+---
+
+## 3. Security, Throttling, and Validation Policies (Phase 36)
+
+### 3.1 REST API Path Sanitization
+All path parameters representing entity identifiers (`run_id`, `scenario_id`, `incident_id`, `config_id`, `trial_id`) are validated against the strict regex:
+```regex
+^[a-zA-Z0-9_-]{1,128}$
+```
+Requests containing path traversal sequences (`..`, `%2F`, slashes) or disallowed characters immediately return HTTP 400 Bad Request with RFC 7807 problem details:
+```json
+{
+  "type": "about:blank",
+  "title": "Invalid Identifier Format",
+  "status": 400,
+  "detail": "Path parameter 'run_id' contains invalid characters. Must match ^[a-zA-Z0-9_-]{1,128}$."
+}
+```
+
+### 3.2 Finite Numeric Validation
+Continuous numeric parameters across API requests (such as `target_accels`, `min_value`, `max_value`, and query timestamps) strictly require finite floats verified via `math.isfinite()`. Non-finite numbers (`NaN`, `+Inf`, `-Inf`) are rejected with HTTP 400 Bad Request. In addition, vehicle accelerations are bounded to $[-50.0, 50.0]\text{ m/s}^2$.
+
+### 3.3 Rate Limiting & Throttling
+DRF throttles protect endpoints against brute force and denial of service:
+- **Anonymous Clients (`AnonRateThrottle`)**: 60 requests / minute
+- **Authenticated Users (`UserRateThrottle`)**: 300 requests / minute
+- **High-Impact Simulation Creation (`simulation_create`)**: 30 requests / minute
+- **High-Frequency Stepping (`simulation_step`)**: 1200 requests / minute
+
+When rate limits are exceeded, the API returns HTTP 429 Too Many Requests in RFC 7807 format:
+```json
+{
+  "type": "about:blank",
+  "title": "Rate Limit Exceeded",
+  "status": 429,
+  "detail": "Request was throttled. Expected available in 14 seconds.",
+  "code": "RATE_LIMIT_EXCEEDED",
+  "available_in_seconds": 14
+}
+```
+
+### 3.4 Role-Based Mutation Policy (`AMAPP_API_REQUIRE_STAFF_FOR_MUTATIONS`)
+When enabled, mutating REST API endpoints (`POST`, `PUT`, `PATCH`, `DELETE`) and mutating WebSocket actions (`step`, `cancel`) require `request.user.is_staff`. Read-only GET requests and WebSocket monitoring remain open to simulation operators and researchers.
+
+### 3.5 Realtime WebSocket Framing & Origin Validation
+- **Maximum Frame Size**: WebSocket text and binary frames are restricted to `MAX_FRAME_SIZE = 65536` bytes (64 KB). Frames exceeding this limit are discarded, and the connection is closed with code 4400 (`PAYLOAD_TOO_LARGE`).
+- **Origin Whitelisting (`SimulationOriginValidator`)**: Handshakes verify the `Origin` header against `AMAPP_WS_ALLOWED_ORIGINS` and `ALLOWED_HOSTS`. Unapproved cross-origin requests are rejected during handshake with HTTP 403 Forbidden.
+- **Run ID Binding**: WebSocket connections bind strictly to the initial `run_id` in the handshake URL; attempting to switch runs over an existing channel triggers an error response.
+
+

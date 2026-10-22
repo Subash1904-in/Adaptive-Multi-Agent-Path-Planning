@@ -16,13 +16,20 @@ class SimulationApiPermission(BasePermission):
     In development and educational research mode, access is open by default.
     If the Django setting AMAPP_API_REQUIRE_AUTHENTICATION is enabled,
     authenticated credentials are strictly verified.
+    If AMAPP_API_REQUIRE_STAFF_FOR_MUTATIONS is enabled, write operations
+    (POST, PUT, PATCH, DELETE) strictly require staff status.
     """
 
     def has_permission(self, request: Request, view: APIView) -> bool:
         """Check whether the request has permission to access the simulation API."""
         require_auth = getattr(settings, "AMAPP_API_REQUIRE_AUTHENTICATION", False)
-        if require_auth:
-            return bool(request.user and request.user.is_authenticated)
+        if require_auth and not (request.user and request.user.is_authenticated):
+            return False
+
+        require_staff_mutations = getattr(settings, "AMAPP_API_REQUIRE_STAFF_FOR_MUTATIONS", False)
+        if require_staff_mutations and request.method not in ("GET", "HEAD", "OPTIONS"):
+            return bool(request.user and request.user.is_staff)
+
         return True
 
 
@@ -36,4 +43,8 @@ class ReadOnlyOrAdminApiPermission(BasePermission):
         require_auth = getattr(settings, "AMAPP_API_REQUIRE_AUTHENTICATION", False)
         if require_auth:
             return bool(request.user and request.user.is_staff)
+        require_staff_mutations = getattr(settings, "AMAPP_API_REQUIRE_STAFF_FOR_MUTATIONS", False)
+        if require_staff_mutations:
+            return bool(request.user and request.user.is_staff)
         return True
+

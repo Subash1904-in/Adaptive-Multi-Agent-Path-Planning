@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 35 (Persistence and Experiment History)  
+**Current Phase:** Phase 36 (Security Hardening and Failure Handling)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 35 (Persistence and Experiment History):* Phase 35 implements authoritative Django models (`SimulationRun`, `BenchmarkConfiguration`, `BenchmarkTrial`, `ExperimentMetric`), deterministic SHA-256 configuration fingerprinting, lifecycle state machine enforcement, non-blocking resilience containment, and REST historical query endpoints with limit-offset pagination. 192 frontend tests, 1,247 backend tests passing (95% line coverage).
+> *Note on Phase 36 (Security Hardening and Failure Handling):* Phase 36 establishes multi-layer platform hardening including strict SECRET_KEY and ALLOWED_HOSTS enforcement, HTTP security headers, request body limits (5MB), DRF rate limiting, RFC 7807 429 translation, path parameter regex sanitization, finite float validations (`math.isfinite`), WebSocket 64KB framing, origin whitelisting, role-based mutation policies, Zip Slip mitigation, model path containment, SafeFallbackPolicyWrapper, and persistence database failure tolerance. 192 frontend tests, 1,284 backend tests passing (94.91% line coverage).
 
 ---
 
@@ -29,8 +29,10 @@
 | **FR-09** | Collision Detection and Avoidance | `backend/apps/core/safety/` | Phase 16, 17, 37 | `TESTED` | Phase 16 V2V & Phase 17 Vehicle-Pedestrian Collision Avoidance Tested (`test_safety_*.py`, `test_pedestrian_safety_and_collisions.py`) |
 | **FR-10** | Emergency Vehicle Priority | `backend/apps/core/emergency/`, `backend/apps/core/simulation/` | Phase 18, 25, 29 | `TESTED` | Phase 18 Emergency Priority, Corridors, Yielding & Signals Tested (`test_emergency_*.py`: 60 tests passing) |
 | **FR-11** | Communication Range Detection | `backend/apps/core/communication/discovery.py`, `backend/apps/core/communication/neighbors.py`, `frontend/src/features/scene3d/` | Phase 11, 12, 14, 27 | `TESTED` | Phase 11, 12, 14 Spatial Discovery & Phase 27 3D Range Disc Visualization Tested (`test_communication_discovery.py`, `v2v.test.ts`) |
+| **FR-12** | Communication Failure Handling | `backend/apps/core/communication/network.py`, `backend/apps/core/communication/neighbors.py`, `frontend/src/features/scene3d/` | Phase 14, 27 | `TESTED` | Phase 14 Failures & Recovery & Phase 27 3D Degradation Overlays Tested (`test_communication_latency.py`, `test_communication_impairment.py`, `v2v.test.ts`) |
 | **FR-13** | AI Model Training Using Reinforcement Learning | `backend/apps/core/rl/`, `backend/apps/core/benchmarking/` | Phase 32, 33, 34 | `TESTED` | Phase 32 Gymnasium Env, Phase 33 MaskablePPO Training & Phase 34 Learned Adapter with Safe Fallback Tested (`test_rl_environment.py`: 26, `test_rl_training.py`: 22, `test_rl_learned_policy_integration.py`: 25 passed) |
 | **FR-14** | Real-Time 3D Visualization and Interactive Dashboard | `backend/apps/core/api/`, `backend/apps/core/realtime/`, `backend/apps/core/telemetry/`, `frontend/` | Phase 21–30 | `TESTED` | Phases 21–30 Complete (192 frontend tests, 1,118 backend tests passing; Playback controls, timeline scrubber, 3D city/models, Three.js V2V layer, Adaptive Routing Overlays, Incident Controls, and Operational Metrics Dashboard fully tested) |
+| **NFR-04** | Security Hardening & Failure Handling | `backend/config/`, `backend/apps/core/api/`, `backend/apps/core/realtime/`, `backend/apps/core/rl/`, `backend/apps/core/persistence/` | Phase 36 | `TESTED` | Phase 36 Complete (37 security tests across 5 test suites; 1,284 backend tests passing at 94.91% coverage; settings checks, headers, throttling, path regex, finite numeric validation, WebSocket framing, Zip Slip mitigation, database failure tolerance) |
 
 
 

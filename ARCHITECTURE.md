@@ -1883,4 +1883,49 @@ Integrates the RL environment with the reproducible benchmarking framework:
 - Executes benchmark trials within `AMAPPSingleAgentEnv` driven by test policies (`GreedyProgressTestPolicy`, `RandomTestPolicy`).
 - Produces authoritative `BenchmarkTrialResult` records containing true simulation ticks, travel times, collision counts, near-misses, and V2V communication PDR.
 
+---
+
+## 32. Security Hardening, Failure Handling, and Safe Model Containment (`backend/config/`, `apps/core/api/`, `apps/core/realtime/`, `apps/core/rl/`, `apps/core/persistence/` — Phase 36)
+
+Phase 36 establishes a unified, multi-layer security hardening and defensive failure handling posture across all AMAPP subsystems:
+
+### 32.1 Defense-in-Depth Configuration & HTTP Security (`backend/config/settings.py`, `backend/config/asgi.py`)
+- **SECRET_KEY Validation**: Strict length validation ($\ge 32$ characters) and rejection of known insecure placeholder values when running with `DEBUG=False`.
+- **ALLOWED_HOSTS Enforcement**: Wildcard (`*`) and empty host configurations are rejected in non-debug mode.
+- **Defensive HTTP Headers**:
+  - `SECURE_CONTENT_TYPE_NOSNIFF = True` prevents MIME-type confusion attacks.
+  - `X_FRAME_OPTIONS = "DENY"` blocks clickjacking vulnerabilities.
+  - Cookie flags `SESSION_COOKIE_HTTPONLY = True`, `CSRF_COOKIE_HTTPONLY = True`, and `SameSite = "Lax"` guard session and CSRF tokens against client script theft.
+- **Request Body Limits**: `DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024` (5 MB) prevents memory exhaustion denial-of-service from unbounded POST/PUT bodies.
+- **DRF Rate Limiting**: Tiered throttling using `AnonRateThrottle` (60/min), `UserRateThrottle` (300/min), and `ScopedRateThrottle` for high-impact endpoints (`simulation_create`: 30/min; `simulation_step`: 1200/min).
+- **WebSocket Origin Validation**: `SimulationOriginValidator` inspects the HTTP `Origin` header during handshake, permitting explicit allowed origins from `AMAPP_WS_ALLOWED_ORIGINS` and hosts in `ALLOWED_HOSTS`.
+
+### 32.2 REST API Parameter Sanitization & Exception Translation (`backend/apps/core/api/`)
+- **Path Identifier Regex Validation**: Detail and action endpoints enforce strict regex `^[a-zA-Z0-9_-]{1,128}$` via `validate_path_identifier()`, instantly rejecting path traversal sequences (`..`), slashes, and control characters with a structured RFC 7807 400 Bad Request error.
+- **Finite Numeric Validation**: Continuous inputs (target accelerations $[-50.0, 50.0]\text{ m/s}^2$, metrics filters, query bounds) require `math.isfinite()`, rejecting `NaN`, `+Inf`, and `-Inf`.
+- **RFC 7807 Problem Details Translation**:
+  - Rate limiting translates DRF `Throttled` exceptions to `RATE_LIMIT_EXCEEDED` (HTTP 429) including `available_in_seconds` in `details`.
+  - Internal 500 exceptions are safely sanitized into generic server errors, preventing internal stack trace disclosure.
+- **Role-Based Mutation Policy**: `SimulationApiPermission` enforces `request.user.is_staff` when `AMAPP_API_REQUIRE_STAFF_FOR_MUTATIONS=True` on write verbs (`POST`, `PUT`, `PATCH`, `DELETE`).
+
+### 32.3 Realtime WebSocket Framing & Action Validation (`backend/apps/core/realtime/consumer.py`)
+- **Strict Frame Size Limits**: Rejects incoming text and binary frames exceeding `MAX_FRAME_SIZE = 65536` bytes (64 KB) with code 4400 (`PAYLOAD_TOO_LARGE`).
+- **Command Schema Validation**: Enforces structured JSON envelopes with recognized actions (`join`, `step`, `cancel`).
+- **Action Authorization**: Mutating actions (`step`, `cancel`) require staff privileges when `AMAPP_API_REQUIRE_STAFF_FOR_MUTATIONS=True`.
+- **Session Immutability**: Rejects client attempts to switch active `run_id` on an existing channel connection.
+- **Resource Detachment**: On socket closure (graceful or abrupt), the consumer unconditionally detaches from the simulation engine, unregisters group channels, and prevents memory leaks.
+
+### 32.4 Filesystem Containment & Model Artifact Safety (`backend/apps/core/rl/model_manager.py`)
+- **Path Containment (`is_safe_contained_path`)**: Model artifact paths must resolve strictly within approved project, working, or temporary directories. Traversal sequences (`..`) and external absolute paths are rejected.
+- **Zip Slip Mitigation**: During archive validation, each entry path is checked: entries with `..`, leading slashes (`/`, `\`), or Windows drive letters are rejected as malicious directory traversal attempts.
+- **Model Space & Integrity Checks**: Verifies archive zip integrity, required internal data entries, and compatibility between model observation/action dimensions and the AMAPP environment.
+- **Safe Conventional Fallback (`SafeFallbackPolicyWrapper`)**: If model artifact discovery, validation, or inference throws an error, the wrapper catches the failure and seamlessly falls back to conventional routing (Dijkstra or A*), guaranteeing that active simulation runs never crash.
+
+### 32.5 Persistence Failure Containment (`backend/apps/core/persistence/service.py`)
+- **Transaction Rollback**: Multi-entity database operations (such as benchmark suite results) execute within `transaction.atomic()`, ensuring clean rollback on partial failure.
+- **Non-Blocking Error Containment**: Database operational failures return `PersistenceResult(success=False, error=...)` and log warnings, allowing in-memory simulations to progress uninterrupted.
+- **Idempotent Terminal Transitions**: Repeated calls to complete or fail already-terminal runs succeed idempotently without raising database constraint violations.
+- **Non-Finite Float Sanitization (`_safe_finite_float`)**: Coerces `NaN`, `+Inf`, and `-Inf` to `None`, preserving database numeric column integrity.
+
+
 

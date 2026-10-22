@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 35 (Persistence and Experiment History)
+- **Current Phase:** Phase 36 (Security Hardening and Failure Handling)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 36 (Security, Resilience, and Production Hardening) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 37 (Automated Testing and Regression) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-22
 
 
@@ -51,8 +51,8 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 33** | **Train, evaluate, and save an RL baseline** | **COMPLETED** | Reproducible Stable-Baselines3 / sb3-contrib MaskablePPO baseline training pipeline, CPU execution, artifact checkpointing (`artifacts/rl_models/`), model reload & deterministic inference, held-out evaluation across seeds and scenarios, comparison with random/greedy baselines, CLI management command, 1,192 backend tests passed (95.08% coverage). |
 | **Phase 34** | **RL evaluation and policy integration** | **COMPLETED** | Verified MaskablePPO policy adapter (`LearnedRoutingBenchmarkAdapter`), safe conventional fallback (`SafeFallbackPolicyWrapper`), artifact discovery/caching (`RLModelManager`), opt-in configuration, 8-scenario benchmark evaluation, 1,217 backend tests passed (95% coverage). |
 | **Phase 35** | **Persistence and experiment history** | **COMPLETED** | Authoritative Django models (SimulationRun, BenchmarkConfiguration, BenchmarkTrial, ExperimentMetric), deterministic SHA-256 fingerprinting, lifecycle transitions, non-blocking resilience, REST history endpoints with limit-offset pagination, 1,247 backend tests passed (95% coverage). |
-| **Phase 36** | Security and failure handling | Pending | Input validation, secrets, debug settings, CORS, permissions, client disconnect handling. |
-| **Phase 37** | Automated testing and regression | Pending | Full test suite: unit, integration, API, WebSocket, frontend typecheck, end-to-end scenarios. |
+| **Phase 36** | **Security hardening and failure handling** | **COMPLETED** | Strict settings checks, HTTP security headers, path sanitization, finite float validation, DRF throttling, WebSocket framing (64KB) & origin whitelist, role-based mutation policy, Zip Slip mitigation, database failure tolerance, 1,284 backend tests passed (94.91% coverage). |
+| **Phase 37** | **Automated testing and regression** | **PENDING** | Full test suite: unit, integration, API, WebSocket, frontend typecheck, end-to-end scenarios. |
 | **Phase 38** | Performance and stability pass | Pending | Profiling simulation & rendering loop, vehicle count limits, sustained simulation run limits. |
 | **Phase 39** | Docker and reproducible deployment | Pending | Multi-stage Dockerfiles, docker-compose.yml, health checks, clean deployment verification. |
 | **Phase 40** | Final acceptance, report and demonstration | Pending | Audit all 14 functional requirements, clean startup verification, demo scripts, final sign-off. |
@@ -263,8 +263,14 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 - **Gymnasium RL Environments (`test_rl_environment.py`):** 26 passed.
 - **RL Baseline Training & Evaluation (`test_rl_training.py`):** 22 passed.
 - **Learned Policy Integration & Safe Fallback (`test_rl_learned_policy_integration.py`):** 25 passed.
+- **Persistence & Experiment History (`test_persistence_*.py`):** 30 passed.
+- **Security Hardening Configuration (`test_security_configuration.py`):** 6 passed.
+- **Security API Validation & Throttling (`test_security_api_validation_and_throttling.py`):** 9 passed.
+- **Security WebSocket Framing & Origin (`test_security_websocket_and_origin.py`):** 9 passed.
+- **Security Artifact & Path Traversal (`test_security_artifact_and_path_traversal.py`):** 6 passed.
+- **Security Persistence Failure Containment (`test_security_persistence_failure_containment.py`):** 7 passed.
 - **Health Check Regression Tests (`test_health.py`):** 5 passed.
-- **Total Backend:** **1,217 passed, 0 failed**, **95% line coverage** (exceeds 80% threshold).
+- **Total Backend:** **1,284 passed, 0 failed**, **94.91% line coverage** (exceeds 80% threshold).
 - **Frontend Unit & Component Suites:** **192 passed across 11 test suites** (`analytics.test.tsx`: 8 passed; `incidents.test.ts`: 13 passed; `components.test.tsx`: 27 passed; `routing.test.ts`: 16 passed; `v2v.test.ts`: 20 passed; `playback.test.ts`: 14 passed; `interpolation.test.ts`: 25 passed; `models.test.ts`: 18 passed; `geometry.test.ts`: 34 passed; `api-client.test.ts`: 9 passed; `websocket-client.test.ts`: 8 passed).
 
 ---
@@ -272,7 +278,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ## 7. Known Bugs, Blockers, and Technical Debt
 - **Blockers:** None.
 - **Technical Debt:** None.
-- **Notes:** Full Django REST API layer operational under `/api/v1/`. Scenario execution stepping protected by non-blocking lock returning 409 Conflict on overlapping calls. Frontend playback controller drives simulation progression via bounded, non-overlapping step scheduling. Interactive Three.js route visualization layer renders active dynamic paths at $y = 0.12\text{m}$, baseline planned routes, candidate alternative paths, 3D rotating rerouting diamond markers, authoritative decision reasons, cost comparisons, EntityInspector routing telemetry, and historical playback scrubbing. Dynamic incident injection and scenario controls allow operators to introduce road closures, congestion, obstacles, and signal overrides with full baseline restoration and Three.js overlays at $y = 0.10\text{m}$. Operational metrics dashboard renders live and historical summary KPI cards, category filtering, pure SVG travel time distribution histogram and step time-series charts with zero external charting bloat, and strict honest "Unavailable" labels for unobserved stats.
+- **Notes:** Full Django REST API layer operational under `/api/v1/`. Scenario execution stepping protected by non-blocking lock returning 409 Conflict on overlapping calls. Frontend playback controller drives simulation progression via bounded, non-overlapping step scheduling. Interactive Three.js route visualization layer renders active dynamic paths at $y = 0.12\text{m}$, baseline planned routes, candidate alternative paths, 3D rotating rerouting diamond markers, authoritative decision reasons, cost comparisons, EntityInspector routing telemetry, and historical playback scrubbing. Dynamic incident injection and scenario controls allow operators to introduce road closures, congestion, obstacles, and signal overrides with full baseline restoration and Three.js overlays at $y = 0.10\text{m}$. Operational metrics dashboard renders live and historical summary KPI cards, category filtering, pure SVG travel time distribution histogram and step time-series charts with zero external charting bloat, and strict honest "Unavailable" labels for unobserved stats. Security hardening enforces strict settings, HTTP headers, regex path sanitization, finite float validations, DRF rate limits, WebSocket 64KB framing, role-based mutation policies, Zip Slip mitigation, and database failure tolerance.
 - **Educational Disclaimer:** This simulation is developed solely for educational and research purposes and is NOT certified for physical vehicle deployment.
 
 ---
@@ -309,7 +315,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 ---
 
 ## 9. Exact Next Steps
-1. Await user prompt for **Phase 35: Persistence and Experiment History**.
-2. Design and implement Django ORM models for scenario definitions, simulation run records, benchmark configs, and experiment summaries.
-3. Establish bounded storage, query endpoints, and SQLite schema migrations while preserving in-memory runner independence.
+1. Await user prompt for **Phase 37: Automated Testing and Regression**.
+2. Run and expand full end-to-end integration and automated regression test suites.
+3. Validate multi-agent scalability and sustained simulation determinism.
 

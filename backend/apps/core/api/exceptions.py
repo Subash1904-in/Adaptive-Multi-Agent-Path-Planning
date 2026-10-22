@@ -23,6 +23,7 @@ from rest_framework.exceptions import (
     NotFound,
     ParseError,
     PermissionDenied,
+    Throttled,
     UnsupportedMediaType,
 )
 from rest_framework.exceptions import (
@@ -375,6 +376,13 @@ def api_exception_handler(exc: Exception, context: dict[str, Any]) -> Optional[R
             message=f"Malformed request payload: {exc}",
             details=None,
             status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if isinstance(exc, Throttled):
+        return format_error_response(
+            code="RATE_LIMIT_EXCEEDED",
+            message=str(exc) or "Request was throttled. Expected available in seconds.",
+            details={"available_in_seconds": getattr(exc, "wait", None)},
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
         )
 
     # 13. Fallback to standard DRF exception handler

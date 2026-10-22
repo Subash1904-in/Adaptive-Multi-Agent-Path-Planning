@@ -6,6 +6,8 @@ simulation step requests, query parameters, and execution telemetry payloads.
 
 from __future__ import annotations
 
+import math
+import re
 from typing import Any, Optional
 
 from rest_framework import serializers
@@ -363,6 +365,17 @@ class RunCreateRequestSerializer(serializers.Serializer):
     telemetry_capacity = serializers.IntegerField(required=False, min_value=10, allow_null=True)
     strict_retention = serializers.BooleanField(required=False, allow_null=True)
 
+    def validate_run_id(self, value: Optional[str]) -> Optional[str]:
+        if value is not None:
+            cleaned = value.strip()
+            if not cleaned or not re.match(r"^[a-zA-Z0-9_\-\.]{1,128}$", cleaned):
+                raise serializers.ValidationError(
+                    "run_id must contain only alphanumeric characters, underscores, "
+                    "hyphens, and dots (max 128 characters)."
+                )
+            return cleaned
+        return None
+
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         scn_id = attrs.get("scenario_id")
         scn_data = attrs.get("scenario")
@@ -412,6 +425,24 @@ class RunStepRequestSerializer(serializers.Serializer):
         default=None,
     )
 
+    def validate_target_accels(self, value: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        if value is None:
+            return None
+        cleaned = {}
+        for k, v in value.items():
+            if not isinstance(k, str) or not k.strip():
+                raise serializers.ValidationError("Vehicle ID keys must be non-empty strings.")
+            if not isinstance(v, (int, float)) or not math.isfinite(v):
+                raise serializers.ValidationError(
+                    f"Target acceleration for '{k}' must be a finite number."
+                )
+            if abs(v) > 50.0:
+                raise serializers.ValidationError(
+                    f"Target acceleration for '{k}' exceeds physical limits (+/- 50 m/s^2)."
+                )
+            cleaned[k.strip()] = float(v)
+        return cleaned
+
 
 class RunCancelRequestSerializer(serializers.Serializer):
     """Validates cooperative cancellation request parameters."""
@@ -445,7 +476,7 @@ class MetricsQuerySerializer(serializers.Serializer):
     )
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
-        """Validate range bounds."""
+        """Validate range bounds and finite values."""
         tick_start = attrs.get("tick_start")
         tick_end = attrs.get("tick_end")
         if tick_start is not None and tick_end is not None and tick_start > tick_end:
@@ -455,6 +486,10 @@ class MetricsQuerySerializer(serializers.Serializer):
 
         start_s = attrs.get("time_window_start_s")
         end_s = attrs.get("time_window_end_s")
+        if start_s is not None and not math.isfinite(start_s):
+            raise serializers.ValidationError({"time_window_start_s": "Must be a finite number."})
+        if end_s is not None and not math.isfinite(end_s):
+            raise serializers.ValidationError({"time_window_end_s": "Must be a finite number."})
         if start_s is not None and end_s is not None and start_s > end_s:
             raise serializers.ValidationError(
                 {
@@ -500,6 +535,22 @@ class CreateIncidentRequestSerializer(serializers.Serializer):
         required=False, allow_null=True, default=None, max_length=64
     )
     metadata = serializers.DictField(required=False, default=dict)
+
+    def validate_congestion_factor(self, value: Optional[float]) -> Optional[float]:
+        if value is not None:
+            if not math.isfinite(value) or value < 1.0 or value > 1000.0:
+                raise serializers.ValidationError(
+                    "congestion_factor must be a finite float between 1.0 and 1000.0."
+                )
+        return value
+
+    def validate_duration_s(self, value: Optional[float]) -> Optional[float]:
+        if value is not None:
+            if not math.isfinite(value) or value <= 0.0 or value > 86400.0:
+                raise serializers.ValidationError(
+                    "duration_s must be a finite positive float up to 86400.0."
+                )
+        return value
 
 
 class IncidentSerializer(serializers.Serializer):

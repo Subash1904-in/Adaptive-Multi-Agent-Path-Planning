@@ -6,9 +6,12 @@ directly to domain services without mutating SimulationEngine or WorldState.
 
 from __future__ import annotations
 
+import re
+
 from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -44,6 +47,22 @@ from .serializers import (
     scenario_definition_from_dict,
 )
 from .services import SimulationService, default_simulation_service
+
+SAFE_ID_REGEX = re.compile(r"^[a-zA-Z0-9_\-\.]{1,128}$")
+
+
+def validate_path_identifier(identifier: str, param_name: str = "id") -> str:
+    """Validate that path parameter is a safe alphanumeric identifier."""
+    if not identifier or not SAFE_ID_REGEX.match(identifier) or ".." in identifier:
+        raise DRFValidationError(
+            {
+                param_name: (
+                    f"Invalid format for '{param_name}'. "
+                    "Must be alphanumeric with -_. (max 128 chars)."
+                )
+            }
+        )
+    return identifier
 
 
 class BaseSimulationView(APIView):
@@ -85,6 +104,7 @@ class ScenarioDetailView(BaseSimulationView):
 
     def get(self, request: Request, scenario_id: str) -> Response:
         """Retrieve scenario details by ID."""
+        validate_path_identifier(scenario_id, "scenario_id")
         scenario = self.service.get_scenario(scenario_id)
         serializer = ScenarioDefinitionSerializer(scenario)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -112,6 +132,8 @@ class RunListCreateView(BaseSimulationView):
 
     POST: Create and initialize a new simulation run in READY state.
     """
+
+    throttle_scope = "simulation_create"
 
     def get(self, request: Request) -> Response:
         """List all active or past simulation runs with optional pagination and filtering."""
@@ -188,6 +210,7 @@ class RunDetailView(BaseSimulationView):
 
     def get(self, request: Request, run_id: str) -> Response:
         """Retrieve run status from active runner or persistent history."""
+        validate_path_identifier(run_id, "run_id")
         if self.service.run_registry.exists(run_id):
             runner = self.service.get_run(run_id)
             serializer = RunStatusResponseSerializer(runner)
@@ -205,8 +228,11 @@ class RunDetailView(BaseSimulationView):
 class RunStepView(BaseSimulationView):
     """POST: Advance a simulation run by discrete ticks or to completion."""
 
+    throttle_scope = "simulation_step"
+
     def post(self, request: Request, run_id: str) -> Response:
         """Step or run simulation to completion."""
+        validate_path_identifier(run_id, "run_id")
         serializer = RunStepRequestSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -225,6 +251,7 @@ class RunCancelView(BaseSimulationView):
 
     def post(self, request: Request, run_id: str) -> Response:
         """Cancel a running simulation."""
+        validate_path_identifier(run_id, "run_id")
         serializer = RunCancelRequestSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
         reason = serializer.validated_data.get("reason", "User requested cancellation")
@@ -243,6 +270,7 @@ class RunResultView(BaseSimulationView):
 
     def get(self, request: Request, run_id: str) -> Response:
         """Retrieve run execution results."""
+        validate_path_identifier(run_id, "run_id")
         result = self.service.get_run_result(run_id)
         return Response(result, status=status.HTTP_200_OK)
 
@@ -252,6 +280,7 @@ class RunMetricsView(BaseSimulationView):
 
     def get(self, request: Request, run_id: str) -> Response:
         """Retrieve aggregated metrics with optional window filtering or persistent metrics."""
+        validate_path_identifier(run_id, "run_id")
         # If in-memory runner exists and not querying persisted history explicitly
         if self.service.run_registry.exists(run_id) and not request.query_params.get("persisted"):
             serializer = MetricsQuerySerializer(data=request.query_params)
@@ -293,6 +322,7 @@ class RunTelemetryView(BaseSimulationView):
 
     def get(self, request: Request, run_id: str) -> Response:
         """Query telemetry records."""
+        validate_path_identifier(run_id, "run_id")
         serializer = TelemetryQuerySerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -313,6 +343,7 @@ class RunExportView(BaseSimulationView):
 
     def get(self, request: Request, run_id: str) -> HttpResponse:
         """Export serialized result payload."""
+        validate_path_identifier(run_id, "run_id")
         serializer = ExportQuerySerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -339,6 +370,7 @@ class RunIncidentListCreateView(BaseSimulationView):
 
     def get(self, request: Request, run_id: str) -> Response:
         """List incidents for a simulation run with optional status filter."""
+        validate_path_identifier(run_id, "run_id")
         status_filter = request.query_params.get("status")
         result = self.service.list_incidents(run_id, status_filter=status_filter)
         serializer = IncidentListResponseSerializer(result)
@@ -346,6 +378,7 @@ class RunIncidentListCreateView(BaseSimulationView):
 
     def post(self, request: Request, run_id: str) -> Response:
         """Validate and inject a roadway incident into an active simulation run."""
+        validate_path_identifier(run_id, "run_id")
         serializer = CreateIncidentRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         result = self.service.create_incident(run_id, serializer.validated_data)
@@ -360,11 +393,15 @@ class RunIncidentDetailView(BaseSimulationView):
 
     def get(self, request: Request, run_id: str, incident_id: str) -> Response:
         """Retrieve details of an incident."""
+        validate_path_identifier(run_id, "run_id")
+        validate_path_identifier(incident_id, "incident_id")
         result = self.service.get_incident(run_id, incident_id)
         return Response(result, status=status.HTTP_200_OK)
 
     def delete(self, request: Request, run_id: str, incident_id: str) -> Response:
         """Resolve and remove an active incident."""
+        validate_path_identifier(run_id, "run_id")
+        validate_path_identifier(incident_id, "incident_id")
         result = self.service.remove_incident(run_id, incident_id)
         return Response(result, status=status.HTTP_200_OK)
 
@@ -399,6 +436,7 @@ class BenchmarkConfigurationDetailView(BaseSimulationView):
 
     def get(self, request: Request, configuration_id: str) -> Response:
         """Retrieve single benchmark configuration."""
+        validate_path_identifier(configuration_id, "configuration_id")
         cfg = BenchmarkConfiguration.objects.filter(configuration_id=configuration_id).first()
         if not cfg:
             raise NotFound(f"Benchmark configuration '{configuration_id}' not found.")

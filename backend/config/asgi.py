@@ -25,10 +25,11 @@ from apps.core.realtime.routing import websocket_urlpatterns  # noqa: E402
 
 
 class SimulationOriginValidator:
-    """Validates WebSocket origin against ALLOWED_HOSTS when present.
+    """Validates WebSocket origin against ALLOWED_HOSTS and AMAPP_WS_ALLOWED_ORIGINS.
 
     Permits non-browser test communicators and CLI utilities that do not supply an Origin header,
-    while strictly evaluating browser Origin headers against configured ALLOWED_HOSTS.
+    while strictly evaluating browser Origin headers against configured ALLOWED_HOSTS and explicit
+    WebSocket allowed origins.
     """
 
     def __init__(self, application: Any) -> None:
@@ -37,9 +38,20 @@ class SimulationOriginValidator:
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> Any:
         if scope.get("type") == "websocket":
-            has_origin = any(h[0] == b"origin" for h in scope.get("headers", []))
-            if not has_origin:
+            headers = dict(scope.get("headers", []))
+            origin_bytes = headers.get(b"origin")
+            if not origin_bytes:
                 return await self.application(scope, receive, send)
+
+            from django.conf import settings
+
+            origin = origin_bytes.decode("latin1", errors="replace").strip()
+            allowed_ws = getattr(settings, "AMAPP_WS_ALLOWED_ORIGINS", [])
+            if allowed_ws:
+                for allowed in allowed_ws:
+                    if origin == allowed or origin.rstrip("/") == allowed.rstrip("/"):
+                        return await self.application(scope, receive, send)
+
             return await self.inner_validator(scope, receive, send)
         return await self.application(scope, receive, send)
 

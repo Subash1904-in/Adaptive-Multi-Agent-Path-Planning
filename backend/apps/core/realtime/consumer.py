@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import re
 import time
 from typing import Any, Optional
@@ -274,8 +275,11 @@ class SimulationRunConsumer(AsyncJsonWebsocketConsumer):
         # 4. Step (Simulation Control Extension)
         elif msg_type == ClientMessageType.STEP.value:
             require_auth = getattr(settings, "AMAPP_API_REQUIRE_AUTHENTICATION", False)
+            require_staff = getattr(settings, "AMAPP_API_REQUIRE_STAFF_FOR_MUTATIONS", False)
             user = self.scope.get("user")
-            if require_auth and not (user and user.is_staff):
+            if (require_auth and not (user and user.is_staff)) or (
+                require_staff and not (user and user.is_staff)
+            ):
                 err = build_error_envelope(
                     code="PERMISSION_DENIED",
                     message="Simulation control actions require staff privileges.",
@@ -298,10 +302,59 @@ class SimulationRunConsumer(AsyncJsonWebsocketConsumer):
                 await self._enqueue_event(err)
                 return
 
+            # Validate target accelerations if provided
+            cleaned_accels: dict[str, float] | None = None
+            target_accels_raw = content.get("target_accels")
+            if target_accels_raw is not None:
+                if not isinstance(target_accels_raw, dict):
+                    err = build_error_envelope(
+                        code="INVALID_ACCELERATION_PAYLOAD",
+                        message=(
+                            "Parameter 'target_accels' must be an object "
+                            "mapping vehicle IDs to accelerations."
+                        ),
+                        run_id=self.run_id,
+                    )
+                    await self._enqueue_event(err)
+                    return
+                cleaned_accels = {}
+                for k, v in target_accels_raw.items():
+                    if not isinstance(k, str) or not k.strip():
+                        err = build_error_envelope(
+                            code="INVALID_ACCELERATION_PAYLOAD",
+                            message="Vehicle ID keys in target_accels must be non-empty strings.",
+                            run_id=self.run_id,
+                        )
+                        await self._enqueue_event(err)
+                        return
+                    if not isinstance(v, (int, float)) or not math.isfinite(v):
+                        err = build_error_envelope(
+                            code="INVALID_ACCELERATION_PAYLOAD",
+                            message=f"Target acceleration for '{k}' must be a finite number.",
+                            run_id=self.run_id,
+                        )
+                        await self._enqueue_event(err)
+                        return
+                    if abs(v) > 50.0:
+                        err = build_error_envelope(
+                            code="INVALID_ACCELERATION_PAYLOAD",
+                            message=(
+                                f"Target acceleration for '{k}' exceeds "
+                                "physical limits (+/- 50 m/s^2)."
+                            ),
+                            run_id=self.run_id,
+                        )
+                        await self._enqueue_event(err)
+                        return
+                    cleaned_accels[k.strip()] = float(v)
+
             service = SimulationService()
             try:
-                await sync_to_async(service.step_run)(self.run_id, ticks=ticks_int)
+                await sync_to_async(service.step_run)(
+                    self.run_id, ticks=ticks_int, target_accels=cleaned_accels
+                )
             except Exception as exc:
+                logger.warning("Simulation step failed for run '%s': %s", self.run_id, exc)
                 err = build_error_envelope(
                     code="STEP_FAILED",
                     message=f"Simulation step failed: {exc}",
@@ -312,8 +365,11 @@ class SimulationRunConsumer(AsyncJsonWebsocketConsumer):
         # 5. Cancel (Simulation Control Extension)
         elif msg_type == ClientMessageType.CANCEL.value:
             require_auth = getattr(settings, "AMAPP_API_REQUIRE_AUTHENTICATION", False)
+            require_staff = getattr(settings, "AMAPP_API_REQUIRE_STAFF_FOR_MUTATIONS", False)
             user = self.scope.get("user")
-            if require_auth and not (user and user.is_staff):
+            if (require_auth and not (user and user.is_staff)) or (
+                require_staff and not (user and user.is_staff)
+            ):
                 err = build_error_envelope(
                     code="PERMISSION_DENIED",
                     message="Simulation control actions require staff privileges.",
@@ -327,6 +383,7 @@ class SimulationRunConsumer(AsyncJsonWebsocketConsumer):
             try:
                 await sync_to_async(service.cancel_run)(self.run_id, reason=reason)
             except Exception as exc:
+                logger.warning("Simulation cancel failed for run '%s': %s", self.run_id, exc)
                 err = build_error_envelope(
                     code="CANCEL_FAILED",
                     message=f"Simulation cancel failed: {exc}",

@@ -487,6 +487,42 @@ python backend/manage.py check
   - Safe conventional fallback: verifies fallback on missing model, corrupt archive, exception, and closed road, with Action 0 fail-safe on secondary failure.
   - Benchmark registry integration: verifies `AlgorithmRegistry.get("learned")`, `adapter.is_implemented = True`, trial execution on reachable scenarios, and clean `INFEASIBLE` status on partitioned barriers.
 
+- **Security Hardening Configuration (`test_security_configuration.py`, 6 passed)**
+  - Secret key strength validation: verifies rejection of keys shorter than 32 characters or default development placeholders when `DEBUG=False`.
+  - Production allowed hosts enforcement: verifies rejection of empty or wildcard (`*`) allowed hosts when `DEBUG=False`.
+  - HTTP defense-in-depth headers: verifies `SECURE_CONTENT_TYPE_NOSNIFF`, `X_FRAME_OPTIONS = 'DENY'`, cookie `HttpOnly` and `SameSite='Lax'` flags.
+  - Request body limits: verifies `DATA_UPLOAD_MAX_MEMORY_SIZE = 5MB`.
+  - DRF throttling configuration: verifies registration of `AnonRateThrottle`, `UserRateThrottle`, and `ScopedRateThrottle`.
+
+- **Security API Validation & Throttling (`test_security_api_validation_and_throttling.py`, 9 passed)**
+  - Path parameter sanitization: verifies regex `^[a-zA-Z0-9_-]{1,128}$` across detail and action endpoints, rejecting path traversal attempts (`..`, `%2F`, slashes).
+  - Finite numeric validation: verifies rejection of `NaN`, `+Inf`, and `-Inf` on `target_accels`, metric range queries, and timestamps.
+  - Target acceleration boundaries: verifies rejection of extreme accelerations outside $[-50.0, 50.0]\text{ m/s}^2$.
+  - RFC 7807 problem details: verifies custom exception handler maps `Throttled` to `RATE_LIMIT_EXCEEDED` (HTTP 429) with `available_in_seconds`, and sanitizes 500 internal errors.
+  - Role-based mutation authorization: verifies `AMAPP_API_REQUIRE_STAFF_FOR_MUTATIONS` restricts write verbs (`POST`, `PUT`, `DELETE`) to staff while allowing reads.
+
+- **Security WebSocket Framing & Origin Validation (`test_security_websocket_and_origin.py`, 9 passed)**
+  - Origin whitelisting: verifies `SimulationOriginValidator` permits approved origins from `AMAPP_WS_ALLOWED_ORIGINS` and rejects unapproved domains.
+  - Maximum frame size: verifies rejection of payloads exceeding 64KB with close code 4400 (`PAYLOAD_TOO_LARGE`).
+  - Command schema validation: verifies rejection of unrecognized actions or malformed envelopes.
+  - Finite acceleration validation: verifies rejection of non-finite or extreme vehicle accelerations in WebSocket commands.
+  - Run ID binding: verifies rejection of run ID switching on established channels.
+  - Disconnect cleanup: verifies guaranteed release of world state and channel groups upon client disconnect.
+
+- **Security Artifact & Path Traversal Mitigation (`test_security_artifact_and_path_traversal.py`, 6 passed)**
+  - Safe path containment (`is_safe_contained_path`): verifies path resolution strictly inside approved project, working, or temporary roots.
+  - Path traversal rejection: verifies rejection of relative traversal (`..`) and external absolute paths (`/etc/passwd`, `C:/Windows/System32`).
+  - Zip Slip mitigation: verifies detection and rejection of zip archive entries attempting directory traversal.
+  - Corrupt archive handling: verifies structured invalid results or `CorruptModelArtifactError` on invalid archives.
+  - Safe conventional fallback: verifies `SafeFallbackPolicyWrapper` routes safely via Dijkstra/A* when models fail.
+
+- **Security Persistence Failure Containment (`test_security_persistence_failure_containment.py`, 7 passed)**
+  - Safe finite float helper (`_safe_finite_float`): verifies valid numeric coercion and replacement of `NaN`/`Inf` with `None`.
+  - Non-blocking database failure tolerance: verifies database `OperationalError` returns `PersistenceResult(success=False)` without crashing simulations.
+  - In-memory execution: verifies skipping database calls when `AMAPP_PERSISTENCE_ENABLED=False`.
+  - Idempotent finalization: verifies duplicate complete/fail calls on terminal runs do not error.
+  - Transaction rollback: verifies partial benchmark suite persistence failures rollback cleanly without leaving orphaned records.
+
 ---
 
 ### 4.3 Frontend Test Suites & Commands (Phases 23–30)
@@ -525,10 +561,11 @@ npm run build
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `gymnasium`, `stable_baselines3`, `sb3_contrib`, `torch`, `pytest_cov`, `node`, `npm`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 33: **95.08%** coverage across 1,192 passing backend tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_33.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 36: **94.91%** coverage across 1,284 passing backend tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_36.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend CI Gate:** `frontend-quality` executes `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` inside `frontend/`. No skipping or conditional deferral.
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.
+
 
 
