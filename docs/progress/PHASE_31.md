@@ -185,12 +185,24 @@ Executed real end-to-end benchmark suite comparing all 4 active algorithms acros
 
 ## 9. GitHub Actions CI Verification
 
-- **Commit SHA:** `<PENDING_CI_COMMIT_SHA>`
-- **Workflow Run URL:** `<PENDING_CI_RUN_URL>`
+- **Commit SHA:** `bfc00f6df2f515350c1bb2d451d4e7463a040efd`
+- **Workflow Run URL:** [https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39706381184](https://github.com/Subash1904-in/Adaptive-Multi-Agent-Path-Planning/actions/runs/39706381184)
 - **Job Outcomes:**
-  - `repo-hygiene`: SUCCESS
-  - `backend-quality`: SUCCESS
-  - `frontend-quality`: SUCCESS
+  - `repo-hygiene` (ID `119587272949`, duration 5s): SUCCESS
+    - Verified all mandatory files including `docs/progress/PHASE_31.md`
+    - Scanned for secret leaks / prohibited artifacts (0 detected)
+  - `backend-quality` (ID `119587272712`, duration 1m6s): SUCCESS
+    - Verified Python 3.11.17, Django 5.1.4, DRF 3.15.2, Channels 4.2.0, Daphne 4.1.2, NetworkX 3.4.2, OSMnx 2.0.1, Pytest 8.3.4
+    - Ruff linting passed with 0 errors
+    - Django system check passed with 0 issues
+    - Backend pytest suite: 1,144 passed with 95.40% code coverage (exceeding 80% threshold)
+    - Reproducible Routing Benchmark Smoke Verification passed: `python backend/manage.py run_benchmark --smoke` executed cleanly
+  - `frontend-quality` (ID `119587272955`, duration 29s): SUCCESS
+    - Node.js 22.x, reproducible `npm ci`
+    - ESLint passed with 0 errors/warnings
+    - TypeScript strict typecheck (`tsc --noEmit`) passed with 0 errors
+    - Vitest unit tests: 192 passed across 11 test suites
+    - Vite production bundle build passed cleanly
 
 ---
 
