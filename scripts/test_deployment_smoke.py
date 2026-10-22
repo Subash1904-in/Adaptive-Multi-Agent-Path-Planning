@@ -150,15 +150,17 @@ async def async_test_websocket_streaming(ws_base_url: str, run_id: str) -> None:
         # Initial envelope handshake
         msg = await asyncio.wait_for(ws.recv(), timeout=5.0)
         data = json.loads(msg)
-        print(f"✓ Received initial WS handshake envelope: type={data.get('type')}")
-        assert "type" in data, f"Missing event type in {data}"
+        evt_type = data.get("event_type") or data.get("type")
+        print(f"✓ Received initial WS handshake envelope: event_type={evt_type}")
+        assert evt_type == "run.status", f"Unexpected initial event: {data}"
 
         # Send heartbeat/ping command
         await ws.send(json.dumps({"type": "ping"}))
         resp_msg = await asyncio.wait_for(ws.recv(), timeout=5.0)
         resp_data = json.loads(resp_msg)
-        print(f"✓ Received response over WebSocket: type={resp_data.get('type')}")
-        assert resp_data.get("type") in ("server.heartbeat", "run.status"), (
+        resp_evt_type = resp_data.get("event_type") or resp_data.get("type")
+        print(f"✓ Received response over WebSocket: event_type={resp_evt_type}")
+        assert resp_evt_type in ("server.heartbeat", "run.status"), (
             f"Unexpected WS response: {resp_data}"
         )
 
