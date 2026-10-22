@@ -251,8 +251,15 @@ def run_remote_demonstration(
     # Query persistent historical runs
     hist_url = f"{frontend_url.rstrip('/')}/api/v1/runs/?historical=true"
     code, hist_res = http_request(hist_url)
-    assert code == 200 and isinstance(hist_res, list) and len(hist_res) >= 1
-    print_success(f"Queried persistent database history: found {len(hist_res)} stored run(s)")
+    assert code == 200, f"Historical query failed ({code}): {hist_res}"
+    if isinstance(hist_res, dict) and "results" in hist_res:
+        run_count = hist_res.get("count", len(hist_res["results"]))
+    elif isinstance(hist_res, list):
+        run_count = len(hist_res)
+    else:
+        run_count = 0
+    assert run_count >= 1, f"Expected at least 1 historical run, got {hist_res}"
+    print_success(f"Queried persistent database history: found {run_count} stored run(s)")
 
     # Query result endpoint and verify disclaimer
     result_url = f"{runs_url}{multi_run_id}/result/"
