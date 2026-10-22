@@ -93,9 +93,12 @@ class ScenarioRegistry:
             ScenarioNotFoundError: If scenario_id is not registered.
         """
         with self._lock:
-            if scenario_id not in self._scenarios:
-                raise ScenarioNotFoundError(scenario_id)
-            return self._scenarios[scenario_id]
+            if scenario_id in self._scenarios:
+                return self._scenarios[scenario_id]
+            for scn in self._scenarios.values():
+                if scn.metadata.id == scenario_id:
+                    return scn
+            raise ScenarioNotFoundError(scenario_id)
 
     def list_all(self) -> list[ScenarioDefinition]:
         """Return all registered scenario definitions sorted by ID."""
@@ -105,7 +108,9 @@ class ScenarioRegistry:
     def exists(self, scenario_id: str) -> bool:
         """Check if a scenario exists in the registry."""
         with self._lock:
-            return scenario_id in self._scenarios
+            if scenario_id in self._scenarios:
+                return True
+            return any(scn.metadata.id == scenario_id for scn in self._scenarios.values())
 
     def delete(self, scenario_id: str) -> bool:
         """Delete a scenario from the registry.
