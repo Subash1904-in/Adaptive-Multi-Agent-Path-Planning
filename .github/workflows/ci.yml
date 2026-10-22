@@ -70,6 +70,7 @@ jobs:
             "docs/progress/PHASE_35.md"
             "docs/progress/PHASE_36.md"
             "docs/progress/PHASE_37.md"
+            "docs/progress/PHASE_38.md"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"
@@ -179,7 +180,7 @@ jobs:
         run: |
           python backend/manage.py run_benchmark --algorithms learned --scenarios bench_grid_sparse_3x3,bench_infeasible_barrier --trials 1 --seed 42
 
-      - name: Run Automated Comprehensive Regression Suite (Phase 37)
+      - name: Run Automated Comprehensive Regression Suite (Phases 37 & 38 Performance Regression)
         shell: bash
         run: |
           pytest \

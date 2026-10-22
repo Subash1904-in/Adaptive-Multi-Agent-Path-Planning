@@ -24,6 +24,7 @@ The **Adaptive Multi-Agent Path Planning (AMAPP)** platform is a comprehensive s
 - **Persistence & Historical Experiment Tracking:** Authoritative Django ORM data models, deterministic SHA-256 configuration fingerprinting, lifecycle state machines, non-blocking resilience containment, and REST historical query endpoints with limit-offset pagination.
 - **Security Hardening & Defensive Failure Handling:** Strict settings validation, HTTP security headers, 5MB request body limits, DRF rate limiting, RFC 7807 error translation, path parameter sanitization, finite numeric validation, WebSocket 64KB framing & origin whitelist, role-based mutation policies, Zip Slip mitigation, and database failure containment.
 - **Automated Regression & End-to-End Testing:** Comprehensive defense-in-depth test suite defending 8 core domains (simulation invariants, routing/graph topology, multi-agent V2V coordination, REST/WebSocket APIs, persistence lifecycle, RL compliance/fallback, cross-component E2E, performance smoke), frontend E2E workflow testing in Vitest, and 1,333 backend tests passing with >95% coverage.
+- **Performance Optimization & Scalability:** Empirical, profiling-driven performance architecture including $O(1)$ topological graph adjacency indexing, heuristic admissibility caching, OBB SAT orientation vector pre-computation, inner-loop collision detection memoization, zero-copy rollback buffers, and optimized REST queries, delivering 1.5x-2.2x speedup under multi-vehicle scaling workloads.
 
 ---
 

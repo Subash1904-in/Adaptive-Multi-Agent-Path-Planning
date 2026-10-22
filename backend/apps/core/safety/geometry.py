@@ -111,20 +111,39 @@ class OrientedBoundingBox2D:
         object.__setattr__(self, "width_m", w_m)
         object.__setattr__(self, "heading_rad", h_rad)
 
+        # Precompute immutable geometric vectors and vertices
+        cos_h = math.cos(h_rad)
+        sin_h = math.sin(h_rad)
+        f_vec = (cos_h, sin_h)
+        l_vec = (-sin_h, cos_h)
+        object.__setattr__(self, "_forward_unit_vector", f_vec)
+        object.__setattr__(self, "_lateral_unit_vector", l_vec)
+        object.__setattr__(self, "_bounding_radius_m", math.hypot(l_m / 2.0, w_m / 2.0))
+
+        hl = l_m / 2.0
+        hw = w_m / 2.0
+        fx, fy = f_vec
+        lx, ly = l_vec
+        v0 = (cx + hl * fx + hw * lx, cy + hl * fy + hw * ly)
+        v1 = (cx - hl * fx + hw * lx, cy - hl * fy + hw * ly)
+        v2 = (cx - hl * fx - hw * lx, cy - hl * fy - hw * ly)
+        v3 = (cx + hl * fx - hw * lx, cy + hl * fy - hw * ly)
+        object.__setattr__(self, "_vertices", (v0, v1, v2, v3))
+
     @property
     def bounding_radius_m(self) -> float:
         """Radius of the circumscribed circle enclosing the bounding box in meters."""
-        return math.hypot(self.length_m / 2.0, self.width_m / 2.0)
+        return self._bounding_radius_m
 
     @property
     def forward_unit_vector(self) -> tuple[float, float]:
         """Unit vector along vehicle longitudinal heading (cos(heading), sin(heading))."""
-        return (math.cos(self.heading_rad), math.sin(self.heading_rad))
+        return self._forward_unit_vector
 
     @property
     def lateral_unit_vector(self) -> tuple[float, float]:
         """Unit vector along vehicle lateral axis (-sin(heading), cos(heading))."""
-        return (-math.sin(self.heading_rad), math.cos(self.heading_rad))
+        return self._lateral_unit_vector
 
     def get_vertices(self) -> list[tuple[float, float]]:
         """Compute the 4 polygon vertices in counter-clockwise order in world meters.
@@ -132,22 +151,7 @@ class OrientedBoundingBox2D:
         Returns:
             List of 4 (x, y) tuples: [front_left, rear_left, rear_right, front_right].
         """
-        hl = self.length_m / 2.0
-        hw = self.width_m / 2.0
-        fx, fy = self.forward_unit_vector
-        lx, ly = self.lateral_unit_vector
-        cx, cy = self.center_x, self.center_y
-
-        # front-left: +hl forward, +hw lateral
-        v0 = (cx + hl * fx + hw * lx, cy + hl * fy + hw * ly)
-        # rear-left: -hl forward, +hw lateral
-        v1 = (cx - hl * fx + hw * lx, cy - hl * fy + hw * ly)
-        # rear-right: -hl forward, -hw lateral
-        v2 = (cx - hl * fx - hw * lx, cy - hl * fy - hw * ly)
-        # front-right: +hl forward, -hw lateral
-        v3 = (cx + hl * fx - hw * lx, cy + hl * fy - hw * ly)
-
-        return [v0, v1, v2, v3]
+        return list(self._vertices)
 
     @classmethod
     def from_vehicle(cls, vehicle: Vehicle) -> "OrientedBoundingBox2D":
@@ -313,31 +317,63 @@ def compute_obb_separation_distance(
     if check_obb_overlap_sat(box_a, box_b, touching_is_overlap=touching_is_overlap):
         return 0.0
 
-    va = box_a.get_vertices()
-    vb = box_b.get_vertices()
+    va = getattr(box_a, "_vertices", None) or box_a.get_vertices()
+    vb = getattr(box_b, "_vertices", None) or box_b.get_vertices()
 
     min_dist = float("inf")
 
     # 1. Distances from all vertices of A to all 4 edges of B
-    for px, py in va:
-        for i in range(4):
-            ax, ay = vb[i]
-            bx, by = vb[(i + 1) % 4]
-            d = point_to_segment_distance(px, py, ax, ay, bx, by)
-            if d < min_dist:
-                min_dist = d
-                if min_dist < EPSILON:
-                    return 0.0
+    for i in range(4):
+        ax, ay = vb[i]
+        bx, by = vb[(i + 1) % 4]
+        dx = bx - ax
+        dy = by - ay
+        l2 = dx * dx + dy * dy
+        if l2 < 1e-12:
+            for px, py in va:
+                d = math.hypot(px - ax, py - ay)
+                if d < min_dist:
+                    min_dist = d
+                    if min_dist < EPSILON:
+                        return 0.0
+        else:
+            inv_l2 = 1.0 / l2
+            for px, py in va:
+                t = ((px - ax) * dx + (py - ay) * dy) * inv_l2
+                t_clamped = 0.0 if t <= 0.0 else (1.0 if t >= 1.0 else t)
+                cx = ax + t_clamped * dx
+                cy = ay + t_clamped * dy
+                d = math.hypot(px - cx, py - cy)
+                if d < min_dist:
+                    min_dist = d
+                    if min_dist < EPSILON:
+                        return 0.0
 
     # 2. Distances from all vertices of B to all 4 edges of A
-    for px, py in vb:
-        for i in range(4):
-            ax, ay = va[i]
-            bx, by = va[(i + 1) % 4]
-            d = point_to_segment_distance(px, py, ax, ay, bx, by)
-            if d < min_dist:
-                min_dist = d
-                if min_dist < EPSILON:
-                    return 0.0
+    for i in range(4):
+        ax, ay = va[i]
+        bx, by = va[(i + 1) % 4]
+        dx = bx - ax
+        dy = by - ay
+        l2 = dx * dx + dy * dy
+        if l2 < 1e-12:
+            for px, py in vb:
+                d = math.hypot(px - ax, py - ay)
+                if d < min_dist:
+                    min_dist = d
+                    if min_dist < EPSILON:
+                        return 0.0
+        else:
+            inv_l2 = 1.0 / l2
+            for px, py in vb:
+                t = ((px - ax) * dx + (py - ay) * dy) * inv_l2
+                t_clamped = 0.0 if t <= 0.0 else (1.0 if t >= 1.0 else t)
+                cx = ax + t_clamped * dx
+                cy = ay + t_clamped * dy
+                d = math.hypot(px - cx, py - cy)
+                if d < min_dist:
+                    min_dist = d
+                    if min_dist < EPSILON:
+                        return 0.0
 
     return max(0.0, min_dist)

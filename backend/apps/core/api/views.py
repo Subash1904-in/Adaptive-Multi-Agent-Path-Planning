@@ -300,9 +300,14 @@ class RunMetricsView(BaseSimulationView):
         if not run and not self.service.run_registry.exists(run_id):
             raise RunNotFoundError(run_id)
 
-        qs = ExperimentMetric.objects.filter(simulation_run__run_id=run_id).order_by(
-            "-created_at", "-id"
-        )
+        if run:
+            qs = ExperimentMetric.objects.filter(simulation_run_id=run.id).order_by(
+                "-created_at", "-id"
+            )
+        else:
+            qs = ExperimentMetric.objects.filter(simulation_run__run_id=run_id).order_by(
+                "-created_at", "-id"
+            )
         metric_name = request.query_params.get("metric_name")
         if metric_name:
             qs = qs.filter(metric_name=metric_name)

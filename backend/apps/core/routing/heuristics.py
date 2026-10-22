@@ -14,11 +14,23 @@ def check_heuristic_admissibility(road_graph: RoadGraph) -> tuple[bool, float]:
        between its start and end nodes (allowing 1e-5 numerical tolerance).
     2. For travel time, a valid positive maximum speed limit must exist across all edges.
 
+    Results are cached on the RoadGraph instance and automatically invalidated
+    when edges are added.
+
     Returns:
         tuple[bool, float]: (is_admissible, max_speed_limit_mps)
     """
+    cached = getattr(road_graph, "_cached_admissibility", None)
+    if cached is not None:
+        return cached
+
     if road_graph.edge_count == 0:
-        return True, 1.0
+        result = (True, 1.0)
+        try:
+            road_graph._cached_admissibility = result
+        except AttributeError:
+            pass
+        return result
 
     max_speed_limit_mps = 0.0
 
@@ -33,12 +45,23 @@ def check_heuristic_admissibility(road_graph: RoadGraph) -> tuple[bool, float]:
         # If edge length is strictly smaller than straight-line distance,
         # the metric space is non-Euclidean/inadmissible
         if edge.length_m < (euclidean_dist - 1e-5):
-            return False, max_speed_limit_mps
+            result = (False, max_speed_limit_mps)
+            try:
+                road_graph._cached_admissibility = result
+            except AttributeError:
+                pass
+            return result
 
     if max_speed_limit_mps <= 0.0:
-        return False, 1.0
+        result = (False, 1.0)
+    else:
+        result = (True, max_speed_limit_mps)
 
-    return True, max_speed_limit_mps
+    try:
+        road_graph._cached_admissibility = result
+    except AttributeError:
+        pass
+    return result
 
 
 def get_heuristic_function(

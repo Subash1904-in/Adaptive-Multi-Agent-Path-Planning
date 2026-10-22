@@ -190,12 +190,16 @@ class CollisionDetector:
         self,
         vehicle_a: Vehicle,
         vehicle_b: Vehicle,
+        box_a: Optional[OrientedBoundingBox2D] = None,
+        box_b: Optional[OrientedBoundingBox2D] = None,
     ) -> VehiclePairCollision:
         """Deterministically evaluate geometric overlap, safe separation, and risk for two vehicles.
 
         Args:
             vehicle_a: First vehicle entity.
             vehicle_b: Second vehicle entity.
+            box_a: Optional precomputed OrientedBoundingBox2D for vehicle_a.
+            box_b: Optional precomputed OrientedBoundingBox2D for vehicle_b.
 
         Returns:
             VehiclePairCollision containing detailed metrics and recommended actions.
@@ -209,16 +213,21 @@ class CollisionDetector:
                 vehicle_id=vehicle_a.id,
             )
 
-        box_a = OrientedBoundingBox2D.from_vehicle(vehicle_a)
-        box_b = OrientedBoundingBox2D.from_vehicle(vehicle_b)
+        if box_a is None:
+            box_a = OrientedBoundingBox2D.from_vehicle(vehicle_a)
+        if box_b is None:
+            box_b = OrientedBoundingBox2D.from_vehicle(vehicle_b)
 
         # 1. Geometric overlap and minimum distance
         is_overlap = check_obb_overlap_sat(
             box_a, box_b, touching_is_overlap=self.config.touching_is_overlap
         )
-        separation_dist_m = compute_obb_separation_distance(
-            box_a, box_b, touching_is_overlap=self.config.touching_is_overlap
-        )
+        if is_overlap:
+            separation_dist_m = 0.0
+        else:
+            separation_dist_m = compute_obb_separation_distance(
+                box_a, box_b, touching_is_overlap=self.config.touching_is_overlap
+            )
 
         # 2. Kinematics and closing speed
         pos_a = (vehicle_a.position.x, vehicle_a.position.y)
@@ -395,29 +404,38 @@ class CollisionDetector:
         self,
         vehicle: Vehicle,
         pedestrian: Any,
+        box_v: Optional[OrientedBoundingBox2D] = None,
+        box_p: Optional[OrientedBoundingBox2D] = None,
     ) -> VehiclePairCollision:
         """Deterministically evaluate geometric overlap, separation, and risk with a pedestrian.
 
         Args:
             vehicle: Authoritative vehicle entity.
             pedestrian: PedestrianAgent entity.
+            box_v: Optional precomputed OrientedBoundingBox2D for vehicle.
+            box_p: Optional precomputed OrientedBoundingBox2D for pedestrian.
 
         Returns:
             VehiclePairCollision representing the vehicle-pedestrian conflict.
         """
-        box_v = OrientedBoundingBox2D.from_vehicle(vehicle)
-        box_p = OrientedBoundingBox2D.from_pedestrian(
-            pedestrian,
-            length_m=self.config.pedestrian_length_m,
-            width_m=self.config.pedestrian_width_m,
-        )
+        if box_v is None:
+            box_v = OrientedBoundingBox2D.from_vehicle(vehicle)
+        if box_p is None:
+            box_p = OrientedBoundingBox2D.from_pedestrian(
+                pedestrian,
+                length_m=self.config.pedestrian_length_m,
+                width_m=self.config.pedestrian_width_m,
+            )
 
         is_overlap = check_obb_overlap_sat(
             box_v, box_p, touching_is_overlap=self.config.touching_is_overlap
         )
-        separation_dist_m = compute_obb_separation_distance(
-            box_v, box_p, touching_is_overlap=self.config.touching_is_overlap
-        )
+        if is_overlap:
+            separation_dist_m = 0.0
+        else:
+            separation_dist_m = compute_obb_separation_distance(
+                box_v, box_p, touching_is_overlap=self.config.touching_is_overlap
+            )
 
         pos_v = (vehicle.position.x, vehicle.position.y)
         ped_pos = pedestrian.position
@@ -510,12 +528,22 @@ class CollisionDetector:
         conflicts: list[VehiclePairCollision] = []
         n = len(sorted_agents)
 
+        # Precompute OBBs once per active vehicle agent (N instead of N*(N-1))
+        boxes: dict[str, OrientedBoundingBox2D] = {
+            ag.vehicle.id: OrientedBoundingBox2D.from_vehicle(ag.vehicle)
+            for ag in sorted_agents
+        }
+
         # 1. Vehicle-Vehicle conflicts
         for i in range(n):
+            ag_a = sorted_agents[i]
+            box_a = boxes[ag_a.vehicle.id]
             for j in range(i + 1, n):
-                ag_a = sorted_agents[i]
                 ag_b = sorted_agents[j]
-                pair_result = self.evaluate_pair(ag_a.vehicle, ag_b.vehicle)
+                box_b = boxes[ag_b.vehicle.id]
+                pair_result = self.evaluate_pair(
+                    ag_a.vehicle, ag_b.vehicle, box_a=box_a, box_b=box_b
+                )
                 conflicts.append(pair_result)
 
         # 2. Vehicle-Pedestrian conflicts
@@ -530,9 +558,24 @@ class CollisionDetector:
                 active_pedestrians,
                 key=lambda p: getattr(p, "pedestrian_id", getattr(p, "id", "")),
             )
+            ped_boxes: dict[str, OrientedBoundingBox2D] = {
+                getattr(p, "pedestrian_id", getattr(p, "id", f"ped_{idx}")): (
+                    OrientedBoundingBox2D.from_pedestrian(
+                        p,
+                        length_m=self.config.pedestrian_length_m,
+                        width_m=self.config.pedestrian_width_m,
+                    )
+                )
+                for idx, p in enumerate(sorted_pedestrians)
+            }
             for ag in sorted_agents:
+                v_box = boxes[ag.vehicle.id]
                 for ped in sorted_pedestrians:
-                    ped_conflict = self.evaluate_vehicle_pedestrian(ag.vehicle, ped)
+                    pid = getattr(ped, "pedestrian_id", getattr(ped, "id", "pedestrian"))
+                    p_box = ped_boxes.get(pid)
+                    ped_conflict = self.evaluate_vehicle_pedestrian(
+                        ag.vehicle, ped, box_v=v_box, box_p=p_box
+                    )
                     conflicts.append(ped_conflict)
 
         return conflicts

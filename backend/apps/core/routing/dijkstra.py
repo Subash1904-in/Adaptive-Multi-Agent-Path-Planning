@@ -96,7 +96,10 @@ def dijkstra_search(
         visited.add(u)
         nodes_expanded += 1
 
-        for edge in road_graph.get_outgoing_edges(u):
+        edges_getter = getattr(
+            road_graph, "get_outgoing_edges_view", road_graph.get_outgoing_edges
+        )
+        for edge in edges_getter(u):
             edges_examined += 1
 
             if not is_edge_traversable(edge.id, closed_edges):

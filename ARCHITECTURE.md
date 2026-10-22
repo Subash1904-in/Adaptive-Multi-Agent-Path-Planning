@@ -83,6 +83,9 @@ flowchart TB
 - **Reinforcement Learning Baseline Training Pipeline (`backend/apps/core/rl/training/`):** **IMPLEMENTED & TESTED** in Phase 33 (Reproducible MaskablePPO baseline training pipeline, CPU execution, artifact checkpointing, model reload & evaluation, CLI command `train_rl_baseline`, 1,192 backend tests).
 - **Learned Routing Policy Integration & Safe Fallback (`backend/apps/core/rl/`, `benchmarking/adapters.py`):** **IMPLEMENTED & TESTED** in Phase 34 (`LearnedRoutingBenchmarkAdapter`, `SafeFallbackPolicyWrapper`, `RLModelManager`, safe conventional fallback, 8-scenario benchmark evaluation, 1,217 backend tests).
 - **Persistence Layer & Experiment History (`backend/apps/core/persistence/`, `models.py`):** **IMPLEMENTED & TESTED** in Phase 35 (Authoritative Django ORM models `SimulationRun`, `BenchmarkConfiguration`, `BenchmarkTrial`, `ExperimentMetric`, deterministic SHA-256 fingerprinting, non-blocking resilience, REST history endpoints with limit-offset pagination, 1,247 backend tests).
+- **Security Hardening & Safe Operations (`backend/config/`, `apps.core.api`, `realtime`):** **IMPLEMENTED & TESTED** in Phase 36 (Security headers, 5MB payload limit, DRF rate throttling, RFC 7807 error taxonomy, strict UUID/slug regex, finite numeric validation, 64KB WebSocket framing, origin validation, Zip Slip mitigation, 1,284 backend tests).
+- **Comprehensive Automated Regression & E2E Testing (`backend/apps/core/tests/`):** **IMPLEMENTED & TESTED** in Phase 37 (8 regression domains, 49 defense-in-depth tests, frontend E2E workflow, 1,333 backend tests passing at 95.06% coverage, 193 frontend tests).
+- **Performance Optimization & Scalability (`backend/apps/core/`):** **IMPLEMENTED & TESTED** in Phase 38 (Graph adjacency index `_outgoing_edges`/`_incoming_edges`, heuristic admissibility caching, OBB pre-computed orientation vectors/radius, inner-loop OBB memoization in collision detector, zero-copy engine state rollback buffers, ORM query elimination of unused joins, reproducible 10-dimension benchmark suite, 1,338 backend tests passing at 95% coverage, 193 frontend tests).
 
 ---
 
@@ -117,6 +120,14 @@ A fundamental requirement of AMAPP is the strict separation between global groun
 ### 2.3 Headless Testability & Layer Decoupling
 - The core simulation engine is 100% pure Python and has zero runtime dependencies on Django, Channels, WebSockets, or browser DOM.
 - It can be initialized, stepped, inspected, and benchmarked headlessly via automated `pytest` suites and Gymnasium RL environments in milliseconds.
+
+### 2.4 Performance Architecture & Scalability Principles (Phase 38)
+- **Topological Adjacency Indexing:** `RoadGraph` maintains pre-indexed mapping dictionaries (`_outgoing_edges` and `_incoming_edges`) providing $O(1)$ node-to-edge lookups and zero-copy views via `get_outgoing_edges_view(node_id)`, eliminating linear edge iteration in Dijkstra and A* pathfinding.
+- **Admissibility Invariant Caching:** `RoadGraph` caches Euclidean spatial heuristic admissibility checks with automatic invalidation upon edge addition, avoiding $O(|E|)$ scan penalties on every A* route request.
+- **Separating Axis Theorem (SAT) Geometric Pre-computation:** `OrientedBoundingBox2D` precomputes unit orientation vectors (`_forward_unit_vector`, `_lateral_unit_vector`), bounding radius (`_bounding_radius_m`), and 4 bounding polygon vertices in `__post_init__`. This eliminates repeated trigonometric `cos`/`sin` computations and vertex memory allocations in the inner collision evaluation loop.
+- **Pairwise Collision Inner-Loop Memoization:** The collision detection engine memoizes agent bounding boxes once per tick ($N$ allocations rather than $N^2$), pruning duplicate object generation during $O(N^2)$ pairwise distance checks.
+- **Zero-Copy Rollback & Candidate Buffers:** The simulation engine step captures agent segments and positions without redundant intermediate list or dataclass construction, maintaining strict rollback guarantees without GC pressure.
+- **Database Query Selectivity:** Persistent metric aggregation endpoints query target runs directly via foreign keys, bypassing redundant relational joins.
 
 ---
 

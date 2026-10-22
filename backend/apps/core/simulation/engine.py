@@ -161,7 +161,7 @@ class SimulationEngine:
             v = agent.vehicle
             rollback_states[v.id] = (
                 agent.state,
-                Position2D(x=v.position.x, y=v.position.y),
+                v.position,
                 v.heading_rad,
                 v.speed_mps,
                 v.current_node_id,
@@ -169,7 +169,7 @@ class SimulationEngine:
                 agent.current_edge_index,
                 agent.distance_along_segment_m,
                 agent.route,
-                list(agent._segments),
+                tuple(agent._segments),
                 agent.total_route_distance_m,
                 v.route_id,
                 v.target_node_id,
@@ -233,10 +233,7 @@ class SimulationEngine:
         if self.world.communication_network.config.enabled:
             self.world.communication_network.advance_tick(self.clock.elapsed_time_s)
 
-            candidate_positions = {
-                agent.vehicle.id: Position2D(x=agent.vehicle.position.x, y=agent.vehicle.position.y)
-                for agent in agents
-            }
+            candidate_positions = {agent.vehicle.id: agent.vehicle.position for agent in agents}
 
             # Ingest valid received messages into neighbor tables
             self.world.communication_network.update_neighbor_tables(
@@ -280,9 +277,7 @@ class SimulationEngine:
                         fwd_packets = self.world.coordination_manager.process_inbox_messages(
                             vehicle_id=vid,
                             inbox_packets=inbox,
-                            vehicle_position=Position2D(
-                                x=agent.vehicle.position.x, y=agent.vehicle.position.y
-                            ),
+                            vehicle_position=agent.vehicle.position,
                             vehicle_heading_rad=agent.vehicle.heading_rad,
                             vehicle_speed_mps=agent.vehicle.speed_mps,
                             current_time_s=self.clock.elapsed_time_s,

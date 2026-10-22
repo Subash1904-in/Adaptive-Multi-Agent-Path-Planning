@@ -4,7 +4,7 @@ Provides type-safe storage, indexed lookup, topological queries,
 connectivity checks, and export for RoadNode, RoadEdge, and TrafficSignal entities.
 """
 
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import networkx as nx
 
@@ -31,7 +31,10 @@ class RoadGraph:
         self._nodes: dict[str, RoadNode] = {}
         self._edges: dict[str, RoadEdge] = {}
         self._edges_by_endpoints: dict[tuple[str, str], RoadEdge] = {}
+        self._outgoing_edges: dict[str, list[RoadEdge]] = {}
+        self._incoming_edges: dict[str, list[RoadEdge]] = {}
         self._signals: dict[str, TrafficSignal] = {}
+        self._cached_admissibility: Optional[tuple[bool, float]] = None
 
     @property
     def node_count(self) -> int:
@@ -146,6 +149,9 @@ class RoadGraph:
 
         self._edges[edge.id] = edge
         self._edges_by_endpoints[endpoint_pair] = edge
+        self._outgoing_edges.setdefault(edge.start_node_id, []).append(edge)
+        self._incoming_edges.setdefault(edge.end_node_id, []).append(edge)
+        self._cached_admissibility = None
         self._graph.add_edge(
             edge.start_node_id,
             edge.end_node_id,
@@ -242,17 +248,19 @@ class RoadGraph:
         """Return RoadEdge objects emanating from node_id."""
         if node_id not in self._nodes:
             raise NodeNotFoundError(node_id)
-        return [
-            self._edges_by_endpoints[(node_id, succ)] for succ in self._graph.successors(node_id)
-        ]
+        return list(self._outgoing_edges.get(node_id, ()))
+
+    def get_outgoing_edges_view(self, node_id: str) -> Sequence[RoadEdge]:
+        """Return a read-only sequence of RoadEdge objects emanating from node_id."""
+        if node_id not in self._nodes:
+            raise NodeNotFoundError(node_id)
+        return self._outgoing_edges.get(node_id, ())
 
     def get_incoming_edges(self, node_id: str) -> list[RoadEdge]:
         """Return RoadEdge objects pointing into node_id."""
         if node_id not in self._nodes:
             raise NodeNotFoundError(node_id)
-        return [
-            self._edges_by_endpoints[(pred, node_id)] for pred in self._graph.predecessors(node_id)
-        ]
+        return list(self._incoming_edges.get(node_id, ()))
 
     # -------------------------------------------------------------------------
     # Connectivity & Reachability

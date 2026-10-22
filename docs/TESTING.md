@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles (AMAPP)  
 **Testing Frameworks:** `pytest`, `pytest-cov`, `pytest-django`, `pytest-asyncio`  
-**Current Status:** Active Test Strategy Enforced (Phase 37 — 1,333 Backend Tests Passing at 95.06% Coverage; 193 Frontend Tests Passing across 12 test suites)
+**Current Status:** Active Test Strategy Enforced (Phase 38 — 1,338 Backend Tests Passing at 95% Coverage; 193 Frontend Tests Passing across 12 test suites)
 
 ---
 
@@ -620,11 +620,16 @@ Phase 37 introduces 49 targeted regression tests across 8 specialized backend mo
   - Full system lifecycle: REST creation + DB persistence + incident injection + multi-step execution + adaptive reroute + completion finalization + metrics retrieval.
   - Simultaneous REST and WebSocket state synchronization under live stepping.
 
-- **Performance Smoke Regression (`test_regression_performance_smoke.py`, 4 passed):**
-  - 100 simulation engine ticks execution budget (< 2.0s; measured ~0.04s).
-  - A* path search performance budget (< 50ms; measured ~0.12ms).
-  - V2V packet broadcast budget to 10 vehicles (< 10ms; measured ~0.18ms).
-  - Memory stability and leak-free runner disposal across repeated simulation runs.
+- **Performance Smoke Regression (`test_regression_performance_smoke.py`, 9 passed):**
+  - Dijkstra and A* pathfinding computation bounds (< 0.5s).
+  - Multi-agent simulation step computation bounds (< 0.5s).
+  - Metrics and analytics aggregation bounds (< 0.5s).
+  - Scenario validation and builder assembly bounds (< 0.5s).
+  - 50-vehicle scaling collision detection bounds (< 0.25s; measured ~13ms, 2.18x speedup).
+  - 50-vehicle scaling multi-agent simulation step bounds (< 0.25s; measured ~28ms, 1.52x speedup).
+  - Incident adaptive rerouting bounds on 10x10 grid with edge closure (< 50ms; measured ~0.17ms, 1.69x speedup).
+  - All-pairs spatial V2V peer discovery bounds for 50 vehicles (< 50ms; measured ~0.9ms).
+  - Repeated simulation lifecycle memory stability across repeated create-step-teardown cycles (< 1024 KB net growth; measured ~100 KB).
 
 - **Frontend End-to-End Workflow (`frontend/src/test/e2e-workflow.test.ts`, 1 passed):**
   - Complete user journey in Vitest/jsdom: load catalog, create run, connect WebSocket, stream telemetry, inject incident, step simulation, inspect reroute, scrub historical buffer.
@@ -634,8 +639,8 @@ Phase 37 introduces 49 targeted regression tests across 8 specialized backend mo
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `gymnasium`, `stable_baselines3`, `sb3_contrib`, `torch`, `pytest_cov`, `node`, `npm`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 37: **95.06%** coverage across 1,333 passing backend tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_37.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 38: **95%** coverage across 1,338 passing backend tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_38.md`), and scans for leaked secrets or prohibited binary artifacts.
 - **Frontend CI Gate:** `frontend-quality` executes `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` inside `frontend/`. No skipping or conditional deferral (193 tests passing across 12 suites).
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.
