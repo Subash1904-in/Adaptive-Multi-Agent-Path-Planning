@@ -69,9 +69,7 @@ def test_validate_model_artifact_detects_zip_slip():
     artifacts_dir = root / "artifacts"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.NamedTemporaryFile(
-        suffix=".zip", dir=artifacts_dir, delete=False
-    ) as tmp_file:
+    with tempfile.NamedTemporaryFile(suffix=".zip", dir=artifacts_dir, delete=False) as tmp_file:
         tmp_path = Path(tmp_file.name)
 
     try:
@@ -101,9 +99,7 @@ def test_validate_model_artifact_rejects_corrupt_and_non_zip_files():
     artifacts_dir = root / "artifacts"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.NamedTemporaryFile(
-        suffix=".zip", dir=artifacts_dir, delete=False
-    ) as tmp_file:
+    with tempfile.NamedTemporaryFile(suffix=".zip", dir=artifacts_dir, delete=False) as tmp_file:
         tmp_path = Path(tmp_file.name)
         tmp_file.write(b"not a valid zip file content at all")
 
@@ -122,9 +118,7 @@ def test_validate_model_artifact_rejects_corrupt_and_non_zip_files():
 def test_validate_model_artifact_rejects_unapproved_path():
     """validate_model_artifact rejects paths located outside approved directories."""
     external_path = (
-        Path("C:/Windows/System32/drivers/etc/hosts")
-        if os.name == "nt"
-        else Path("/etc/hosts")
+        Path("C:/Windows/System32/drivers/etc/hosts") if os.name == "nt" else Path("/etc/hosts")
     )
     result = validate_model_artifact(external_path, raise_on_error=False)
     assert result.is_valid is False

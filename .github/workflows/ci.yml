@@ -69,6 +69,7 @@ jobs:
             "docs/progress/PHASE_34.md"
             "docs/progress/PHASE_35.md"
             "docs/progress/PHASE_36.md"
+            "docs/progress/PHASE_37.md"
             "pytest.ini"
             "requirements.txt"
             "requirements-dev.txt"
@@ -177,6 +178,19 @@ jobs:
         shell: bash
         run: |
           python backend/manage.py run_benchmark --algorithms learned --scenarios bench_grid_sparse_3x3,bench_infeasible_barrier --trials 1 --seed 42
+
+      - name: Run Automated Comprehensive Regression Suite (Phase 37)
+        shell: bash
+        run: |
+          pytest \
+            backend/apps/core/tests/test_regression_simulation_invariants.py \
+            backend/apps/core/tests/test_regression_routing_and_graph.py \
+            backend/apps/core/tests/test_regression_multi_agent_v2v.py \
+            backend/apps/core/tests/test_regression_api_and_websocket.py \
+            backend/apps/core/tests/test_regression_persistence_lifecycle.py \
+            backend/apps/core/tests/test_regression_rl_and_fallback.py \
+            backend/apps/core/tests/test_regression_cross_component_e2e.py \
+            backend/apps/core/tests/test_regression_performance_smoke.py
 
 
 

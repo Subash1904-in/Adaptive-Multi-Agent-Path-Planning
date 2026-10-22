@@ -25,7 +25,6 @@ class TestApiPersistenceHistory:
     trials, and metrics.
     """
 
-
     @pytest.fixture
     def client(self) -> APIClient:
         return APIClient()

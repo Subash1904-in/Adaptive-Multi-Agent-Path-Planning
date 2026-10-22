@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles  
 **Source of Truth:** `Project_Objective_and_Requirements.pdf`  
-**Current Phase:** Phase 36 (Security Hardening and Failure Handling)  
+**Current Phase:** Phase 37 (Comprehensive Automated Regression and End-to-End Testing)  
 **Status Legend:**
 - `NOT STARTED`: Requirement specified and mapped; functional implementation not yet begun.
 - `IN PROGRESS`: Modules under active development in current phase.
@@ -10,7 +10,7 @@
 - `TESTED`: Automated unit and integration tests passing with evidence.
 - `BLOCKED`: Development impeded by dependencies or unresolved technical blockers.
 
-> *Note on Phase 36 (Security Hardening and Failure Handling):* Phase 36 establishes multi-layer platform hardening including strict SECRET_KEY and ALLOWED_HOSTS enforcement, HTTP security headers, request body limits (5MB), DRF rate limiting, RFC 7807 429 translation, path parameter regex sanitization, finite float validations (`math.isfinite`), WebSocket 64KB framing, origin whitelisting, role-based mutation policies, Zip Slip mitigation, model path containment, SafeFallbackPolicyWrapper, and persistence database failure tolerance. 192 frontend tests, 1,284 backend tests passing (94.91% line coverage).
+> *Note on Phase 37 (Comprehensive Automated Regression and End-to-End Testing):* Phase 37 establishes a complete automated regression and end-to-end testing matrix covering 8 core backend domains (simulation invariants, routing/graph topology, multi-agent V2V coordination, REST & WebSocket protocols, persistence lifecycle, RL compliance/fallback, cross-component E2E, and performance smoke tests) plus frontend E2E workflow testing. Total test suite expanded to 1,333 backend tests passing at 95.06% coverage and 193 frontend tests passing across 12 suites, verified by authoritative GitHub Actions CI gates.
 
 ---
 
@@ -33,6 +33,7 @@
 | **FR-13** | AI Model Training Using Reinforcement Learning | `backend/apps/core/rl/`, `backend/apps/core/benchmarking/` | Phase 32, 33, 34 | `TESTED` | Phase 32 Gymnasium Env, Phase 33 MaskablePPO Training & Phase 34 Learned Adapter with Safe Fallback Tested (`test_rl_environment.py`: 26, `test_rl_training.py`: 22, `test_rl_learned_policy_integration.py`: 25 passed) |
 | **FR-14** | Real-Time 3D Visualization and Interactive Dashboard | `backend/apps/core/api/`, `backend/apps/core/realtime/`, `backend/apps/core/telemetry/`, `frontend/` | Phase 21–30 | `TESTED` | Phases 21–30 Complete (192 frontend tests, 1,118 backend tests passing; Playback controls, timeline scrubber, 3D city/models, Three.js V2V layer, Adaptive Routing Overlays, Incident Controls, and Operational Metrics Dashboard fully tested) |
 | **NFR-04** | Security Hardening & Failure Handling | `backend/config/`, `backend/apps/core/api/`, `backend/apps/core/realtime/`, `backend/apps/core/rl/`, `backend/apps/core/persistence/` | Phase 36 | `TESTED` | Phase 36 Complete (37 security tests across 5 test suites; 1,284 backend tests passing at 94.91% coverage; settings checks, headers, throttling, path regex, finite numeric validation, WebSocket framing, Zip Slip mitigation, database failure tolerance) |
+| **NFR-05** | Comprehensive Automated Regression & E2E Testing | `backend/apps/core/tests/`, `frontend/src/test/` | Phase 37 | `TESTED` | Phase 37 Complete (49 regression tests across 8 modules + frontend E2E workflow; 1,333 backend tests passing at 95.06% coverage, 193 frontend tests passing; full multi-agent simulation lifecycle, invariants, and performance smoke verified) |
 
 
 

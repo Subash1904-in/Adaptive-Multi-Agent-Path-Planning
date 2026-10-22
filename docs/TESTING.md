@@ -2,7 +2,7 @@
 
 **Project:** Adaptive Multi-Agent Path Planning for Autonomous Vehicles (AMAPP)  
 **Testing Frameworks:** `pytest`, `pytest-cov`, `pytest-django`, `pytest-asyncio`  
-**Current Status:** Active Test Strategy Enforced (Phase 35 — 1,247 Backend Tests Passing at 95% Coverage; 192 Frontend Tests Passing across 11 test suites)
+**Current Status:** Active Test Strategy Enforced (Phase 37 — 1,333 Backend Tests Passing at 95.06% Coverage; 193 Frontend Tests Passing across 12 test suites)
 
 ---
 
@@ -558,12 +558,85 @@ npm run build
 
 ---
 
+### 4.4 Automated Comprehensive Regression Suites & E2E Tests (Phase 37)
+Phase 37 introduces 49 targeted regression tests across 8 specialized backend modules and 1 integrated frontend workflow test (bringing totals to 1,333 backend tests at 95.06% coverage and 193 frontend tests across 12 suites):
+
+- **Simulation Invariants & Kinematics (`test_regression_simulation_invariants.py`, 7 passed):**
+  - Non-negative speed bounds under arbitrary forward/reverse acceleration commands.
+  - Strict acceleration bounds $[-8.0, 3.0]\text{ m/s}^2$ enforcement.
+  - Heading normalization within $[-\pi, \pi]$ under arbitrary angle changes.
+  - Clock monotonicity and exact $\Delta t = 0.1\text{s}$ integration.
+  - Vehicle collision safety margins ($> 3.0\text{ m}$) during multi-agent initialization.
+  - Pedestrian crosswalk yielding stop line preservation.
+  - Traffic signal phase state validation (`GREEN`, `YELLOW`, `RED`).
+
+- **Routing & Graph Topology (`test_regression_routing_and_graph.py`, 9 passed):**
+  - Dijkstra shortest path cost optimality and edge cost summation.
+  - A* admissible heuristic consistency with Euclidean spatial distance.
+  - Strict non-negative edge costs ($\ge 0$).
+  - Dynamic congestion cost re-weighting preserving base free-flow travel time.
+  - Graph partition barriers returning explicit infeasible status (`None`/`PathNotFoundError`).
+  - Incident road closure dynamically rerouting traffic around blocked edges.
+  - OSMnx road network normalization and strongly connected component extraction.
+  - Vehicle agent dynamic rerouting integration with spatial routing planner.
+  - Heuristic admissibility and triangle inequality $h(A, C) \le h(A, B) + h(B, C)$.
+
+- **Multi-Agent V2V Coordination (`test_regression_multi_agent_v2v.py`, 7 passed):**
+  - Message packet deduplication by unique `message_id`.
+  - Euclidean transmission range cutoffs ($d \le R$).
+  - Emergency corridor yield propagation and civilian vehicle deceleration.
+  - Probabilistic channel noise packet loss simulation.
+  - Time-to-collision (TTC) safe braking when $\text{TTC} < \text{TTC}_{\text{critical}}$.
+  - Multi-vehicle unsignalized intersection right-of-way negotiation.
+  - V2V network summary state telemetry extraction.
+
+- **REST API & WebSocket Realtime (`test_regression_api_and_websocket.py`, 8 passed):**
+  - Scenario catalog listing and detail retrieval.
+  - Simulation run lifecycle CRUD (`POST`, `GET`, `/step/`).
+  - Incident injection (`POST /incidents/`) and query.
+  - Metrics window querying with finite float parameter validation.
+  - WebSocket handshake protocol version 1.0.0 enforcement.
+  - Step command processing and realtime `simulation_state` broadcasting.
+  - 64KB frame limit enforcement with close code 4400.
+  - Origin whitelisting and CSRF/CSWSH rejection.
+
+- **Persistence Lifecycle & Failure Containment (`test_regression_persistence_lifecycle.py`, 6 passed):**
+  - Simulation run lifecycle transitions (`READY -> RUNNING -> COMPLETED`).
+  - Non-blocking database failure containment returning `PersistenceResult(success=False)`.
+  - Pure in-memory execution when `AMAPP_PERSISTENCE_ENABLED=False`.
+  - Idempotent finalization handling duplicate terminal calls.
+  - Atomic transaction rollback on partial persistence errors.
+  - Safe sanitization of `NaN` and infinite floating-point metrics.
+
+- **Reinforcement Learning & Safe Fallback (`test_regression_rl_and_fallback.py`, 6 passed):**
+  - Gymnasium `Box` observation and `Discrete` action space compliance.
+  - Deterministic environment reset and stepping with identical seeds.
+  - Invalid action masking restricting choices to connected outgoing edges.
+  - `SafeFallbackPolicyWrapper` automated conventional fallback on corrupted models.
+  - Baseline model checkpoint artifact loading and inference validation.
+  - Finite step reward signal boundedness.
+
+- **Cross-Component End-to-End Integration (`test_regression_cross_component_e2e.py`, 2 passed):**
+  - Full system lifecycle: REST creation + DB persistence + incident injection + multi-step execution + adaptive reroute + completion finalization + metrics retrieval.
+  - Simultaneous REST and WebSocket state synchronization under live stepping.
+
+- **Performance Smoke Regression (`test_regression_performance_smoke.py`, 4 passed):**
+  - 100 simulation engine ticks execution budget (< 2.0s; measured ~0.04s).
+  - A* path search performance budget (< 50ms; measured ~0.12ms).
+  - V2V packet broadcast budget to 10 vehicles (< 10ms; measured ~0.18ms).
+  - Memory stability and leak-free runner disposal across repeated simulation runs.
+
+- **Frontend End-to-End Workflow (`frontend/src/test/e2e-workflow.test.ts`, 1 passed):**
+  - Complete user journey in Vitest/jsdom: load catalog, create run, connect WebSocket, stream telemetry, inject incident, step simulation, inspect reroute, scrub historical buffer.
+
+---
+
 ## 5. CI Rules & Testing Policy
 - **GitHub Actions Authoritative Gate:** GitHub Actions CI is the primary test and acceptance environment.
 - **Dependency Awareness:** CI verifies and logs runtime/dev dependencies (`osmnx`, `networkx`, `django`, `rest_framework`, `gymnasium`, `stable_baselines3`, `sb3_contrib`, `torch`, `pytest_cov`, `node`, `npm`).
-- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 36: **94.91%** coverage across 1,284 passing backend tests).
-- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_36.md`), and scans for leaked secrets or prohibited binary artifacts.
-- **Frontend CI Gate:** `frontend-quality` executes `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` inside `frontend/`. No skipping or conditional deferral.
+- **Enforced Coverage Gate:** Pytest runs with `--cov=backend/apps/core --cov-report=term-missing --cov-report=xml --cov-fail-under=80`. Builds fail if line coverage drops below 80% (Current Phase 37: **95.06%** coverage across 1,333 passing backend tests).
+- **Mandatory Hygiene & Integrity:** CI validates presence of all project documentation, phase reports (`docs/progress/PHASE_01.md` through `PHASE_37.md`), and scans for leaked secrets or prohibited binary artifacts.
+- **Frontend CI Gate:** `frontend-quality` executes `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` inside `frontend/`. No skipping or conditional deferral (193 tests passing across 12 suites).
 - **No Blanket `continue-on-error`:** CI jobs must fail when any required check or test fails.
 - **No Test Weakening:** Never weaken assertion thresholds solely to pass CI builds.
 

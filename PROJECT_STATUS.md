@@ -1,9 +1,9 @@
 # PROJECT STATUS: Adaptive Multi-Agent Path Planning for Autonomous Vehicles
 
 ## 1. Current Phase and Status
-- **Current Phase:** Phase 36 (Security Hardening and Failure Handling)
+- **Current Phase:** Phase 37 (Comprehensive Automated Regression and End-to-End Testing)
 - **Phase Status:** COMPLETED
-- **Next Phase:** Phase 37 (Automated Testing and Regression) — **PENDING** (Awaiting user prompt)
+- **Next Phase:** Phase 38 (Performance and Stability Pass) — **PENDING** (Awaiting user prompt)
 - **Last Updated:** 2026-10-22
 
 
@@ -52,7 +52,7 @@ This roadmap is strictly aligned with our agreed master development plan, divide
 | **Phase 34** | **RL evaluation and policy integration** | **COMPLETED** | Verified MaskablePPO policy adapter (`LearnedRoutingBenchmarkAdapter`), safe conventional fallback (`SafeFallbackPolicyWrapper`), artifact discovery/caching (`RLModelManager`), opt-in configuration, 8-scenario benchmark evaluation, 1,217 backend tests passed (95% coverage). |
 | **Phase 35** | **Persistence and experiment history** | **COMPLETED** | Authoritative Django models (SimulationRun, BenchmarkConfiguration, BenchmarkTrial, ExperimentMetric), deterministic SHA-256 fingerprinting, lifecycle transitions, non-blocking resilience, REST history endpoints with limit-offset pagination, 1,247 backend tests passed (95% coverage). |
 | **Phase 36** | **Security hardening and failure handling** | **COMPLETED** | Strict settings checks, HTTP security headers, path sanitization, finite float validation, DRF throttling, WebSocket framing (64KB) & origin whitelist, role-based mutation policy, Zip Slip mitigation, database failure tolerance, 1,284 backend tests passed (94.91% coverage). |
-| **Phase 37** | **Automated testing and regression** | **PENDING** | Full test suite: unit, integration, API, WebSocket, frontend typecheck, end-to-end scenarios. |
+| **Phase 37** | **Comprehensive automated testing and regression** | **COMPLETED** | Comprehensive automated regression suites across 8 core domains (simulation invariants, routing/graph, V2V coordination, REST/WS APIs, persistence lifecycle, RL compliance/fallback, cross-component E2E, performance smoke), frontend E2E workflow test, 1,333 backend tests passing (95.06% coverage), 193 frontend tests passing across 12 suites. |
 | **Phase 38** | Performance and stability pass | Pending | Profiling simulation & rendering loop, vehicle count limits, sustained simulation run limits. |
 | **Phase 39** | Docker and reproducible deployment | Pending | Multi-stage Dockerfiles, docker-compose.yml, health checks, clean deployment verification. |
 | **Phase 40** | Final acceptance, report and demonstration | Pending | Audit all 14 functional requirements, clean startup verification, demo scripts, final sign-off. |

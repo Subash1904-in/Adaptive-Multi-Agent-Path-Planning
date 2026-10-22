@@ -37,7 +37,6 @@ class TestPersistenceLifecycleAndFailures:
         )
         assert runner.run_id == "run_lifecycle_success_01"
 
-
         db_run = SimulationRun.objects.get(run_id="run_lifecycle_success_01")
         assert db_run.status == RunLifecycleState.READY.value
         assert db_run.scenario_id == "scn_single_veh"
