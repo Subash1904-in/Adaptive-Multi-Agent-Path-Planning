@@ -63,15 +63,18 @@ export const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({
   const isTerminal = currentRun?.is_terminal || false;
 
   return (
-    <div className="panel scenario-control-panel">
-      <div className="panel-header">
-        <h2 className="panel-title">Scenario & Run Controls</h2>
+    <div className="swiss-card" role="region" aria-label="Scenario and Run Controls">
+      <div className="swiss-card-header">
+        <div>
+          <h3 className="swiss-card-title">Scenario & Workstation</h3>
+          <span className="swiss-card-kicker">Metropolitan road network & multi-agent parameters</span>
+        </div>
       </div>
 
-      <div className="panel-body">
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {/* Scenario Selection Dropdown */}
-        <div className="control-group">
-          <label htmlFor="scenario-select" className="control-label">
+        <div className="form-field" style={{ marginBottom: 0 }}>
+          <label htmlFor="scenario-select" className="form-label">
             Select Scenario
           </label>
           <select
@@ -79,7 +82,7 @@ export const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({
             value={selectedScenarioId}
             onChange={(e) => onSelectScenario(e.target.value)}
             disabled={isLoading || isSubmitting}
-            className="select-input"
+            className="form-select"
           >
             {scenarios.length === 0 ? (
               <option value="">No scenarios available</option>
@@ -94,35 +97,36 @@ export const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({
         </div>
 
         {selectedScn && (
-          <div className="scenario-meta-box">
-            <p className="scenario-desc">{selectedScn.description}</p>
-            <div className="scenario-tags">
-              <span className="meta-tag">Vehicles: {selectedScn.vehicle_count}</span>
-              <span className="meta-tag">Network: {selectedScn.road_network_source}</span>
-              <span className="meta-tag">dt: {selectedScn.time_step_s}s</span>
-              {selectedScn.max_ticks && (
-                <span className="meta-tag">Max Ticks: {selectedScn.max_ticks}</span>
-              )}
+          <div style={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "10px" }}>
+            <p style={{ fontSize: "0.78rem", color: "#475569", marginBottom: "8px" }}>
+              {selectedScn.description}
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", fontSize: "0.72rem", color: "#64748b" }}>
+              <span>Vehicles: {selectedScn.vehicle_count}</span>
+              <span>·</span>
+              <span>Network: {selectedScn.road_network_source}</span>
+              <span>·</span>
+              <span>dt: {selectedScn.time_step_s}s</span>
             </div>
           </div>
         )}
 
         {/* Run Creation Form */}
-        <div className="run-create-row">
-          <div className="ticks-input-group">
-            <label htmlFor="max-ticks-input" className="sub-label">
-              Ticks Cap
+        <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+          <div style={{ flex: 1 }}>
+            <label htmlFor="max-ticks-input" className="form-label">
+              Ticks Limit
             </label>
             <input
               id="max-ticks-input"
               type="number"
               min="1"
-              max="2000"
+              max="5000"
               value={maxTicksInput}
               onChange={(e) => setMaxTicksInput(e.target.value)}
               disabled={isLoading || isSubmitting}
-              className="text-input text-input-sm"
-              placeholder="100"
+              className="form-input"
+              placeholder="200"
             />
           </div>
 
@@ -130,88 +134,108 @@ export const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({
             type="button"
             onClick={handleStartRun}
             disabled={!selectedScenarioId || isLoading || isSubmitting}
-            className="btn btn-primary"
+            className="form-btn-primary"
+            style={{ width: "auto", height: "36px", padding: "0 16px" }}
             aria-label="Create and initialize new simulation run"
           >
-            {isSubmitting ? "Initializing..." : "Initialize Run"}
+            {isSubmitting ? "Starting..." : "Initialize Run"}
           </button>
         </div>
 
         {actionError && (
-          <div className="alert alert-error" role="alert">
+          <div style={{ backgroundColor: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca", padding: "8px 10px", borderRadius: "6px", fontSize: "0.78rem" }} role="alert">
             {actionError}
           </div>
         )}
 
         {/* Current Run Active Status Box */}
         {currentRun && (
-          <div className="current-run-card">
-            <div className="current-run-header">
+          <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px", marginTop: "4px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
               <div>
-                <span className="current-run-title">Run Status</span>
-                <span className="current-run-id">#{currentRun.run_id}</span>
+                <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#0f172a" }}>Run Status </span>
+                <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.72rem", color: "#0284c7" }}>
+                  #{currentRun.run_id}
+                </span>
               </div>
-              <span className={`lifecycle-badge lifecycle-${currentRun.lifecycle_state.toLowerCase()}`}>
+              <span style={{
+                fontFamily: "JetBrains Mono, monospace",
+                fontSize: "0.68rem",
+                fontWeight: 700,
+                padding: "2px 6px",
+                borderRadius: "4px",
+                backgroundColor: currentRun.lifecycle_state === "RUNNING" ? "#ecfdf5" : "#f1f5f9",
+                color: currentRun.lifecycle_state === "RUNNING" ? "#059669" : "#475569",
+                border: "1px solid #e2e8f0",
+              }}>
                 {currentRun.lifecycle_state}
               </span>
             </div>
 
-            <div className="run-stats-grid">
-              <div className="stat-card">
-                <span className="stat-label">Tick</span>
-                <span className="stat-value">{currentRun.current_tick}</span>
+            <div className="kpi-row-grid" style={{ marginBottom: "12px" }}>
+              <div className="kpi-cell">
+                <span className="kpi-cell-label">Current Tick</span>
+                <span className="kpi-cell-value">{currentRun.current_tick}</span>
               </div>
-              <div className="stat-card">
-                <span className="stat-label">Sim Time</span>
-                <span className="stat-value">{currentRun.elapsed_time_s.toFixed(1)}s</span>
+              <div className="kpi-cell">
+                <span className="kpi-cell-label">Sim Time</span>
+                <span className="kpi-cell-value">{currentRun.elapsed_time_s.toFixed(1)}s</span>
               </div>
-              <div className="stat-card">
-                <span className="stat-label">Arrived</span>
-                <span className="stat-value">
+              <div className="kpi-cell">
+                <span className="kpi-cell-label">Arrived</span>
+                <span className="kpi-cell-value">
                   {currentRun.arrived_count}/{currentRun.total_vehicles}
                 </span>
               </div>
-              <div className="stat-card">
-                <span className="stat-label">Active</span>
-                <span className="stat-value">{currentRun.active_count}</span>
+              <div className="kpi-cell">
+                <span className="kpi-cell-label">Active</span>
+                <span className="kpi-cell-value">{currentRun.active_count}</span>
               </div>
             </div>
 
             {/* Stepping and Control Buttons */}
-            <div className="run-controls-toolbar">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "6px" }}>
               <button
                 type="button"
                 onClick={() => handleStep(1)}
                 disabled={isTerminal || isSubmitting}
-                className="btn btn-secondary btn-sm"
+                className="btn-transport-step"
+                style={{ height: "30px", fontSize: "0.75rem", padding: 0 }}
+                aria-label="Step +1"
                 title="Advance simulation by 1 discrete tick"
               >
-                Step +1
+                +1 tick
               </button>
               <button
                 type="button"
                 onClick={() => handleStep(10)}
                 disabled={isTerminal || isSubmitting}
-                className="btn btn-secondary btn-sm"
+                className="btn-transport-step"
+                style={{ height: "30px", fontSize: "0.75rem", padding: 0 }}
+                aria-label="Step +10"
                 title="Advance simulation by 10 discrete ticks"
               >
-                Step +10
+                +10 ticks
               </button>
               <button
                 type="button"
                 onClick={() => handleStep(0, true)}
                 disabled={isTerminal || isSubmitting}
-                className="btn btn-secondary btn-sm"
+                className="btn-transport-step"
+                style={{ height: "30px", fontSize: "0.75rem", padding: 0 }}
+                aria-label="Run to End"
                 title="Execute simulation run to completion"
               >
-                Run to End
+                End
               </button>
               <button
                 type="button"
                 onClick={handleCancel}
                 disabled={isTerminal || isSubmitting}
-                className="btn btn-danger btn-sm"
-                title="Cooperative cancellation of simulation run"
+                className="btn-transport-step"
+                style={{ height: "30px", fontSize: "0.75rem", padding: 0, color: "#dc2626", borderColor: "#fecdd3", backgroundColor: "#fff1f2" }}
+                aria-label="Cancel Run"
+                title="Cancel simulation run"
               >
                 Cancel
               </button>

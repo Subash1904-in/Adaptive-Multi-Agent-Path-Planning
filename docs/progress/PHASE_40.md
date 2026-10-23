@@ -168,3 +168,36 @@ As an educational and research simulation, the platform has explicit documented 
 | **Frontend Lint, Typecheck, Test & Production Build** | `120038045061` | 30s | **PASS** | ESLint 0 errors, tsc strict 0 errors, 193 Vitest passed, Vite build clean in 1.67s |
 | **Docker Build, Healthcheck & Deployment Smoke** | `120039149923` | 1m 8s | **PASS** | Compose build, /healthz, REST proxy, WS envelope, Acceptance Demo script, volume persistence |
 
+---
+
+## 8. Stabilization Addendum: Blank-Screen Resolution, Metropolitan City Expansion & Pure Light UI Redesign
+
+### 8.1 Runtime Blank-Screen Defect Diagnosis & Permanent Fix
+- **Defect Symptom:** Clicking "Initialize Run" in the frontend caused an uncaught TypeError crash (`TypeError: Cannot read properties of undefined (reading 'toFixed')` at `TelemetryFeed.tsx`), leading to React unmounting the entire component tree into a blank white screen.
+- **Root Cause:** Backend WebSocket envelope broadcasts use `simulation_time_s`, whereas the initial TypeScript interface expected `timestamp_s`. When initial status frames arrived, `timestamp_s` was undefined. Accessing `evt.timestamp_s.toFixed(1)` threw an uncaught error.
+- **Permanent Solution:**
+  1. Envelope normalization in `client.ts`: dynamically map `simulation_time_s` to `timestamp_s` when unpacking frames.
+  2. Defensive nullish coalescing in `TelemetryFeed.tsx`: `evt.timestamp_s ?? (evt as any).simulation_time_s ?? 0`.
+  3. React Error Boundary protection preventing complete unmounting during any transient render exception.
+
+### 8.2 Metropolitan Road Network & Urban Canvas Expansion
+- Integrated the expanded metropolitan procedural city architecture matching the user project design:
+  - Multi-tier road hierarchies: Arterial boulevards (4–6 lanes), secondary district collectors (2–4 lanes), diagonal bridges spanning express connectors, and local grid roads.
+  - Urban landscape: Procedural high-rise and mid-rise structures with deterministic architectural setbacks, glass window facades, zebra crosswalk strips, intersection curbs, and sidewalks.
+  - Realistic lane markings with dashed center dividers and solid white edge boundaries.
+
+### 8.3 Pure Light Architectural UI Redesign
+- Redesigned the entire user interface to a pure light-mode Swiss modernist aesthetic:
+  - Clean porcelain canvas (`#f8fafc`), crisp slate borders (`#e2e8f0`), and deep navy typography (`#0f172a`) using *Space Grotesk* and *JetBrains Mono*.
+  - Floating bottom **TransportDock** (`TransportDock.tsx`) for play, pause, seek, speed multiplier, and tick progression.
+  - Modular collapsible operations drawer with tabs for Scenario Workstation, Real-time Metrics, Authoritative Telemetry Feed, and Fleet Management (`FleetTab.tsx`).
+  - Modal incident injection workflow (`IncidentModal.tsx`) for road closures, congestion, and obstacle placement.
+  - 100% preservation of all underlying Django/Channels REST and WebSocket contracts, V2V gossip protocols, safety collision invariants, and CI gates.
+
+### 8.4 Quality Gate & Regression Verification Status
+- **TypeScript strict compilation (`tsc -b`):** PASS (0 errors).
+- **ESLint checks (`eslint .`):** PASS (0 errors, 0 warnings).
+- **Frontend test suite (`npm test`):** 12/12 suites passing, 193/193 tests passing.
+- **Live browser end-to-end audit:** Verified via browser subagent (`verify_ui_light_city`); initialization, stepping, 3D rendering, and telemetry streaming executed without errors.
+
+

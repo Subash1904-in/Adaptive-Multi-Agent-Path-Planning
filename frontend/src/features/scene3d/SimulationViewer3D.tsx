@@ -6,12 +6,11 @@
  * perspective/orthographic camera projection modes.
  */
 
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import * as THREE from "three";
 import type {
   CameraProjectionMode,
   LightingMode,
-  RoadNetworkGeometry,
   RoadNodeGeometry,
 } from "../../types/graph";
 import type {
@@ -20,15 +19,17 @@ import type {
   TrafficSignalState,
   VehicleState,
 } from "../../types/simulation";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import {
   computeNetworkBounds,
   computeRoadEdgeWidth,
-  extractRoadNetworkFromScenario,
   generateCurbsAndSidewalks,
   generateInferredCrosswalks,
   generateMultiLaneMarkings,
   generateProceduralBuildings,
+  generateUrbanProps,
   generateZebraStripes,
+  getUnifiedMetropolitanRoadNetwork,
   simToWorldCoordinates,
 } from "./geometry";
 import {
@@ -113,10 +114,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
   // Route Overlay Settings & Legend State
   const [routeOptions, setRouteOptions] = useState<RouteOverlayOptions>(DEFAULT_ROUTE_OVERLAY_OPTIONS);
   const [showRouteLegend, setShowRouteLegend] = useState<boolean>(false);
-
-  // Incident Overlay Settings & Legend State
-  const [incidentOptions, setIncidentOptions] = useState<IncidentOverlayOptions>(DEFAULT_INCIDENT_OVERLAY_OPTIONS);
-  const [showIncidentLegend, setShowIncidentLegend] = useState<boolean>(false);
+  const incidentOptions: IncidentOverlayOptions = DEFAULT_INCIDENT_OVERLAY_OPTIONS;
 
   // Three.js internal references
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -188,12 +186,14 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
 
   // Lighting references
   const ambientLightRef = useRef<THREE.AmbientLight | null>(null);
+  const hemiLightRef = useRef<THREE.HemisphereLight | null>(null);
   const dirLightRef = useRef<THREE.DirectionalLight | null>(null);
   const gridHelperRef = useRef<THREE.GridHelper | null>(null);
 
   // Rendering object groups
   const roadGroupRef = useRef<THREE.Group>(new THREE.Group());
   const buildingsGroupRef = useRef<THREE.Group>(new THREE.Group());
+  const urbanPropsGroupRef = useRef<THREE.Group>(new THREE.Group());
   const vehicleMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
   const pedestrianMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
   const signalMeshesRef = useRef<Map<string, THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>>>(new Map());
@@ -219,10 +219,10 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
 
   // Material Cache for resource reuse
   const materialsRef = useRef<{
-    roadMat?: THREE.MeshLambertMaterial;
-    junctionMat?: THREE.MeshLambertMaterial;
-    sidewalkMat?: THREE.MeshLambertMaterial;
-    curbMat?: THREE.MeshLambertMaterial;
+    roadMat?: THREE.MeshStandardMaterial;
+    junctionMat?: THREE.MeshStandardMaterial;
+    sidewalkMat?: THREE.MeshStandardMaterial;
+    curbMat?: THREE.MeshStandardMaterial;
     markingWhiteMat?: THREE.MeshBasicMaterial;
     markingYellowMat?: THREE.MeshBasicMaterial;
     crosswalkMat?: THREE.MeshBasicMaterial;
@@ -239,20 +239,15 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     phi: Math.PI / 3.5,
   });
 
-  const [activeGeometry, setActiveGeometry] = useState<RoadNetworkGeometry>(() =>
-    extractRoadNetworkFromScenario(scenario)
-  );
-
-  // 1. Update Road Network Geometry when scenario changes
-  useEffect(() => {
-    const geom = extractRoadNetworkFromScenario(scenario);
-    setActiveGeometry(geom);
+  // Authoritative metropolitan road network (Arterials, Diagonals, Ring Road, District Streets)
+  const metroGeometry = useMemo(() => {
+    return getUnifiedMetropolitanRoadNetwork(scenario);
   }, [scenario]);
 
   useEffect(() => {
     const list = incidents || incidentSnapshot?.active_incidents || [];
-    incidentOverlayRef.current?.update(list, activeGeometry);
-  }, [incidents, incidentSnapshot, activeGeometry]);
+    incidentOverlayRef.current?.update(list, metroGeometry);
+  }, [incidents, incidentSnapshot, metroGeometry]);
 
   // 2. Camera position updater helper (synchronizes both Perspective and Orthographic cameras)
   const updateCameraPosition = useCallback(() => {
@@ -289,12 +284,35 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
 
   // 3. Reset Camera View
   const handleResetCamera = useCallback(() => {
-    const bounds = computeNetworkBounds(activeGeometry);
+    const bounds = computeNetworkBounds(metroGeometry);
     cameraTargetRef.current.set(bounds.center.x, 0, bounds.center.z);
-    cameraDistanceRef.current = Math.max(bounds.size.width, bounds.size.depth) * 1.5;
-    cameraAngleRef.current = { theta: Math.PI / 4, phi: Math.PI / 3.5 };
+    cameraDistanceRef.current = 420;
+    cameraAngleRef.current = { theta: Math.PI / 4, phi: Math.PI / 3.4 };
     updateCameraPosition();
-  }, [activeGeometry, updateCameraPosition]);
+  }, [metroGeometry, updateCameraPosition]);
+
+  const handleSetCameraPreset = useCallback(
+    (preset: "metropolis" | "downtown" | "street") => {
+      const bounds = computeNetworkBounds(metroGeometry);
+      const target = bounds.center;
+
+      if (preset === "metropolis") {
+        cameraTargetRef.current.set(target.x, 0, target.z);
+        cameraDistanceRef.current = 680;
+        cameraAngleRef.current = { theta: Math.PI / 4, phi: Math.PI / 3.3 };
+      } else if (preset === "downtown") {
+        cameraTargetRef.current.set(target.x, 0, target.z);
+        cameraDistanceRef.current = 310;
+        cameraAngleRef.current = { theta: Math.PI / 4, phi: Math.PI / 3.45 };
+      } else if (preset === "street") {
+        cameraTargetRef.current.set(target.x, 0, target.z);
+        cameraDistanceRef.current = 85;
+        cameraAngleRef.current = { theta: Math.PI / 4.8, phi: Math.PI / 2.35 };
+      }
+      updateCameraPosition();
+    },
+    [metroGeometry, updateCameraPosition]
+  );
 
   // 4. Initialize Three.js Scene and Renderer
   useEffect(() => {
@@ -337,6 +355,10 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
       });
       renderer.setSize(width, height);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
       rendererRef.current = renderer;
       setWebglError(null);
     } catch (err) {
@@ -349,29 +371,57 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
       return;
     }
 
-    // Shared Materials Initialization
+    // Studio Environment Reflections
+    try {
+      const pmremGenerator = new THREE.PMREMGenerator(renderer);
+      scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+      pmremGenerator.dispose();
+    } catch {
+      // Graceful fallback if PMREM not available in headless/test environments
+    }
+
+    // Shared Materials Initialization with Standard PBR (Light Architectural Theme)
     materialsRef.current = {
-      roadMat: new THREE.MeshLambertMaterial({ color: 0x1e293b }),
-      junctionMat: new THREE.MeshLambertMaterial({ color: 0x334155 }),
-      sidewalkMat: new THREE.MeshLambertMaterial({ color: 0x64748b }),
-      curbMat: new THREE.MeshLambertMaterial({ color: 0x94a3b8 }),
-      markingWhiteMat: new THREE.MeshBasicMaterial({ color: 0xf8fafc }),
-      markingYellowMat: new THREE.MeshBasicMaterial({ color: 0xfacc15 }),
+      roadMat: new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.85, metalness: 0.1 }),
+      junctionMat: new THREE.MeshStandardMaterial({ color: 0x3e4c5e, roughness: 0.8, metalness: 0.15 }),
+      sidewalkMat: new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.75, metalness: 0.1 }),
+      curbMat: new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.7, metalness: 0.15 }),
+      markingWhiteMat: new THREE.MeshBasicMaterial({ color: 0xffffff }),
+      markingYellowMat: new THREE.MeshBasicMaterial({ color: 0xf59e0b }),
       crosswalkMat: new THREE.MeshBasicMaterial({ color: 0xffffff }),
     };
 
-    // Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    // Daytime Architectural Lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
     ambientLightRef.current = ambientLight;
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
-    dirLight.position.set(150, 300, 150);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xe2e8f0, 0.75);
+    hemiLightRef.current = hemiLight;
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xfffbeb, 1.25);
+    dirLight.position.set(240, 480, 240);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 10;
+    dirLight.shadow.camera.far = 1600;
+    const d = 450;
+    dirLight.shadow.camera.left = -d;
+    dirLight.shadow.camera.right = d;
+    dirLight.shadow.camera.top = d;
+    dirLight.shadow.camera.bottom = -d;
+    dirLight.shadow.bias = -0.0005;
+    dirLight.shadow.normalBias = 0.02;
     dirLightRef.current = dirLight;
     scene.add(dirLight);
 
-    // Ground Grid Helper
-    const grid = new THREE.GridHelper(1200, 60, 0x1e293b, 0x0f172a);
+    scene.background = new THREE.Color(0xf1f5f9);
+    scene.fog = new THREE.FogExp2(0xf1f5f9, 0.0006);
+
+    // Ground Grid Helper spanning the metropolitan area
+    const grid = new THREE.GridHelper(2400, 80, 0xcbd5e1, 0xe2e8f0);
     grid.position.y = -0.1;
     gridHelperRef.current = grid;
     scene.add(grid);
@@ -379,6 +429,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     // Groups
     scene.add(roadGroupRef.current);
     scene.add(buildingsGroupRef.current);
+    scene.add(urbanPropsGroupRef.current);
 
     // V2V Communication Overlay Group
     const v2vOverlay = new V2VOverlayManager();
@@ -588,55 +639,59 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     const scene = sceneRef.current;
     const amb = ambientLightRef.current;
     const dir = dirLightRef.current;
+    const hemi = hemiLightRef.current;
     const mats = materialsRef.current;
     if (!scene || !amb || !dir || !mats) return;
 
-    if (lightingMode === "day") {
-      scene.background = new THREE.Color(0x0f172a);
-      amb.color.setHex(0xffffff);
-      amb.intensity = 0.85;
-      dir.color.setHex(0xffffff);
-      dir.intensity = 1.1;
-      dir.position.set(150, 300, 150);
-
-      mats.roadMat?.color.setHex(0x1e293b);
-      mats.junctionMat?.color.setHex(0x334155);
-      mats.sidewalkMat?.color.setHex(0x64748b);
-      mats.curbMat?.color.setHex(0x94a3b8);
-    } else {
-      // Night Mode
-      scene.background = new THREE.Color(0x020617);
-      amb.color.setHex(0x1e1b4b);
-      amb.intensity = 0.35;
-      dir.color.setHex(0x93c5fd);
-      dir.intensity = 0.5;
-      dir.position.set(80, 200, 80);
-
-      mats.roadMat?.color.setHex(0x090d16);
-      mats.junctionMat?.color.setHex(0x111827);
-      mats.sidewalkMat?.color.setHex(0x1e293b);
-      mats.curbMat?.color.setHex(0x334155);
+    // Light mode architectural atmospheric setup
+    scene.background = new THREE.Color(lightingMode === "day" ? 0xf1f5f9 : 0xf8fafc);
+    if (scene.fog) (scene.fog as THREE.FogExp2).color.setHex(lightingMode === "day" ? 0xf1f5f9 : 0xf8fafc);
+    amb.color.setHex(0xffffff);
+    amb.intensity = 0.85;
+    if (hemi) {
+      hemi.color.setHex(0xffffff);
+      hemi.groundColor.setHex(0xe2e8f0);
+      hemi.intensity = 0.75;
     }
+    dir.color.setHex(0xfffbeb);
+    dir.intensity = 1.25;
+    dir.position.set(240, 480, 240);
+
+    mats.roadMat?.color.setHex(0x334155);
+    mats.junctionMat?.color.setHex(0x3e4c5e);
+    mats.sidewalkMat?.color.setHex(0xe2e8f0);
+    mats.curbMat?.color.setHex(0xcbd5e1);
   }, [lightingMode]);
 
-  // 6. Update Building Visibility
+  // 6. Update Building & Environmental Props Visibility
   useEffect(() => {
     buildingsGroupRef.current.visible = showBuildings;
+    urbanPropsGroupRef.current.visible = showBuildings;
   }, [showBuildings]);
 
-  // 7. Rebuild Road Network Meshes, Markings, Crosswalks, and Procedural Buildings
+  // 7. Rebuild Road Network Meshes, Markings, Crosswalks, Procedural Skyscrapers and Urban Props
   useEffect(() => {
     const roadGroup = roadGroupRef.current;
     const buildingsGroup = buildingsGroupRef.current;
+    const urbanGroup = urbanPropsGroupRef.current;
     const mats = materialsRef.current;
 
-    // Helper for recursive disposal
+    // Helper for recursive disposal of meshes, geometries, and nested groups
     const disposeGroup = (group: THREE.Group) => {
       while (group.children.length > 0) {
         const child = group.children.pop();
         if (child) {
-          if (child instanceof THREE.Mesh) {
+          if (child instanceof THREE.InstancedMesh) {
             child.geometry?.dispose();
+            if (Array.isArray(child.material)) {
+              child.material.forEach((m) => m.dispose());
+            } else {
+              child.material?.dispose();
+            }
+          } else if (child instanceof THREE.Mesh) {
+            child.geometry?.dispose();
+          } else if (child instanceof THREE.Group) {
+            disposeGroup(child);
           }
           group.remove(child);
         }
@@ -645,17 +700,18 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
 
     disposeGroup(roadGroup);
     disposeGroup(buildingsGroup);
+    disposeGroup(urbanGroup);
 
-    if (activeGeometry.nodes.length === 0) return;
+    if (metroGeometry.nodes.length === 0) return;
 
     const nodeMap = new Map<string, RoadNodeGeometry>();
-    for (const node of activeGeometry.nodes) {
+    for (const node of metroGeometry.nodes) {
       nodeMap.set(node.id, node);
     }
 
     // Determine max connected road width per node to size junction pads correctly
     const nodeMaxWidth = new Map<string, number>();
-    for (const edge of activeGeometry.edges) {
+    for (const edge of metroGeometry.edges) {
       const width = computeRoadEdgeWidth(edge);
       const curU = nodeMaxWidth.get(edge.start_node_id) || 8.0;
       nodeMaxWidth.set(edge.start_node_id, Math.max(curU, width));
@@ -664,7 +720,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     }
 
     // A. Node junction pads (smooth disc/cylinder connecting adjoining roads without holes)
-    for (const node of activeGeometry.nodes) {
+    for (const node of metroGeometry.nodes) {
       const nodePos = simToWorldCoordinates(node.x, node.y, 0.022);
       const maxWidth = nodeMaxWidth.get(node.id) || 8.0;
       const padRadius = Math.max(5.5, maxWidth / 2 + 0.5);
@@ -672,13 +728,14 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
       const junctionGeo = new THREE.CylinderGeometry(padRadius, padRadius, 0.04, 24);
       const junctionMesh = new THREE.Mesh(junctionGeo, mats.junctionMat);
       junctionMesh.position.set(nodePos.x, nodePos.y, nodePos.z);
+      junctionMesh.receiveShadow = true;
       roadGroup.add(junctionMesh);
     }
 
     // B. Road Edges, Surfaces, Multi-Lane Markings, Curbs and Sidewalks
     const processedSegments = new Set<string>();
 
-    for (const edge of activeGeometry.edges) {
+    for (const edge of metroGeometry.edges) {
       const u = nodeMap.get(edge.start_node_id);
       const v = nodeMap.get(edge.end_node_id);
       if (!u || !v) continue;
@@ -707,6 +764,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
       roadMesh.position.set(midX, 0.02, midZ);
       roadMesh.rotation.x = -Math.PI / 2;
       roadMesh.rotation.z = angle;
+      roadMesh.receiveShadow = true;
       roadGroup.add(roadMesh);
 
       // B2. Multi-lane Markings (Edge borders, dashed dividers, solid centerlines)
@@ -769,9 +827,78 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         const swMesh = new THREE.Mesh(swGeo, mats.sidewalkMat);
         swMesh.position.set(swMidX, 0.06, swMidZ);
         swMesh.rotation.y = angle;
+        swMesh.castShadow = true;
+        swMesh.receiveShadow = true;
         roadGroup.add(swMesh);
       }
     }
+
+    // B4. Central Park Landmark Features (Lush Green Lawn, Reflecting Pool & Promenade)
+    const parkBounds = computeNetworkBounds(metroGeometry);
+    const parkMinX = parkBounds.center.x - 110;
+    const parkMaxX = parkBounds.center.x - 30;
+    const parkMinZ = parkBounds.center.z + 30;
+    const parkMaxZ = parkBounds.center.z + 120;
+    const parkCenterX = (parkMinX + parkMaxX) / 2;
+    const parkCenterZ = (parkMinZ + parkMaxZ) / 2;
+    const parkWidth = parkMaxX - parkMinX;
+    const parkDepth = parkMaxZ - parkMinZ;
+
+    // 1. Lush Green Park Lawn
+    const lawnGeo = new THREE.BoxGeometry(parkWidth, 0.05, parkDepth);
+    const lawnMat = new THREE.MeshStandardMaterial({
+      color: 0x1f4728,
+      roughness: 0.9,
+      metalness: 0.05,
+    });
+    const lawnMesh = new THREE.Mesh(lawnGeo, lawnMat);
+    lawnMesh.position.set(parkCenterX, 0.024, parkCenterZ);
+    lawnMesh.receiveShadow = true;
+    roadGroup.add(lawnMesh);
+
+    // 2. Central Reflecting Pool / Fountain Monument
+    const poolGeo = new THREE.CylinderGeometry(14, 14, 0.32, 32);
+    const poolMat = new THREE.MeshStandardMaterial({
+      color: 0x0284c7,
+      roughness: 0.1,
+      metalness: 0.85,
+    });
+    const poolMesh = new THREE.Mesh(poolGeo, poolMat);
+    poolMesh.position.set(parkCenterX, 0.18, parkCenterZ);
+    poolMesh.receiveShadow = true;
+    roadGroup.add(poolMesh);
+
+    // Pool Granite Coping Rim
+    const rimGeo = new THREE.RingGeometry(13.5, 15.2, 32);
+    const rimMat = new THREE.MeshStandardMaterial({
+      color: 0x64748b,
+      roughness: 0.7,
+      metalness: 0.2,
+    });
+    const rimMesh = new THREE.Mesh(rimGeo, rimMat);
+    rimMesh.position.set(parkCenterX, 0.36, parkCenterZ);
+    rimMesh.rotation.x = -Math.PI / 2;
+    roadGroup.add(rimMesh);
+
+    // 3. Stone Promenade Walkways
+    const walkMat = new THREE.MeshStandardMaterial({
+      color: 0x94a3b8,
+      roughness: 0.8,
+      metalness: 0.1,
+    });
+    const walkEWGeo = new THREE.PlaneGeometry(parkWidth, 3.5);
+    const walkEWMesh = new THREE.Mesh(walkEWGeo, walkMat);
+    walkEWMesh.position.set(parkCenterX, 0.052, parkCenterZ);
+    walkEWMesh.rotation.x = -Math.PI / 2;
+    walkEWMesh.receiveShadow = true;
+    roadGroup.add(walkEWMesh);
+
+    const walkNSGeo = new THREE.PlaneGeometry(3.5, parkDepth);
+    const walkNSMesh = new THREE.Mesh(walkNSGeo, walkMat);
+    walkNSMesh.position.set(parkCenterX, 0.052, parkCenterZ);
+    walkNSMesh.rotation.x = -Math.PI / 2;
+    walkNSMesh.receiveShadow = true;
+    roadGroup.add(walkNSMesh);
 
     // C. Crosswalks (Explicit from scenario or Inferred at intersections)
     if (scenario?.crosswalks && scenario.crosswalks.length > 0) {
@@ -794,7 +921,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
       }
     } else {
       // Inferred zebra crosswalks at intersection approaches
-      const inferredStripes = generateInferredCrosswalks(activeGeometry, 3.2, 7.5);
+      const inferredStripes = generateInferredCrosswalks(metroGeometry, 3.2, 7.5);
       for (const s of inferredStripes) {
         const sGeo = new THREE.PlaneGeometry(s.width, s.length);
         const sMesh = new THREE.Mesh(sGeo, mats.crosswalkMat);
@@ -812,33 +939,262 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         if (!node) continue;
         const pos = simToWorldCoordinates(node.x, node.y, 0);
 
-        const poleGeo = new THREE.CylinderGeometry(0.35, 0.35, 8.5, 12);
-        const poleMat = new THREE.MeshLambertMaterial({ color: 0x334155 });
+        const poleGeo = new THREE.CylinderGeometry(0.2, 0.28, 8.5, 12);
+        const poleMat = new THREE.MeshStandardMaterial({
+          color: 0x334155,
+          roughness: 0.4,
+          metalness: 0.8,
+        });
         const pole = new THREE.Mesh(poleGeo, poleMat);
         pole.position.set(pos.x + 6, 4.25, pos.z + 6);
+        pole.castShadow = true;
         roadGroup.add(pole);
       }
     }
 
-    // E. Procedural Urban Buildings (Deterministic layout with strict exclusion zones)
-    const buildings = generateProceduralBuildings(activeGeometry, {
+    // E. Procedural Urban Buildings (Modern downtown high-rises, podiums, setbacks, plazas)
+    const buildings = generateProceduralBuildings(metroGeometry, {
       seed: scenario?.seed ?? 42,
-      minHeight: 16,
-      maxHeight: 65,
+      minHeight: 22,
+      maxHeight: 110,
       minFootprint: 14,
-      maxFootprint: 26,
-      roadClearanceM: 5.0,
+      maxFootprint: 28,
+      roadClearanceM: 4.0,
     });
 
+    const trimMat = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      roughness: 0.35,
+      metalness: 0.85,
+    });
+    const plazaMat = new THREE.MeshStandardMaterial({
+      color: 0x475569,
+      roughness: 0.8,
+      metalness: 0.15,
+    });
+    const helipadMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.6,
+      metalness: 0.3,
+    });
+    const helipadMarkingMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+    const beaconMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+
     for (const b of buildings) {
-      const bGeo = new THREE.BoxGeometry(b.width, b.height, b.depth);
-      const bMat = new THREE.MeshLambertMaterial({ color: b.colorHex });
-      const bMesh = new THREE.Mesh(bGeo, bMat);
-      bMesh.position.set(b.position.x, b.position.y, b.position.z);
-      bMesh.rotation.y = b.rotationY;
-      buildingsGroup.add(bMesh);
+      const bGroup = new THREE.Group();
+      bGroup.position.set(b.position.x, 0, b.position.z);
+      bGroup.rotation.y = b.rotationY;
+
+      // Paved plaza courtyard base
+      if (b.hasPlaza) {
+        const plazaW = b.width + 6.0;
+        const plazaD = b.depth + 6.0;
+        const plazaGeo = new THREE.BoxGeometry(plazaW, 0.08, plazaD);
+        const plazaMesh = new THREE.Mesh(plazaGeo, plazaMat);
+        plazaMesh.position.set(0, 0.04, 0);
+        plazaMesh.receiveShadow = true;
+        bGroup.add(plazaMesh);
+      }
+
+      // High-grade glass/metallic curtain wall material for this building
+      const glassMat = new THREE.MeshStandardMaterial({
+        color: b.colorHex,
+        roughness: 0.18,
+        metalness: 0.82,
+        envMapIntensity: 1.25,
+      });
+
+      const tiers =
+        b.tiers && b.tiers.length > 0
+          ? b.tiers
+          : [
+              {
+                width: b.width,
+                depth: b.depth,
+                height: b.height,
+                offsetY: b.height / 2,
+                style: "glass_tower" as const,
+              },
+            ];
+
+      for (const tier of tiers) {
+        const tierGeo = new THREE.BoxGeometry(tier.width, tier.height, tier.depth);
+        const tierMesh = new THREE.Mesh(tierGeo, glassMat);
+        tierMesh.position.set(0, tier.offsetY, 0);
+        tierMesh.castShadow = true;
+        tierMesh.receiveShadow = true;
+        bGroup.add(tierMesh);
+
+        // Architectural cornice / floor band trim
+        const bandGeo = new THREE.BoxGeometry(tier.width * 1.015, 0.35, tier.depth * 1.015);
+        const bandMesh = new THREE.Mesh(bandGeo, trimMat);
+        bandMesh.position.set(0, tier.offsetY + tier.height / 2, 0);
+        bandMesh.castShadow = true;
+        bGroup.add(bandMesh);
+      }
+
+      const topTier = tiers[tiers.length - 1];
+      const topY = topTier.offsetY + topTier.height / 2;
+
+      // Rooftop Spire with Aviation Warning Beacon
+      if (b.hasSpire) {
+        const spireH = 10.0;
+        const spireGeo = new THREE.CylinderGeometry(0.08, 0.5, spireH, 8);
+        const spireMesh = new THREE.Mesh(spireGeo, trimMat);
+        spireMesh.position.set(0, topY + spireH / 2, 0);
+        spireMesh.castShadow = true;
+        bGroup.add(spireMesh);
+
+        // Blinking beacon sphere at tip
+        const beaconGeo = new THREE.SphereGeometry(0.3, 8, 8);
+        const beaconMesh = new THREE.Mesh(beaconGeo, beaconMat);
+        beaconMesh.position.set(0, topY + spireH, 0);
+        bGroup.add(beaconMesh);
+      }
+
+      // Rooftop Helipad
+      if (b.hasHelipad) {
+        const padRadius = Math.min(topTier.width, topTier.depth) * 0.38;
+        const padGeo = new THREE.CylinderGeometry(padRadius, padRadius, 0.2, 16);
+        const padMesh = new THREE.Mesh(padGeo, helipadMat);
+        padMesh.position.set(0, topY + 0.1, 0);
+        bGroup.add(padMesh);
+
+        // Helipad Ring Accent
+        const ringGeo = new THREE.RingGeometry(padRadius * 0.75, padRadius * 0.9, 24);
+        const ringMesh = new THREE.Mesh(ringGeo, helipadMarkingMat);
+        ringMesh.position.set(0, topY + 0.22, 0);
+        ringMesh.rotation.x = -Math.PI / 2;
+        bGroup.add(ringMesh);
+      }
+
+      buildingsGroup.add(bGroup);
     }
-  }, [activeGeometry, scenario]);
+
+    // F. Urban Environmental Props (Street Trees & LED Streetlamps via InstancedMesh)
+    const { trees, streetlamps } = generateUrbanProps(
+      metroGeometry,
+      buildings,
+      scenario?.seed ?? 42
+    );
+
+    // F1. Instanced Street Trees (Trunks + Dodecahedron Foliage Canopies)
+    if (trees.length > 0) {
+      const trunkGeo = new THREE.CylinderGeometry(0.2, 0.32, 2.2, 7);
+      const trunkMat = new THREE.MeshStandardMaterial({
+        color: 0x3d2817,
+        roughness: 0.9,
+        metalness: 0.05,
+      });
+      const trunkInst = new THREE.InstancedMesh(trunkGeo, trunkMat, trees.length);
+      trunkInst.castShadow = true;
+      trunkInst.receiveShadow = true;
+
+      const canopyGeo = new THREE.DodecahedronGeometry(1.5, 1);
+      const canopyMat = new THREE.MeshStandardMaterial({
+        roughness: 0.65,
+        metalness: 0.05,
+        flatShading: true,
+      });
+      const canopyInst = new THREE.InstancedMesh(canopyGeo, canopyMat, trees.length);
+      canopyInst.castShadow = true;
+      canopyInst.receiveShadow = true;
+
+      const dummy = new THREE.Object3D();
+      const colorHelper = new THREE.Color();
+
+      for (let i = 0; i < trees.length; i++) {
+        const t = trees[i];
+        const trunkH = t.height * 0.42;
+        const canopyY = trunkH + t.canopyRadius * 0.85;
+
+        // Trunk transform
+        dummy.position.set(t.position.x, trunkH / 2, t.position.z);
+        dummy.scale.set(1, trunkH / 2.2, 1);
+        dummy.rotation.set(0, (i * 0.77) % (Math.PI * 2), 0);
+        dummy.updateMatrix();
+        trunkInst.setMatrixAt(i, dummy.matrix);
+
+        // Canopy transform
+        dummy.position.set(t.position.x, canopyY, t.position.z);
+        dummy.scale.set(
+          t.canopyRadius / 1.5,
+          (t.height - trunkH) / 2.0,
+          t.canopyRadius / 1.5
+        );
+        dummy.rotation.set(0, (i * 1.33) % (Math.PI * 2), 0);
+        dummy.updateMatrix();
+        canopyInst.setMatrixAt(i, dummy.matrix);
+
+        // Foliage color tint variation
+        colorHelper.setHex(t.canopyColorHex);
+        canopyInst.setColorAt(i, colorHelper);
+      }
+
+      trunkInst.instanceMatrix.needsUpdate = true;
+      canopyInst.instanceMatrix.needsUpdate = true;
+      if (canopyInst.instanceColor) canopyInst.instanceColor.needsUpdate = true;
+
+      trunkInst.computeBoundingSphere();
+      canopyInst.computeBoundingSphere();
+
+      urbanGroup.add(trunkInst);
+      urbanGroup.add(canopyInst);
+    }
+
+    // F2. Instanced Modern LED Streetlamps
+    if (streetlamps.length > 0) {
+      const poleGeo = new THREE.CylinderGeometry(0.12, 0.16, 5.5, 8);
+      const poleMat = new THREE.MeshStandardMaterial({
+        color: 0x475569,
+        roughness: 0.35,
+        metalness: 0.8,
+      });
+      const poleInst = new THREE.InstancedMesh(poleGeo, poleMat, streetlamps.length);
+      poleInst.castShadow = true;
+
+      const headGeo = new THREE.BoxGeometry(0.35, 0.15, 0.7);
+      const headMat = new THREE.MeshStandardMaterial({
+        color: 0x1e293b,
+        roughness: 0.4,
+        metalness: 0.85,
+        emissive: 0xfef08a,
+        emissiveIntensity: lightingMode === "night" ? 0.9 : 0.2,
+      });
+      const headInst = new THREE.InstancedMesh(headGeo, headMat, streetlamps.length);
+
+      const dummy = new THREE.Object3D();
+
+      for (let i = 0; i < streetlamps.length; i++) {
+        const l = streetlamps[i];
+
+        // Pole
+        dummy.position.set(l.position.x, 2.75, l.position.z);
+        dummy.rotation.set(0, l.rotationY, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        poleInst.setMatrixAt(i, dummy.matrix);
+
+        // Lamp head extending toward road
+        const headOffset = 0.55;
+        const hx = l.position.x + Math.sin(l.rotationY) * headOffset;
+        const hz = l.position.z + Math.cos(l.rotationY) * headOffset;
+        dummy.position.set(hx, 5.4, hz);
+        dummy.rotation.set(0, l.rotationY, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        headInst.setMatrixAt(i, dummy.matrix);
+      }
+
+      poleInst.instanceMatrix.needsUpdate = true;
+      headInst.instanceMatrix.needsUpdate = true;
+      poleInst.computeBoundingSphere();
+      headInst.computeBoundingSphere();
+
+      urbanGroup.add(poleInst);
+      urbanGroup.add(headInst);
+    }
+  }, [metroGeometry, scenario, lightingMode]);
 
   // 8. Update Vehicle Meshes & Ingest Telemetry into Interpolation Buffer
   useEffect(() => {
@@ -1075,7 +1431,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         const headMat = new THREE.MeshBasicMaterial({ color });
         const mesh = new THREE.Mesh(headGeo, headMat);
 
-        const node = activeGeometry.nodes.find((n) => n.id === sigState.node_id);
+        const node = metroGeometry.nodes.find((n) => n.id === sigState.node_id);
         if (node) {
           const pos = simToWorldCoordinates(node.x, node.y, 8.5);
           mesh.position.set(pos.x + 6, 8.5, pos.z + 6);
@@ -1086,7 +1442,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         sigMesh.material.color.setHex(color);
       }
     }
-  }, [signals, activeGeometry]);
+  }, [signals, metroGeometry]);
 
   // 12. Update Active Route Line
   useEffect(() => {
@@ -1101,30 +1457,55 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
     if (!activeRoute || activeRoute.length < 2) return;
 
     const nodeMap = new Map<string, RoadNodeGeometry>();
-    for (const n of activeGeometry.nodes) {
+    for (const n of metroGeometry.nodes) {
       nodeMap.set(n.id, n);
     }
 
     const points: THREE.Vector3[] = [];
-    for (const nodeId of activeRoute) {
-      const node = nodeMap.get(nodeId);
-      if (node) {
-        const p = simToWorldCoordinates(node.x, node.y, 0.45);
-        points.push(new THREE.Vector3(p.x, p.y, p.z));
+    const laneOffset = 1.85;
+
+    for (let i = 0; i < activeRoute.length; i++) {
+      const curr = nodeMap.get(activeRoute[i]);
+      if (!curr) continue;
+
+      let rnx = 0;
+      let rny = 0;
+
+      if (i < activeRoute.length - 1) {
+        const next = nodeMap.get(activeRoute[i + 1]);
+        if (next) {
+          const dx = next.x - curr.x;
+          const dy = next.y - curr.y;
+          const len = Math.hypot(dx, dy) || 1;
+          rnx = dy / len;
+          rny = -dx / len;
+        }
+      } else if (i > 0) {
+        const prev = nodeMap.get(activeRoute[i - 1]);
+        if (prev) {
+          const dx = curr.x - prev.x;
+          const dy = curr.y - prev.y;
+          const len = Math.hypot(dx, dy) || 1;
+          rnx = dy / len;
+          rny = -dx / len;
+        }
       }
+
+      const p = simToWorldCoordinates(curr.x + rnx * laneOffset, curr.y + rny * laneOffset, 0.45);
+      points.push(new THREE.Vector3(p.x, p.y, p.z));
     }
 
     if (points.length >= 2) {
       const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
       const lineMat = new THREE.LineBasicMaterial({
-        color: 0x10b981,
+        color: 0x06b6d4, // High-visibility cyan ribbon
         linewidth: 4,
       });
       const line = new THREE.Line(lineGeo, lineMat);
       scene.add(line);
       routeLineRef.current = line;
     }
-  }, [activeRoute, activeGeometry]);
+  }, [activeRoute, metroGeometry]);
 
   // 12. Mouse Drag & Orbit Controls
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -1230,7 +1611,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
         height: "100%",
         minHeight: "450px",
         overflow: "hidden",
-        backgroundColor: lightingMode === "day" ? "#0f172a" : "#020617",
+        backgroundColor: "#f1f5f9",
         cursor: "grab",
       }}
     >
@@ -1248,14 +1629,14 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
             top: "16px",
             left: "16px",
             right: "16px",
-            backgroundColor: "#7f1d1d",
-            color: "#fecaca",
+            backgroundColor: "#fef2f2",
+            color: "#991b1b",
             padding: "12px 16px",
             borderRadius: "6px",
             fontSize: "0.85rem",
             fontWeight: 500,
             zIndex: 20,
-            border: "1px solid #b91c1c",
+            border: "1px solid #fecaca",
           }}
         >
           {webglError}
@@ -1272,11 +1653,11 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: "rgba(10, 15, 29, 0.75)",
+            backgroundColor: "rgba(241, 245, 249, 0.85)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "#38bdf8",
+            color: "#0f172a",
             fontSize: "1rem",
             fontWeight: 500,
             fontFamily: "Space Grotesk, sans-serif",
@@ -1297,12 +1678,12 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
             top: "16px",
             left: "50%",
             transform: "translateX(-50%)",
-            backgroundColor: "rgba(180, 83, 9, 0.95)",
+            backgroundColor: "rgba(255, 251, 235, 0.95)",
             backdropFilter: "blur(6px)",
-            border: "1px solid #f59e0b",
+            border: "1px solid #fde68a",
             borderRadius: "8px",
             padding: "8px 16px",
-            color: "#ffffff",
+            color: "#92400e",
             fontFamily: "Space Grotesk, sans-serif",
             fontSize: "0.85rem",
             fontWeight: 600,
@@ -1310,7 +1691,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
             alignItems: "center",
             gap: "12px",
             zIndex: 10,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
           }}
         >
           <span>🕒 HISTORICAL REVIEW — TICK {reviewTick ?? 0}</span>
@@ -1318,9 +1699,10 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
             <button
               type="button"
               onClick={onReturnToLive}
+              aria-label="Return to Live Simulation View"
               style={{
-                backgroundColor: "#fef3c7",
-                color: "#92400e",
+                backgroundColor: "#d97706",
+                color: "#ffffff",
                 border: "none",
                 borderRadius: "4px",
                 padding: "4px 10px",
@@ -1355,16 +1737,16 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           title={`Switch to ${lightingMode === "day" ? "Night" : "Day"} Mode`}
           aria-label={`Switch to ${lightingMode === "day" ? "Night" : "Day"} Mode`}
           style={{
-            backgroundColor: "#1e293b",
-            color: "#f8fafc",
-            border: "1px solid #334155",
+            backgroundColor: "#ffffff",
+            color: "#0f172a",
+            border: "1px solid #e2e8f0",
             borderRadius: "6px",
             padding: "6px 12px",
-            fontSize: "0.85rem",
+            fontSize: "0.82rem",
             fontFamily: "Space Grotesk, sans-serif",
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
           }}
         >
           {lightingMode === "day" ? "☀️ Day" : "🌙 Night"}
@@ -1380,16 +1762,16 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           title={`Switch to ${projectionMode === "perspective" ? "Orthographic" : "Perspective"} Projection`}
           aria-label={`Switch to ${projectionMode === "perspective" ? "Orthographic" : "Perspective"} Projection`}
           style={{
-            backgroundColor: "#1e293b",
-            color: "#f8fafc",
-            border: "1px solid #334155",
+            backgroundColor: "#ffffff",
+            color: "#0f172a",
+            border: "1px solid #e2e8f0",
             borderRadius: "6px",
             padding: "6px 12px",
-            fontSize: "0.85rem",
+            fontSize: "0.82rem",
             fontFamily: "Space Grotesk, sans-serif",
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
           }}
         >
           {projectionMode === "perspective" ? "📷 3D Persp" : "📐 2D Ortho"}
@@ -1403,19 +1785,86 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           title={`${showBuildings ? "Hide" : "Show"} Procedural Buildings`}
           aria-label={`${showBuildings ? "Hide" : "Show"} Procedural Buildings`}
           style={{
-            backgroundColor: showBuildings ? "#1e293b" : "#0f172a",
-            color: showBuildings ? "#f8fafc" : "#94a3b8",
-            border: "1px solid #334155",
+            backgroundColor: showBuildings ? "#0f172a" : "#ffffff",
+            color: showBuildings ? "#ffffff" : "#64748b",
+            border: showBuildings ? "1px solid #0f172a" : "1px solid #e2e8f0",
             borderRadius: "6px",
             padding: "6px 12px",
-            fontSize: "0.85rem",
+            fontSize: "0.82rem",
             fontFamily: "Space Grotesk, sans-serif",
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
           }}
         >
-          🏢 {showBuildings ? "Buildings ON" : "Buildings OFF"}
+          {showBuildings ? "🏢 Buildings ON" : "🏢 Buildings OFF"}
+        </button>
+
+        {/* Camera View Presets */}
+        <button
+          type="button"
+          onClick={() => handleSetCameraPreset("metropolis")}
+          className="hud-button"
+          title="Wide Metropolis Overview"
+          aria-label="Wide Metropolis Overview"
+          style={{
+            backgroundColor: "#ffffff",
+            color: "#0284c7",
+            border: "1px solid #e2e8f0",
+            borderRadius: "6px",
+            padding: "6px 12px",
+            fontSize: "0.82rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+          }}
+        >
+          Metropolis
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSetCameraPreset("downtown")}
+          className="hud-button"
+          title="Downtown Core View"
+          aria-label="Downtown Core View"
+          style={{
+            backgroundColor: "#ffffff",
+            color: "#0f172a",
+            border: "1px solid #e2e8f0",
+            borderRadius: "6px",
+            padding: "6px 12px",
+            fontSize: "0.82rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+          }}
+        >
+          Downtown
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSetCameraPreset("street")}
+          className="hud-button"
+          title="Street-Level View"
+          aria-label="Street-Level View"
+          style={{
+            backgroundColor: "#ffffff",
+            color: "#0f172a",
+            border: "1px solid #e2e8f0",
+            borderRadius: "6px",
+            padding: "6px 12px",
+            fontSize: "0.82rem",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+          }}
+        >
+          Street
         </button>
 
         {/* Reset View Button */}
@@ -1426,16 +1875,16 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           title="Reset Camera View"
           aria-label="Reset Camera View"
           style={{
-            backgroundColor: "#1e293b",
-            color: "#f8fafc",
-            border: "1px solid #334155",
+            backgroundColor: "#ffffff",
+            color: "#0f172a",
+            border: "1px solid #e2e8f0",
             borderRadius: "6px",
             padding: "6px 12px",
-            fontSize: "0.85rem",
+            fontSize: "0.82rem",
             fontFamily: "Space Grotesk, sans-serif",
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
           }}
         >
           Reset View
@@ -1471,19 +1920,19 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           aria-label={v2vOptions.showLinks ? "Hide V2V Links" : "Show V2V Links"}
           title={v2vOptions.showLinks ? "Hide V2V Links" : "Show V2V Links"}
           style={{
-            backgroundColor: v2vOptions.showLinks ? "#0891b2" : "#1e293b",
-            color: "#f8fafc",
-            border: "1px solid #334155",
+            backgroundColor: v2vOptions.showLinks ? "#0284c7" : "#ffffff",
+            color: v2vOptions.showLinks ? "#ffffff" : "#475569",
+            border: "1px solid #e2e8f0",
             borderRadius: "6px",
             padding: "5px 10px",
-            fontSize: "0.8rem",
+            fontSize: "0.78rem",
             fontFamily: "Space Grotesk, sans-serif",
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
           }}
         >
-          🔗 Links {v2vOptions.showLinks ? "ON" : "OFF"}
+          V2V Links {v2vOptions.showLinks ? "ON" : "OFF"}
         </button>
 
         <button
@@ -1498,73 +1947,19 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           aria-label={v2vOptions.showRangeRing ? "Hide Range Ring" : "Show Range Ring"}
           title={v2vOptions.showRangeRing ? "Hide Range Ring" : "Show Range Ring"}
           style={{
-            backgroundColor: v2vOptions.showRangeRing ? "#0891b2" : "#1e293b",
-            color: "#f8fafc",
-            border: "1px solid #334155",
+            backgroundColor: v2vOptions.showRangeRing ? "#0284c7" : "#ffffff",
+            color: v2vOptions.showRangeRing ? "#ffffff" : "#475569",
+            border: "1px solid #e2e8f0",
             borderRadius: "6px",
             padding: "5px 10px",
-            fontSize: "0.8rem",
+            fontSize: "0.78rem",
             fontFamily: "Space Grotesk, sans-serif",
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
           }}
         >
-          📡 Range {v2vOptions.showRangeRing ? "ON" : "OFF"}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            const next = !v2vOptions.showAnimations;
-            setV2vOptions((prev) => ({ ...prev, showAnimations: next }));
-            v2vOverlayRef.current?.setOptions({ showAnimations: next });
-          }}
-          className={`hud-button hud-v2v-toggle ${v2vOptions.showAnimations ? "active" : ""}`}
-          aria-pressed={v2vOptions.showAnimations}
-          aria-label={v2vOptions.showAnimations ? "Hide Message Animations" : "Show Message Animations"}
-          title={v2vOptions.showAnimations ? "Hide Message Animations" : "Show Message Animations"}
-          style={{
-            backgroundColor: v2vOptions.showAnimations ? "#0891b2" : "#1e293b",
-            color: "#f8fafc",
-            border: "1px solid #334155",
-            borderRadius: "6px",
-            padding: "5px 10px",
-            fontSize: "0.8rem",
-            fontFamily: "Space Grotesk, sans-serif",
-            fontWeight: 600,
-            cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
-          }}
-        >
-          ✨ Pulses {v2vOptions.showAnimations ? "ON" : "OFF"}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            const next = !v2vOptions.showDegradation;
-            setV2vOptions((prev) => ({ ...prev, showDegradation: next }));
-            v2vOverlayRef.current?.setOptions({ showDegradation: next });
-          }}
-          className={`hud-button hud-v2v-toggle ${v2vOptions.showDegradation ? "active" : ""}`}
-          aria-pressed={v2vOptions.showDegradation}
-          aria-label={v2vOptions.showDegradation ? "Hide Degradation Overlays" : "Show Degradation Overlays"}
-          title={v2vOptions.showDegradation ? "Hide Degradation Overlays" : "Show Degradation Overlays"}
-          style={{
-            backgroundColor: v2vOptions.showDegradation ? "#0891b2" : "#1e293b",
-            color: "#f8fafc",
-            border: "1px solid #334155",
-            borderRadius: "6px",
-            padding: "5px 10px",
-            fontSize: "0.8rem",
-            fontFamily: "Space Grotesk, sans-serif",
-            fontWeight: 600,
-            cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
-          }}
-        >
-          ⚠️ Degradation {v2vOptions.showDegradation ? "ON" : "OFF"}
+          Radio Range {v2vOptions.showRangeRing ? "ON" : "OFF"}
         </button>
 
         <button
@@ -1574,19 +1969,19 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
             v2vOverlayRef.current?.setOptions(DEFAULT_V2V_OVERLAY_OPTIONS);
           }}
           className="hud-button"
-          aria-label="Reset V2V Overlays to Defaults"
+          aria-label="Reset V2V overlays to defaults"
           title="Reset V2V Overlays to Defaults"
           style={{
-            backgroundColor: "#1e293b",
-            color: "#cbd5e1",
-            border: "1px solid #334155",
+            backgroundColor: "#ffffff",
+            color: "#475569",
+            border: "1px solid #e2e8f0",
             borderRadius: "6px",
             padding: "5px 10px",
-            fontSize: "0.8rem",
+            fontSize: "0.78rem",
             fontFamily: "Space Grotesk, sans-serif",
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
           }}
         >
           Reset V2V
@@ -1601,19 +1996,19 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           aria-label={showV2VLegend ? "Close V2V Legend" : "Open V2V Legend"}
           title={showV2VLegend ? "Close V2V Legend" : "Open V2V Legend"}
           style={{
-            backgroundColor: showV2VLegend ? "#0f766e" : "#1e293b",
-            color: "#f8fafc",
-            border: "1px solid #14b8a6",
+            backgroundColor: showV2VLegend ? "#0f172a" : "#ffffff",
+            color: showV2VLegend ? "#ffffff" : "#475569",
+            border: "1px solid #e2e8f0",
             borderRadius: "6px",
             padding: "5px 10px",
-            fontSize: "0.8rem",
+            fontSize: "0.78rem",
             fontFamily: "Space Grotesk, sans-serif",
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
           }}
         >
-          📖 V2V Legend
+          V2V Legend
         </button>
       </div>
 
@@ -1628,21 +2023,21 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
             position: "absolute",
             top: "105px",
             right: "16px",
-            backgroundColor: "rgba(15, 23, 42, 0.95)",
+            backgroundColor: "rgba(255, 255, 255, 0.98)",
             backdropFilter: "blur(8px)",
-            border: "1px solid #0891b2",
+            border: "1px solid #e2e8f0",
             borderRadius: "8px",
             padding: "12px 16px",
             fontSize: "0.78rem",
-            color: "#e2e8f0",
+            color: "#0f172a",
             fontFamily: "Space Grotesk, sans-serif",
             zIndex: 6,
             maxWidth: "320px",
-            boxShadow: "0 6px 16px rgba(0,0,0,0.6)",
+            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.08)",
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-            <span style={{ fontWeight: 700, color: "#22d3ee", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            <span style={{ fontWeight: 700, color: "#0284c7", textTransform: "uppercase", letterSpacing: "0.05em" }}>
               V2V Visual Legend
             </span>
             <button
@@ -1652,7 +2047,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
               style={{
                 background: "none",
                 border: "none",
-                color: "#94a3b8",
+                color: "#64748b",
                 cursor: "pointer",
                 fontWeight: "bold",
                 fontSize: "0.9rem",
@@ -1663,7 +2058,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ width: "20px", height: "3px", backgroundColor: "#06b6d4", display: "inline-block" }} />
+              <span style={{ width: "20px", height: "3px", backgroundColor: "#0284c7", display: "inline-block" }} />
               <span>Active Neighbor Link (Confirmed)</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1671,23 +2066,14 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
               <span>Stale / Degraded Link (Timeout)</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #22d3ee", display: "inline-block" }} />
+              <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #0284c7", display: "inline-block" }} />
               <span>Radio Range: {communicationSnapshot?.rangeM !== null && communicationSnapshot?.rangeM !== undefined ? `${communicationSnapshot.rangeM.toFixed(1)} m` : "Unavailable"}</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "#38bdf8", display: "inline-block" }} />
-              <span>Message Transmission Pulse</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ width: "10px", height: "10px", backgroundColor: "#ef4444", display: "inline-block" }} />
-              <span>Dropped / Lost Packet Marker</span>
             </div>
           </div>
 
-          <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px solid #334155", fontSize: "0.75rem", color: "#94a3b8" }}>
-            <div>Channel State: <span style={{ fontWeight: 600, color: communicationSnapshot?.networkState.channelState === "bad" ? "#ef4444" : communicationSnapshot?.networkState.channelState === "good" ? "#10b981" : "#94a3b8" }}>{communicationSnapshot?.networkState.channelState ? communicationSnapshot.networkState.channelState.toUpperCase() : "Unavailable"}</span></div>
-            <div>Packet Delivery Ratio: <span style={{ fontWeight: 600, color: "#38bdf8" }}>{communicationSnapshot?.networkState.packetDeliveryRatio !== null && communicationSnapshot?.networkState.packetDeliveryRatio !== undefined ? `${(communicationSnapshot.networkState.packetDeliveryRatio * 100).toFixed(1)}%` : "Unavailable"}</span></div>
-            <div>In-Transit Queue: <span style={{ fontWeight: 600, color: "#f8fafc" }}>{communicationSnapshot?.networkState.inTransitCount ?? 0}</span></div>
+          <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px solid #e2e8f0", fontSize: "0.75rem", color: "#64748b" }}>
+            <div>Channel State: <span style={{ fontWeight: 600, color: communicationSnapshot?.networkState.channelState === "bad" ? "#dc2626" : communicationSnapshot?.networkState.channelState === "good" ? "#059669" : "#64748b" }}>{communicationSnapshot?.networkState.channelState ? communicationSnapshot.networkState.channelState.toUpperCase() : "Unavailable"}</span></div>
+            <div>Packet Delivery Ratio: <span style={{ fontWeight: 600, color: "#0284c7" }}>{communicationSnapshot?.networkState.packetDeliveryRatio !== null && communicationSnapshot?.networkState.packetDeliveryRatio !== undefined ? `${(communicationSnapshot.networkState.packetDeliveryRatio * 100).toFixed(1)}%` : "Unavailable"}</span></div>
           </div>
         </div>
       )}
@@ -1721,19 +2107,19 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           aria-label={routeOptions.showActiveRoutes ? "Hide Active Route" : "Show Active Route"}
           title={routeOptions.showActiveRoutes ? "Hide Active Route" : "Show Active Route"}
           style={{
-            backgroundColor: routeOptions.showActiveRoutes ? "#0e7490" : "#1e293b",
-            color: "#f8fafc",
-            border: "1px solid #334155",
+            backgroundColor: routeOptions.showActiveRoutes ? "#0284c7" : "#ffffff",
+            color: routeOptions.showActiveRoutes ? "#ffffff" : "#475569",
+            border: "1px solid #e2e8f0",
             borderRadius: "6px",
             padding: "5px 10px",
-            fontSize: "0.8rem",
+            fontSize: "0.78rem",
             fontFamily: "Space Grotesk, sans-serif",
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
           }}
         >
-          🛣️ Active {routeOptions.showActiveRoutes ? "ON" : "OFF"}
+          Active Route {routeOptions.showActiveRoutes ? "ON" : "OFF"}
         </button>
 
         <button
@@ -1748,19 +2134,19 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           aria-label={routeOptions.showPlannedRoutes ? "Hide Planned Route" : "Show Planned Route"}
           title={routeOptions.showPlannedRoutes ? "Hide Planned Route" : "Show Planned Route"}
           style={{
-            backgroundColor: routeOptions.showPlannedRoutes ? "#0e7490" : "#1e293b",
-            color: "#f8fafc",
-            border: "1px solid #334155",
+            backgroundColor: routeOptions.showPlannedRoutes ? "#0284c7" : "#ffffff",
+            color: routeOptions.showPlannedRoutes ? "#ffffff" : "#475569",
+            border: "1px solid #e2e8f0",
             borderRadius: "6px",
             padding: "5px 10px",
-            fontSize: "0.8rem",
+            fontSize: "0.78rem",
             fontFamily: "Space Grotesk, sans-serif",
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
           }}
         >
-          🗺️ Planned {routeOptions.showPlannedRoutes ? "ON" : "OFF"}
+          Planned Route {routeOptions.showPlannedRoutes ? "ON" : "OFF"}
         </button>
 
         <button
@@ -1775,19 +2161,19 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           aria-label={routeOptions.showCandidateRoutes ? "Hide Candidate Paths" : "Show Candidate Paths"}
           title={routeOptions.showCandidateRoutes ? "Hide Candidate Paths" : "Show Candidate Paths"}
           style={{
-            backgroundColor: routeOptions.showCandidateRoutes ? "#0e7490" : "#1e293b",
-            color: "#f8fafc",
-            border: "1px solid #334155",
+            backgroundColor: routeOptions.showCandidateRoutes ? "#0284c7" : "#ffffff",
+            color: routeOptions.showCandidateRoutes ? "#ffffff" : "#475569",
+            border: "1px solid #e2e8f0",
             borderRadius: "6px",
             padding: "5px 10px",
-            fontSize: "0.8rem",
+            fontSize: "0.78rem",
             fontFamily: "Space Grotesk, sans-serif",
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
           }}
         >
-          🔀 Candidates {routeOptions.showCandidateRoutes ? "ON" : "OFF"}
+          Candidates {routeOptions.showCandidateRoutes ? "ON" : "OFF"}
         </button>
 
         <button
@@ -1802,19 +2188,19 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           aria-label={routeOptions.showRerouteMarkers ? "Hide Reroute Markers" : "Show Reroute Markers"}
           title={routeOptions.showRerouteMarkers ? "Hide Reroute Markers" : "Show Reroute Markers"}
           style={{
-            backgroundColor: routeOptions.showRerouteMarkers ? "#0e7490" : "#1e293b",
-            color: "#f8fafc",
-            border: "1px solid #334155",
+            backgroundColor: routeOptions.showRerouteMarkers ? "#0284c7" : "#ffffff",
+            color: routeOptions.showRerouteMarkers ? "#ffffff" : "#475569",
+            border: "1px solid #e2e8f0",
             borderRadius: "6px",
             padding: "5px 10px",
-            fontSize: "0.8rem",
+            fontSize: "0.78rem",
             fontFamily: "Space Grotesk, sans-serif",
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
           }}
         >
-          📍 Markers {routeOptions.showRerouteMarkers ? "ON" : "OFF"}
+          Markers {routeOptions.showRerouteMarkers ? "ON" : "OFF"}
         </button>
 
         <button
@@ -1827,16 +2213,16 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           aria-label="Reset Route Overlays to Defaults"
           title="Reset Route Overlays to Defaults"
           style={{
-            backgroundColor: "#1e293b",
-            color: "#cbd5e1",
-            border: "1px solid #334155",
+            backgroundColor: "#ffffff",
+            color: "#475569",
+            border: "1px solid #e2e8f0",
             borderRadius: "6px",
             padding: "5px 10px",
-            fontSize: "0.8rem",
+            fontSize: "0.78rem",
             fontFamily: "Space Grotesk, sans-serif",
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
           }}
         >
           Reset Routes
@@ -1851,76 +2237,19 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           aria-label={showRouteLegend ? "Close Route Legend" : "Open Route Legend"}
           title={showRouteLegend ? "Close Route Legend" : "Open Route Legend"}
           style={{
-            backgroundColor: showRouteLegend ? "#0369a1" : "#1e293b",
-            color: "#f8fafc",
-            border: "1px solid #0284c7",
+            backgroundColor: showRouteLegend ? "#0f172a" : "#ffffff",
+            color: showRouteLegend ? "#ffffff" : "#475569",
+            border: "1px solid #e2e8f0",
             borderRadius: "6px",
             padding: "5px 10px",
-            fontSize: "0.8rem",
+            fontSize: "0.78rem",
             fontFamily: "Space Grotesk, sans-serif",
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
           }}
         >
-          📖 Route Legend
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            const next = !incidentOptions.showRoadClosures;
-            const updated = {
-              showRoadClosures: next,
-              showCongestion: next,
-              showObstacles: next,
-              showSignalOverrides: next,
-            };
-            setIncidentOptions(updated);
-            incidentOverlayRef.current?.setOptions(updated);
-          }}
-          className={`hud-button hud-incident-toggle ${incidentOptions.showRoadClosures ? "active" : ""}`}
-          aria-pressed={incidentOptions.showRoadClosures}
-          aria-label={incidentOptions.showRoadClosures ? "Hide Incident Overlays" : "Show Incident Overlays"}
-          title={incidentOptions.showRoadClosures ? "Hide Incident Overlays" : "Show Incident Overlays"}
-          style={{
-            backgroundColor: incidentOptions.showRoadClosures ? "#991b1b" : "#1e293b",
-            color: "#f8fafc",
-            border: "1px solid #ef4444",
-            borderRadius: "6px",
-            padding: "5px 10px",
-            fontSize: "0.8rem",
-            fontFamily: "Space Grotesk, sans-serif",
-            fontWeight: 600,
-            cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
-          }}
-        >
-          🛑 Incidents {incidentOptions.showRoadClosures ? "ON" : "OFF"}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setShowIncidentLegend((s) => !s)}
-          className={`hud-button ${showIncidentLegend ? "active" : ""}`}
-          aria-expanded={showIncidentLegend}
-          aria-controls="incident-legend-panel"
-          aria-label={showIncidentLegend ? "Close Incident Legend" : "Open Incident Legend"}
-          title={showIncidentLegend ? "Close Incident Legend" : "Open Incident Legend"}
-          style={{
-            backgroundColor: showIncidentLegend ? "#b91c1c" : "#1e293b",
-            color: "#f8fafc",
-            border: "1px solid #ef4444",
-            borderRadius: "6px",
-            padding: "5px 10px",
-            fontSize: "0.8rem",
-            fontFamily: "Space Grotesk, sans-serif",
-            fontWeight: 600,
-            cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
-          }}
-        >
-          ⚠️ Incident Legend
+          Route Legend
         </button>
       </div>
 
@@ -1935,21 +2264,21 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
             position: "absolute",
             top: "150px",
             right: "16px",
-            backgroundColor: "rgba(15, 23, 42, 0.95)",
+            backgroundColor: "rgba(255, 255, 255, 0.98)",
             backdropFilter: "blur(8px)",
-            border: "1px solid #0284c7",
+            border: "1px solid #e2e8f0",
             borderRadius: "8px",
             padding: "12px 16px",
             fontSize: "0.78rem",
-            color: "#e2e8f0",
+            color: "#0f172a",
             fontFamily: "Space Grotesk, sans-serif",
             zIndex: 6,
             maxWidth: "320px",
-            boxShadow: "0 6px 16px rgba(0,0,0,0.6)",
+            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.08)",
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-            <span style={{ fontWeight: 700, color: "#38bdf8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            <span style={{ fontWeight: 700, color: "#0284c7", textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Route Visual Legend
             </span>
             <button
@@ -1959,7 +2288,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
               style={{
                 background: "none",
                 border: "none",
-                color: "#94a3b8",
+                color: "#64748b",
                 cursor: "pointer",
                 fontWeight: "bold",
                 fontSize: "0.9rem",
@@ -1970,7 +2299,7 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ width: "20px", height: "3px", backgroundColor: "#06b6d4", display: "inline-block" }} />
+              <span style={{ width: "20px", height: "3px", backgroundColor: "#0284c7", display: "inline-block" }} />
               <span>Active Route (Authoritative Path)</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1986,77 +2315,12 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
               <span>Inspected Candidate Path</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ width: "10px", height: "10px", transform: "rotate(45deg)", backgroundColor: "#10b981", display: "inline-block" }} />
+              <span style={{ width: "10px", height: "10px", transform: "rotate(45deg)", backgroundColor: "#059669", display: "inline-block" }} />
               <span>Accepted Reroute Decision</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <span style={{ width: "10px", height: "10px", transform: "rotate(45deg)", backgroundColor: "#f59e0b", display: "inline-block" }} />
               <span>Rejected / Insufficient Benefit</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Collapsible Incident Visual Legend */}
-      {showIncidentLegend && (
-        <div
-          id="incident-legend-panel"
-          className="viewport-incident-legend-panel"
-          role="region"
-          aria-label="Traffic Incident Visual Legend"
-          style={{
-            position: "absolute",
-            top: "150px",
-            right: showRouteLegend ? "350px" : "16px",
-            backgroundColor: "rgba(15, 23, 42, 0.95)",
-            backdropFilter: "blur(8px)",
-            border: "1px solid #ef4444",
-            borderRadius: "8px",
-            padding: "12px 16px",
-            fontSize: "0.78rem",
-            color: "#e2e8f0",
-            fontFamily: "Space Grotesk, sans-serif",
-            zIndex: 6,
-            maxWidth: "300px",
-            boxShadow: "0 6px 16px rgba(0,0,0,0.6)",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-            <span style={{ fontWeight: 700, color: "#f87171", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              Incident Visual Legend
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowIncidentLegend(false)}
-              aria-label="Dismiss Incident Legend Panel"
-              style={{
-                background: "none",
-                border: "none",
-                color: "#94a3b8",
-                cursor: "pointer",
-                fontWeight: "bold",
-                fontSize: "0.9rem",
-              }}
-            >
-              ✕
-            </button>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ width: "20px", height: "4px", backgroundColor: "#ef4444", display: "inline-block" }} />
-              <span>Road Closure (Impassable Edge)</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ width: "20px", height: "4px", backgroundColor: "#f97316", display: "inline-block" }} />
-              <span>Congestion (Travel Time Delay)</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "#f59e0b", display: "inline-block" }} />
-              <span>Obstacle / Segment Hazard</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ width: "12px", height: "12px", borderRadius: "50%", border: "2px solid #ef4444", display: "inline-block" }} />
-              <span>Signal Phase Override</span>
             </div>
           </div>
         </div>
@@ -2069,38 +2333,39 @@ export const SimulationViewer3D: React.FC<SimulationViewer3DProps> = ({
           position: "absolute",
           bottom: "16px",
           left: "16px",
-          backgroundColor: "rgba(15, 23, 42, 0.85)",
-          backdropFilter: "blur(4px)",
-          border: "1px solid #334155",
-          borderRadius: "6px",
+          backgroundColor: "rgba(255, 255, 255, 0.95)",
+          backdropFilter: "blur(6px)",
+          border: "1px solid #e2e8f0",
+          borderRadius: "8px",
           padding: "8px 14px",
           fontSize: "0.75rem",
-          color: "#94a3b8",
+          color: "#475569",
           display: "flex",
           gap: "16px",
           alignItems: "center",
           fontFamily: "Space Grotesk, sans-serif",
           zIndex: 5,
+          boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <span style={{ width: "10px", height: "10px", backgroundColor: "#3b82f6", borderRadius: "2px" }} />
+          <span style={{ width: "10px", height: "10px", backgroundColor: "#0284c7", borderRadius: "2px" }} />
           <span>Vehicle</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <span style={{ width: "10px", height: "10px", backgroundColor: "#ef4444", borderRadius: "2px" }} />
+          <span style={{ width: "10px", height: "10px", backgroundColor: "#dc2626", borderRadius: "2px" }} />
           <span>Emergency</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <span style={{ width: "10px", height: "10px", backgroundColor: "#06b6d4", borderRadius: "50%" }} />
+          <span style={{ width: "10px", height: "10px", backgroundColor: "#0891b2", borderRadius: "50%" }} />
           <span>Pedestrian</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <span style={{ width: "10px", height: "10px", backgroundColor: "#10b981", borderRadius: "50%" }} />
+          <span style={{ width: "10px", height: "10px", backgroundColor: "#059669", borderRadius: "50%" }} />
           <span>Signal</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <span style={{ width: "10px", height: "10px", backgroundColor: "#facc15", borderRadius: "2px" }} />
+          <span style={{ width: "10px", height: "10px", backgroundColor: "#f59e0b", borderRadius: "2px" }} />
           <span>Lane Marking</span>
         </div>
       </div>

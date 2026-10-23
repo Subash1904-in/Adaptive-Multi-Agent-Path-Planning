@@ -70,8 +70,9 @@ export const EntityInspector: React.FC<EntityInspectorProps> = ({
             <span
               className={`field-value status-tag ${isStale ? "stale-tag" : "fresh-tag"}`}
               style={{
-                backgroundColor: isStale ? "#7f1d1d" : "#064e3b",
-                color: isStale ? "#fca5a5" : "#6ee7b7",
+                backgroundColor: isStale ? "#fef2f2" : "#ecfdf5",
+                color: isStale ? "#dc2626" : "#059669",
+                border: isStale ? "1px solid #fecaca" : "1px solid #a7f3d0",
                 padding: "2px 8px",
                 borderRadius: "4px",
                 fontSize: "0.75rem",

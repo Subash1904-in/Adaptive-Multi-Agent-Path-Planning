@@ -4,12 +4,13 @@ import { EntityInspector } from "../features/simulation/EntityInspector";
 import { IncidentControlPanel } from "../features/simulation/IncidentControlPanel";
 import { ScenarioSelector } from "../features/scenarios/ScenarioSelector";
 import { SimulationViewer3D } from "../features/scene3d/SimulationViewer3D";
-import { PlaybackBar } from "../features/playback/PlaybackBar";
 import { PlaybackScheduler } from "../features/playback/playbackScheduler";
 import { SimulationHistoryBuffer } from "../features/playback/historyBuffer";
-import { MetricsPanel } from "../features/telemetry/MetricsPanel";
 import { OperationalDashboard } from "../features/analytics/OperationalDashboard";
 import { TelemetryFeed } from "../features/telemetry/TelemetryFeed";
+import { TransportDock } from "../features/playback/TransportDock";
+import { IncidentModal } from "../features/incidents/IncidentModal";
+import { FleetTab } from "../features/fleet/FleetTab";
 import { defaultApiClient } from "../lib/api/client";
 import { SimulationWebSocketClient } from "../lib/websocket/client";
 import type { MetricsQueryParams } from "../types/analytics";
@@ -58,7 +59,7 @@ import {
   extractRerouteEvent,
   resolveRouteWorldPoints,
 } from "../features/scene3d/routeAdapter";
-import { extractRoadNetworkFromScenario } from "../features/scene3d/geometry";
+import { getUnifiedMetropolitanRoadNetwork } from "../features/scene3d/geometry";
 
 export const App: React.FC = () => {
   // Scenario & Run State
@@ -81,8 +82,12 @@ export const App: React.FC = () => {
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [activeIncidents, setActiveIncidents] = useState<Map<string, IncidentRecord>>(new Map());
   const [isInjectingIncident, setIsInjectingIncident] = useState<boolean>(false);
-  const [activeBottomTab, setActiveBottomTab] = useState<"analytics" | "telemetry">("analytics");
   const [isRefreshingMetrics, setIsRefreshingMetrics] = useState<boolean>(false);
+  const [isInspectorOpen, setIsInspectorOpen] = useState<boolean>(true);
+  const [activeInspectorTab, setActiveInspectorTab] = useState<
+    "fleet" | "analytics" | "telemetry" | "incidents" | "scenario"
+  >("fleet");
+  const [isIncidentModalOpen, setIsIncidentModalOpen] = useState<boolean>(false);
 
   // Playback & Historical Review State
   const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
@@ -97,6 +102,18 @@ export const App: React.FC = () => {
   useEffect(() => {
     selectedScenarioRef.current = selectedScenario;
   }, [selectedScenario]);
+
+  // Alt+I Keyboard shortcut to toggle inspector drawer
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && (e.key === "i" || e.key === "I")) {
+        e.preventDefault();
+        setIsInspectorOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Selection
   const [selectedEntity, setSelectedEntity] = useState<{
@@ -176,7 +193,7 @@ export const App: React.FC = () => {
           setSignals(initSignals);
 
           // Initialize initial planned and active routes from scenario
-          const geom = extractRoadNetworkFromScenario(scn);
+          const geom = getUnifiedMetropolitanRoadNetwork(scn);
           const initPlanned = new Map<string, PlannedRoute>();
           const initActive = new Map<string, ActiveRoute>();
           for (const v of scn.vehicles) {
@@ -282,7 +299,7 @@ export const App: React.FC = () => {
 
         case "route.changed": {
           const geom = selectedScenarioRef.current
-            ? extractRoadNetworkFromScenario(selectedScenarioRef.current)
+            ? getUnifiedMetropolitanRoadNetwork(selectedScenarioRef.current)
             : null;
           setVehicles((currVehicles) => {
             const vPositions = new Map<string, { x: number; y: number }>();
@@ -624,7 +641,7 @@ export const App: React.FC = () => {
         // Ingest routing decisions from tick_result if present
         if (Array.isArray(tickRes?.routing_decisions) && tickRes.routing_decisions.length > 0) {
           const geom = selectedScenarioRef.current
-            ? extractRoadNetworkFromScenario(selectedScenarioRef.current)
+            ? getUnifiedMetropolitanRoadNetwork(selectedScenarioRef.current)
             : null;
           setVehicles((currVehicles) => {
             const vPositions = new Map<string, { x: number; y: number }>();
@@ -759,7 +776,7 @@ export const App: React.FC = () => {
       let initRouteSnapshot: RouteSubsystemSnapshot | null = null;
       if (selectedScenarioRef.current) {
         const scn = selectedScenarioRef.current;
-        const geom = extractRoadNetworkFromScenario(scn);
+        const geom = getUnifiedMetropolitanRoadNetwork(scn);
         const initPlanned = new Map<string, PlannedRoute>();
         const initActive = new Map<string, ActiveRoute>();
         for (const v of scn.vehicles) {
@@ -1040,12 +1057,40 @@ export const App: React.FC = () => {
         connectionStatus={wsStatus}
         runId={currentRun?.run_id ?? null}
         onReconnect={handleReconnect}
+        isInspectorOpen={isInspectorOpen}
+        onToggleInspector={() => setIsInspectorOpen((prev) => !prev)}
+        scenarioName={selectedScenario?.metadata?.name}
       />
 
-      <main className="dashboard-grid">
-        {/* Left Sidebar: Controls & Inspector */}
-        <section className="sidebar-col" aria-label="Controls and Details">
-          <ScenarioSelector
+      <main className="studio-workspace">
+        {/* Full-Height 3D Simulation Viewport Stage */}
+        <section className="viewport-stage" aria-label="3D Simulation Viewport">
+          <SimulationViewer3D
+            scenario={selectedScenario}
+            vehicles={renderedVehicles}
+            pedestrians={renderedPedestrians}
+            signals={renderedSignals}
+            activeRoute={activeRoute}
+            selectedEntityId={selectedEntity?.id}
+            onSelectEntity={(id, type) => {
+              setSelectedEntity({ id, type });
+              if (!isInspectorOpen) setIsInspectorOpen(true);
+            }}
+            isLoading={isLoadingScenarios}
+            isReviewing={activeReviewTick !== null}
+            reviewTick={activeReviewTick}
+            onReturnToLive={handleReturnToLive}
+            communicationSnapshot={renderedV2VSnapshot}
+            routeSnapshot={renderedRouteSnapshot}
+            selectedCandidateId={selectedCandidateId}
+            onSelectCandidate={setSelectedCandidateId}
+            incidents={renderedIncidents}
+            playbackSpeed={playbackSpeed}
+            isPaused={playbackState === "paused" || playbackState === "reviewing"}
+          />
+
+          {/* Floating Bottom-Center Control Dock */}
+          <TransportDock
             scenarios={scenarios}
             selectedScenarioId={selectedScenarioId}
             onSelectScenario={(id) => {
@@ -1059,124 +1104,120 @@ export const App: React.FC = () => {
               setSelectedCandidateId(null);
               setActiveIncidents(new Map());
             }}
-            onCreateRun={handleCreateRun}
             currentRun={currentRun}
-            onStepRun={handleStepRun}
-            onCancelRun={handleCancelRun}
+            playbackState={playbackState}
+            speed={playbackSpeed}
+            timeline={timelineRange}
+            isTerminal={currentRun?.is_terminal ?? false}
+            canPlay={Boolean(currentRun && !currentRun.is_terminal)}
+            canStep={Boolean(currentRun && !currentRun.is_terminal)}
+            onPlay={handlePlay}
+            onPause={handlePause}
+            onResume={handleResume}
+            onStep={(ticks) => handleStepRun(ticks)}
+            onSetSpeed={handleSetSpeed}
+            onSeekTick={handleSeekTick}
+            onReturnToLive={handleReturnToLive}
+            onOpenIncidentModal={() => setIsIncidentModalOpen(true)}
+            onInitializeRun={() => handleCreateRun(selectedScenarioId)}
             isLoading={isLoadingScenarios}
-            actionError={actionError}
           />
-
-          <IncidentControlPanel
-            currentRun={currentRun}
-            scenario={selectedScenario}
-            activeIncidents={renderedIncidents}
-            onInjectIncident={handleInjectIncident}
-            onRemoveIncident={handleRemoveIncident}
-            isLoading={isInjectingIncident}
-          />
-
-          {selectedEntity && (
-            <EntityInspector
-              entityId={selectedEntity.id}
-              entityType={selectedEntity.type}
-              vehicleState={
-                selectedEntity.type === "vehicle"
-                  ? renderedVehicles.get(selectedEntity.id)
-                  : null
-              }
-              pedestrianState={
-                selectedEntity.type === "pedestrian"
-                  ? renderedPedestrians.get(selectedEntity.id)
-                  : null
-              }
-              onClose={() => setSelectedEntity(null)}
-              routeSnapshot={renderedRouteSnapshot}
-              selectedCandidateId={selectedCandidateId}
-              onSelectCandidate={setSelectedCandidateId}
-            />
-          )}
-
-          <MetricsPanel metrics={renderedMetrics} />
         </section>
 
-        {/* Center Main: 3D Simulation Viewport & Playback Bar */}
-        <section className="viewport-col" aria-label="3D Simulation Viewport">
-          <div className="viewport-wrapper">
-            <SimulationViewer3D
-              scenario={selectedScenario}
-              vehicles={renderedVehicles}
-              pedestrians={renderedPedestrians}
-              signals={renderedSignals}
-              activeRoute={activeRoute}
-              selectedEntityId={selectedEntity?.id}
-              onSelectEntity={(id, type) => setSelectedEntity({ id, type })}
-              isLoading={isLoadingScenarios}
-              isReviewing={activeReviewTick !== null}
-              reviewTick={activeReviewTick}
-              onReturnToLive={handleReturnToLive}
-              communicationSnapshot={renderedV2VSnapshot}
-              routeSnapshot={renderedRouteSnapshot}
-              selectedCandidateId={selectedCandidateId}
-              onSelectCandidate={setSelectedCandidateId}
-              incidents={renderedIncidents}
-              playbackSpeed={playbackSpeed}
-              isPaused={playbackState === "paused" || playbackState === "reviewing"}
-            />
-          </div>
-
-          {/* Interactive Playback Bar & Timeline Scrubber */}
-          <div className="playback-bar-wrapper" style={{ marginTop: "12px", marginBottom: "12px" }}>
-            <PlaybackBar
-              playbackState={playbackState}
-              speed={playbackSpeed}
-              timeline={timelineRange}
-              isTerminal={currentRun?.is_terminal ?? false}
-              canPlay={Boolean(currentRun && !currentRun.is_terminal)}
-              canStep={Boolean(currentRun && !currentRun.is_terminal)}
-              onPlay={handlePlay}
-              onPause={handlePause}
-              onResume={handleResume}
-              onStep={(ticks) => handleStepRun(ticks)}
-              onSetSpeed={handleSetSpeed}
-              onSeekTick={handleSeekTick}
-              onReturnToLive={handleReturnToLive}
-            />
-          </div>
-
-          {/* Bottom Row inside Viewport Column: Operational Dashboard / Telemetry Feed Tabs */}
-          <div className="bottom-tabs-container">
-            <div className="bottom-tab-bar" role="tablist" aria-label="Simulation Views">
-              <button
-                type="button"
-                role="tab"
-                id="tab-analytics"
-                aria-selected={activeBottomTab === "analytics"}
-                aria-controls="panel-analytics"
-                className={`bottom-tab-btn ${activeBottomTab === "analytics" ? "active" : ""}`}
-                onClick={() => setActiveBottomTab("analytics")}
-              >
-                📊 Operational Dashboard &amp; Analytics
-              </button>
-              <button
-                type="button"
-                role="tab"
-                id="tab-telemetry"
-                aria-selected={activeBottomTab === "telemetry"}
-                aria-controls="panel-telemetry"
-                className={`bottom-tab-btn ${activeBottomTab === "telemetry" ? "active" : ""}`}
-                onClick={() => setActiveBottomTab("telemetry")}
-              >
-                📡 Telemetry Stream ({telemetryEvents.length})
-              </button>
-            </div>
-
-            <div
-              id="panel-analytics"
-              role="tabpanel"
-              aria-labelledby="tab-analytics"
-              hidden={activeBottomTab !== "analytics"}
+        {/* Collapsible Right Operations & Analytics Inspector */}
+        <aside
+          className={`inspector-drawer ${!isInspectorOpen ? "collapsed" : ""}`}
+          aria-label="Operations and Analytics Inspector"
+        >
+          {/* Inspector Tab Selector */}
+          <nav className="inspector-tabs-bar" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeInspectorTab === "fleet"}
+              className={`inspector-tab-item ${activeInspectorTab === "fleet" ? "active" : ""}`}
+              onClick={() => setActiveInspectorTab("fleet")}
             >
+              Fleet ({renderedVehicles.size})
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeInspectorTab === "analytics"}
+              className={`inspector-tab-item ${activeInspectorTab === "analytics" ? "active" : ""}`}
+              onClick={() => setActiveInspectorTab("analytics")}
+            >
+              Analytics
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeInspectorTab === "telemetry"}
+              className={`inspector-tab-item ${activeInspectorTab === "telemetry" ? "active" : ""}`}
+              onClick={() => setActiveInspectorTab("telemetry")}
+            >
+              Telemetry ({telemetryEvents.length})
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeInspectorTab === "incidents"}
+              className={`inspector-tab-item ${activeInspectorTab === "incidents" ? "active" : ""}`}
+              onClick={() => setActiveInspectorTab("incidents")}
+            >
+              Incidents ({renderedIncidents.length})
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeInspectorTab === "scenario"}
+              className={`inspector-tab-item ${activeInspectorTab === "scenario" ? "active" : ""}`}
+              onClick={() => setActiveInspectorTab("scenario")}
+            >
+              Config
+            </button>
+          </nav>
+
+          {/* Inspector Content Scroll Area */}
+          <div className="inspector-scroll-area">
+            {/* Selected Entity Details Card (if vehicle or pedestrian is clicked) */}
+            {selectedEntity && (
+              <div style={{ marginBottom: "8px" }}>
+                <EntityInspector
+                  entityId={selectedEntity.id}
+                  entityType={selectedEntity.type}
+                  vehicleState={
+                    selectedEntity.type === "vehicle"
+                      ? renderedVehicles.get(selectedEntity.id)
+                      : null
+                  }
+                  pedestrianState={
+                    selectedEntity.type === "pedestrian"
+                      ? renderedPedestrians.get(selectedEntity.id)
+                      : null
+                  }
+                  onClose={() => setSelectedEntity(null)}
+                  routeSnapshot={renderedRouteSnapshot}
+                  selectedCandidateId={selectedCandidateId}
+                  onSelectCandidate={setSelectedCandidateId}
+                />
+              </div>
+            )}
+
+            {/* Active Tab Panel */}
+            {activeInspectorTab === "fleet" && (
+              <FleetTab
+                vehicles={renderedVehicles}
+                selectedVehicleId={selectedEntity?.id ?? null}
+                onSelectVehicle={(vId) => setSelectedEntity({ id: vId, type: "vehicle" })}
+              />
+            )}
+
+            {activeInspectorTab === "analytics" && (
               <OperationalDashboard
                 metrics={renderedMetrics}
                 currentRun={currentRun}
@@ -1186,25 +1227,63 @@ export const App: React.FC = () => {
                 onRefreshMetrics={handleRefreshMetrics}
                 isLoading={isRefreshingMetrics}
               />
-            </div>
+            )}
 
-            <div
-              id="panel-telemetry"
-              role="tabpanel"
-              aria-labelledby="tab-telemetry"
-              hidden={activeBottomTab !== "telemetry"}
-            >
-              <div className="telemetry-wrapper">
-                <TelemetryFeed
-                  events={telemetryEvents}
-                  latestGap={latestGap}
-                  onClearGap={() => setLatestGap(null)}
-                />
-              </div>
-            </div>
+            {activeInspectorTab === "telemetry" && (
+              <TelemetryFeed
+                events={telemetryEvents}
+                latestGap={latestGap}
+                onClearGap={() => setLatestGap(null)}
+              />
+            )}
+
+            {activeInspectorTab === "incidents" && (
+              <IncidentControlPanel
+                currentRun={currentRun}
+                scenario={selectedScenario}
+                activeIncidents={renderedIncidents}
+                onInjectIncident={handleInjectIncident}
+                onRemoveIncident={handleRemoveIncident}
+                isLoading={isInjectingIncident}
+              />
+            )}
+
+            {activeInspectorTab === "scenario" && (
+              <ScenarioSelector
+                scenarios={scenarios}
+                selectedScenarioId={selectedScenarioId}
+                onSelectScenario={(id) => {
+                  setSelectedScenarioId(id);
+                  setCurrentRun(null);
+                  setPlaybackState("idle");
+                  historyBufferRef.current.clear();
+                  setActiveReviewTick(null);
+                  setLiveV2VSnapshot(null);
+                  setLiveRouteSnapshot(null);
+                  setSelectedCandidateId(null);
+                  setActiveIncidents(new Map());
+                }}
+                onCreateRun={handleCreateRun}
+                currentRun={currentRun}
+                onStepRun={handleStepRun}
+                onCancelRun={handleCancelRun}
+                isLoading={isLoadingScenarios}
+                actionError={actionError}
+              />
+            )}
           </div>
-        </section>
+        </aside>
       </main>
+
+      {/* Quick Incident Injection Dialog */}
+      <IncidentModal
+        isOpen={isIncidentModalOpen}
+        onClose={() => setIsIncidentModalOpen(false)}
+        scenario={selectedScenario}
+        currentRun={currentRun}
+        onInject={handleInjectIncident}
+        isLoading={isInjectingIncident}
+      />
     </div>
   );
 };

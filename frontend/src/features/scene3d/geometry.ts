@@ -13,6 +13,8 @@ import type {
   RoadNetworkGeometry,
   RoadNodeGeometry,
   SidewalkSegmentGeometry,
+  StreetlampProp,
+  UrbanTreeProp,
   ZebraStripeGeometry,
 } from "../../types/graph";
 import type { GridConfig, ScenarioDefinition } from "../../types/simulation";
@@ -147,6 +149,352 @@ export function generateSyntheticGridGeometry(
           lanes,
           attributes: { direction: "south", col: c, one_way: false },
         });
+      }
+    }
+  }
+
+  return { nodes, edges };
+}
+
+export interface MetropolitanNetworkOptions {
+  cityRadiusM?: number;
+  spacingM?: number;
+}
+
+/**
+ * Expands or constructs an extensive, realistic metropolitan road network.
+ * Preserves all scenario nodes and edges so simulation paths remain 100% valid,
+ * while generating:
+ * 1. Broad multi-lane arterial boulevards (Grand East-West & North-South axes)
+ * 2. Angled diagonal avenues (e.g. Broadway & Parkway diagonals) breaking the square grid
+ * 3. A sweeping curved perimeter ring expressway (24-segment circular ring road)
+ * 4. Secondary urban cross streets with realistic varied block proportions
+ * 5. Radial highway connectors tying the ring road into the metropolitan core
+ */
+export function buildRealisticMetropolitanNetwork(
+  baseGeometry?: RoadNetworkGeometry | null,
+  options?: MetropolitanNetworkOptions
+): RoadNetworkGeometry {
+  const cityRadius = options?.cityRadiusM ?? 380;
+  const nodes: RoadNodeGeometry[] = [];
+  const edges: RoadEdgeGeometry[] = [];
+  const nodeMap = new Map<string, RoadNodeGeometry>();
+  const edgeSet = new Set<string>();
+
+  const addNode = (node: RoadNodeGeometry) => {
+    if (!nodeMap.has(node.id)) {
+      nodeMap.set(node.id, node);
+      nodes.push(node);
+    }
+  };
+
+  const addEdge = (edge: RoadEdgeGeometry) => {
+    if (!edgeSet.has(edge.id)) {
+      edgeSet.add(edge.id);
+      edges.push(edge);
+    }
+  };
+
+  const addBiEdge = (
+    id1: string,
+    uId: string,
+    vId: string,
+    lanes = 2,
+    speedLimit = 13.89,
+    widthM?: number
+  ) => {
+    const u = nodeMap.get(uId);
+    const v = nodeMap.get(vId);
+    if (!u || !v || uId === vId) return;
+    const len = Math.hypot(v.x - u.x, v.y - u.y);
+    if (len < 0.5) return;
+
+    addEdge({
+      id: id1,
+      start_node_id: uId,
+      end_node_id: vId,
+      length_m: Math.round(len * 10) / 10,
+      speed_limit_mps: speedLimit,
+      lanes,
+      attributes: { width_m: widthM, one_way: false },
+    });
+
+    addEdge({
+      id: `${id1}_rev`,
+      start_node_id: vId,
+      end_node_id: uId,
+      length_m: Math.round(len * 10) / 10,
+      speed_limit_mps: speedLimit,
+      lanes,
+      attributes: { width_m: widthM, one_way: false },
+    });
+  };
+
+  // 1. Ingest base scenario nodes and edges (if any)
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  if (baseGeometry && baseGeometry.nodes.length > 0) {
+    for (const n of baseGeometry.nodes) {
+      addNode(n);
+      minX = Math.min(minX, n.x);
+      maxX = Math.max(maxX, n.x);
+      minY = Math.min(minY, n.y);
+      maxY = Math.max(maxY, n.y);
+    }
+    for (const e of baseGeometry.edges) {
+      addEdge(e);
+    }
+  }
+
+  // Determine metropolitan center
+  const cx = Number.isFinite(minX) && Number.isFinite(maxX) ? (minX + maxX) / 2 : 100;
+  const cy = Number.isFinite(minY) && Number.isFinite(maxY) ? (minY + maxY) / 2 : 100;
+
+  // 2. Outer Curved Perimeter Ring Expressway (24-segment circular ring road)
+  const N_RING = 24;
+  const ringNodeIds: string[] = [];
+  for (let i = 0; i < N_RING; i++) {
+    const ang = (i / N_RING) * 2 * Math.PI;
+    const rx = Math.round(cx + cityRadius * Math.cos(ang));
+    const ry = Math.round(cy + cityRadius * Math.sin(ang));
+    const id = `ring_n${i}`;
+    ringNodeIds.push(id);
+    addNode({
+      id,
+      x: rx,
+      y: ry,
+      attributes: { type: "ring_expressway", angle_rad: ang },
+    });
+  }
+
+  // Connect ring segments
+  for (let i = 0; i < N_RING; i++) {
+    const nextIdx = (i + 1) % N_RING;
+    addBiEdge(
+      `edge_ring_${i}_to_${nextIdx}`,
+      ringNodeIds[i],
+      ringNodeIds[nextIdx],
+      4,
+      22.2,
+      16.0
+    );
+  }
+
+  // 3. Grand Arterial Boulevards (4-lane divided avenues crossing the entire city)
+  // 3A. East-West Grand Boulevard
+  const ewSteps = [-320, -240, -160, -80, 0, 80, 160, 240, 320];
+  const ewNodeIds: string[] = [];
+  for (let i = 0; i < ewSteps.length; i++) {
+    const offset = ewSteps[i];
+    const nx = cx + offset;
+    const ny = cy;
+
+    let existingId: string | null = null;
+    for (const [id, n] of nodeMap) {
+      if (Math.hypot(n.x - nx, n.y - ny) < 18) {
+        existingId = id;
+        break;
+      }
+    }
+
+    const id = existingId || `art_ew_${i}`;
+    if (!existingId) {
+      addNode({
+        id,
+        x: nx,
+        y: ny,
+        attributes: { type: "arterial_ew" },
+      });
+    }
+    ewNodeIds.push(id);
+  }
+
+  for (let i = 0; i < ewNodeIds.length - 1; i++) {
+    if (ewNodeIds[i] !== ewNodeIds[i + 1]) {
+      addBiEdge(`edge_art_ew_${i}`, ewNodeIds[i], ewNodeIds[i + 1], 4, 18.0, 16.0);
+    }
+  }
+  // Connect East-West ends to ring road: West to ring_n12 (180 deg), East to ring_n0 (0 deg)
+  addBiEdge("edge_art_ew_to_ring_w", ewNodeIds[0], "ring_n12", 4, 20.0, 16.0);
+  addBiEdge("edge_art_ew_to_ring_e", ewNodeIds[ewNodeIds.length - 1], "ring_n0", 4, 20.0, 16.0);
+
+  // 3B. North-South Grand Boulevard
+  const nsSteps = [-320, -240, -160, -80, 0, 80, 160, 240, 320];
+  const nsNodeIds: string[] = [];
+  for (let i = 0; i < nsSteps.length; i++) {
+    const offset = nsSteps[i];
+    const nx = cx;
+    const ny = cy + offset;
+
+    let existingId: string | null = null;
+    for (const [id, n] of nodeMap) {
+      if (Math.hypot(n.x - nx, n.y - ny) < 18) {
+        existingId = id;
+        break;
+      }
+    }
+
+    const id = existingId || `art_ns_${i}`;
+    if (!existingId) {
+      addNode({
+        id,
+        x: nx,
+        y: ny,
+        attributes: { type: "arterial_ns" },
+      });
+    }
+    nsNodeIds.push(id);
+  }
+
+  for (let i = 0; i < nsNodeIds.length - 1; i++) {
+    if (nsNodeIds[i] !== nsNodeIds[i + 1]) {
+      addBiEdge(`edge_art_ns_${i}`, nsNodeIds[i], nsNodeIds[i + 1], 4, 18.0, 16.0);
+    }
+  }
+  // Connect North-South ends to ring road: South to ring_n18 (270 deg), North to ring_n6 (90 deg)
+  addBiEdge("edge_art_ns_to_ring_s", nsNodeIds[0], "ring_n18", 4, 20.0, 16.0);
+  addBiEdge("edge_art_ns_to_ring_n", nsNodeIds[nsNodeIds.length - 1], "ring_n6", 4, 20.0, 16.0);
+
+  // 4. Diagonal Avenues (Broadway & Parkway Diagonals breaking the square grid)
+  // Diagonal 1: Southwest to Northeast (45-degree angle)
+  const diag1Steps = [-280, -210, -140, -70, 0, 70, 140, 210, 280];
+  const diag1NodeIds: string[] = [];
+  for (let i = 0; i < diag1Steps.length; i++) {
+    const offset = diag1Steps[i];
+    const nx = Math.round(cx + offset);
+    const ny = Math.round(cy + offset);
+
+    let existingId: string | null = null;
+    for (const [id, n] of nodeMap) {
+      if (Math.hypot(n.x - nx, n.y - ny) < 22) {
+        existingId = id;
+        break;
+      }
+    }
+
+    const id = existingId || `diag1_n${i}`;
+    if (!existingId) {
+      addNode({
+        id,
+        x: nx,
+        y: ny,
+        attributes: { type: "diagonal_avenue_broadway" },
+      });
+    }
+    diag1NodeIds.push(id);
+  }
+
+  for (let i = 0; i < diag1NodeIds.length - 1; i++) {
+    if (diag1NodeIds[i] !== diag1NodeIds[i + 1]) {
+      addBiEdge(`edge_diag1_${i}`, diag1NodeIds[i], diag1NodeIds[i + 1], 3, 16.0, 12.0);
+    }
+  }
+  // Connect Diagonal 1 ends to ring road: SW to ring_n15 (225 deg), NE to ring_n3 (45 deg)
+  addBiEdge("edge_diag1_to_ring_sw", diag1NodeIds[0], "ring_n15", 3, 16.0, 12.0);
+  addBiEdge("edge_diag1_to_ring_ne", diag1NodeIds[diag1NodeIds.length - 1], "ring_n3", 3, 16.0, 12.0);
+
+  // Diagonal 2: Northwest to Southeast (135-degree angle)
+  const diag2Steps = [-280, -210, -140, -70, 0, 70, 140, 210, 280];
+  const diag2NodeIds: string[] = [];
+  for (let i = 0; i < diag2Steps.length; i++) {
+    const offset = diag2Steps[i];
+    const nx = Math.round(cx - offset);
+    const ny = Math.round(cy + offset);
+
+    let existingId: string | null = null;
+    for (const [id, n] of nodeMap) {
+      if (Math.hypot(n.x - nx, n.y - ny) < 22) {
+        existingId = id;
+        break;
+      }
+    }
+
+    const id = existingId || `diag2_n${i}`;
+    if (!existingId) {
+      addNode({
+        id,
+        x: nx,
+        y: ny,
+        attributes: { type: "diagonal_avenue_parkway" },
+      });
+    }
+    diag2NodeIds.push(id);
+  }
+
+  for (let i = 0; i < diag2NodeIds.length - 1; i++) {
+    if (diag2NodeIds[i] !== diag2NodeIds[i + 1]) {
+      addBiEdge(`edge_diag2_${i}`, diag2NodeIds[i], diag2NodeIds[i + 1], 3, 16.0, 12.0);
+    }
+  }
+  // Connect Diagonal 2 ends to ring road: NW to ring_n9 (135 deg), SE to ring_n21 (315 deg)
+  addBiEdge("edge_diag2_to_ring_nw", diag2NodeIds[0], "ring_n9", 3, 16.0, 12.0);
+  addBiEdge("edge_diag2_to_ring_se", diag2NodeIds[diag2NodeIds.length - 1], "ring_n21", 3, 16.0, 12.0);
+
+  // 5. Secondary Urban District Connectors (Varied non-square grid blocks)
+  const quadOffsetsX = [-210, -110, 110, 210];
+  const quadOffsetsY = [-210, -110, 110, 210];
+
+  for (const qx of quadOffsetsX) {
+    for (const qy of quadOffsetsY) {
+      const nx = cx + qx;
+      const ny = cy + qy;
+
+      let existingId: string | null = null;
+      for (const [id, n] of nodeMap) {
+        if (Math.hypot(n.x - nx, n.y - ny) < 24) {
+          existingId = id;
+          break;
+        }
+      }
+
+      if (!existingId) {
+        const id = `dist_x${qx}_y${qy}`;
+        addNode({
+          id,
+          x: nx,
+          y: ny,
+          attributes: { type: "district_connector" },
+        });
+
+        // Connect to nearest nodes within 90m
+        for (const [otherId, otherNode] of nodeMap) {
+          if (otherId === id) continue;
+          const d = Math.hypot(otherNode.x - nx, otherNode.y - ny);
+          if (d > 20 && d <= 95) {
+            const angleDeg = (Math.abs(Math.atan2(otherNode.y - ny, otherNode.x - nx)) * 180) / Math.PI;
+            const isCardinal = angleDeg < 18 || angleDeg > 162 || Math.abs(angleDeg - 90) < 18;
+            const isDiagonal = Math.abs(angleDeg - 45) < 18 || Math.abs(angleDeg - 135) < 18;
+            if (isCardinal || isDiagonal) {
+              addBiEdge(`edge_conn_${id}_to_${otherId}`, id, otherId, 2, 13.89, 8.5);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 6. Guarantee full metropolitan graph connectivity:
+  // Ensure every node in the metropolitan network is reachable and connected to the arterial grid
+  const nodeDegrees = new Map<string, number>();
+  for (const n of nodes) nodeDegrees.set(n.id, 0);
+  for (const e of edges) {
+    nodeDegrees.set(e.start_node_id, (nodeDegrees.get(e.start_node_id) || 0) + 1);
+    nodeDegrees.set(e.end_node_id, (nodeDegrees.get(e.end_node_id) || 0) + 1);
+  }
+
+  for (const n of nodes) {
+    const deg = nodeDegrees.get(n.id) || 0;
+    if (deg <= 2) {
+      // Find nearest arterial/diagonal or district neighbors to ensure seamless network traversal
+      const candidates = nodes
+        .filter((other) => other.id !== n.id)
+        .map((other) => ({ other, dist: Math.hypot(other.x - n.x, other.y - n.y) }))
+        .filter(({ dist }) => dist >= 15 && dist <= 120)
+        .sort((a, b) => a.dist - b.dist);
+
+      for (const { other } of candidates.slice(0, 3)) {
+        addBiEdge(`edge_bridge_${n.id}_${other.id}`, n.id, other.id, 2, 13.89, 8.5);
+        nodeDegrees.set(n.id, (nodeDegrees.get(n.id) || 0) + 1);
+        nodeDegrees.set(other.id, (nodeDegrees.get(other.id) || 0) + 1);
       }
     }
   }
@@ -315,6 +663,18 @@ export function extractRoadNetworkFromScenario(
 
   // Fallback default grid
   return generateSyntheticGridGeometry({ rows: 3, cols: 3, spacing_m: 100 });
+}
+
+/**
+ * Authoritative single source of truth for the complete metropolitan road network.
+ * Produces an extensive, realistic road network with arterial boulevards, diagonal avenues,
+ * perimeter ring expressway, and district connectors, while preserving all scenario nodes.
+ */
+export function getUnifiedMetropolitanRoadNetwork(
+  scenario: ScenarioDefinition | null
+): RoadNetworkGeometry {
+  const base = extractRoadNetworkFromScenario(scenario);
+  return buildRealisticMetropolitanNetwork(base);
 }
 
 /**
@@ -729,38 +1089,52 @@ export function generateProceduralBuildings(
   const minZ = bounds.center.z - bounds.size.depth / 2 - 40;
   const maxZ = bounds.center.z + bounds.size.depth / 2 + 40;
 
-  const minH = options?.minHeight ?? 14;
-  const maxH = options?.maxHeight ?? 65;
-  const minFP = options?.minFootprint ?? 12;
-  const maxFP = options?.maxFootprint ?? 24;
-  const roadClearance = options?.roadClearanceM ?? 4.0;
-  const sidewalkAllowance = 3.0; // clearance for curbs & sidewalks
+  const minH = options?.minHeight ?? 22;
+  const maxH = options?.maxHeight ?? 110;
+  const minFP = options?.minFootprint ?? 14;
+  const maxFP = options?.maxFootprint ?? 28;
+  const roadClearance = options?.roadClearanceM ?? 3.5;
+  const sidewalkAllowance = 2.5;
 
-  // Building color palette (modern sleek urban slate/cool blue/charcoal)
-  const palette = [
-    0x1e293b, 0x334155, 0x475569, 0x1e3a5f, 0x243c5a, 0x0f2744, 0x374151,
+  // Architectural modern metropolitan color palettes (Swiss porcelain, limestone, soft tinted glass)
+  const glassPalette = [
+    0xf8fafc, // Porcelain Chalk White
+    0xf1f5f9, // Architectural Limestone
+    0xe2e8f0, // Soft Platinum Slate
+    0xe0f2fe, // Light Sky Tinted Glass
+    0xf3f4f6, // Matte Alabaster
+    0xe0e7ff, // Soft Azure Tint
+    0xede9fe, // Soft Quartz
   ];
 
   const buildings: ProceduralBuilding[] = [];
   const placedFootprints: { cx: number; cz: number; radius: number }[] = [];
 
-  // Generate candidate grid points with jitter
-  const step = 28; // spacing between candidate building lots
+  // Step across the metropolitan footprint
+  const step = 25;
   let idCounter = 0;
 
   for (let x = minX; x <= maxX; x += step) {
     for (let z = minZ; z <= maxZ; z += step) {
-      // Small deterministic jitter to make urban layout natural
-      const jitterX = (random() - 0.5) * 8;
-      const jitterZ = (random() - 0.5) * 8;
+      // Natural urban lot jitter
+      const jitterX = (random() - 0.5) * 6;
+      const jitterZ = (random() - 0.5) * 6;
       const candX = x + jitterX;
       const candZ = z + jitterZ;
+
+      // Central Park District exclusion (Metropolitan Central Park)
+      const isParkZone =
+        candX >= bounds.center.x - 120 &&
+        candX <= bounds.center.x - 25 &&
+        candZ >= bounds.center.z + 25 &&
+        candZ <= bounds.center.z + 125;
+      if (isParkZone) continue;
 
       const bWidth = minFP + random() * (maxFP - minFP);
       const bDepth = minFP + random() * (maxFP - minFP);
       const bRadius = Math.hypot(bWidth, bDepth) / 2;
 
-      // 1. Exclusion check against all road segments
+      // 1. Exclusion check against road segments
       let collidesWithRoad = false;
       for (const seg of segments) {
         const dist = pointToSegmentDistance(candX, candZ, seg.ax, seg.az, seg.bx, seg.bz);
@@ -772,46 +1146,289 @@ export function generateProceduralBuildings(
       }
       if (collidesWithRoad) continue;
 
-      // 2. Exclusion check against intersection nodes
+      // 2. Exclusion check against junctions
       let collidesWithJunction = false;
       for (const node of geometry.nodes) {
         const np = simToWorldCoordinates(node.x, node.y);
         const distToJunction = Math.hypot(candX - np.x, candZ - np.z);
-        if (distToJunction < 12.0 + bRadius) {
+        if (distToJunction < 11.0 + bRadius) {
           collidesWithJunction = true;
           break;
         }
       }
       if (collidesWithJunction) continue;
 
-      // 3. Exclusion check against other placed buildings
+      // 3. Exclusion check against placed buildings
       let overlapsBuilding = false;
       for (const b of placedFootprints) {
         const dist = Math.hypot(candX - b.cx, candZ - b.cz);
-        if (dist < b.radius + bRadius + 2.0) {
+        if (dist < b.radius + bRadius + 1.5) {
           overlapsBuilding = true;
           break;
         }
       }
       if (overlapsBuilding) continue;
 
-      // Accepted!
-      const height = minH + random() * (maxH - minH);
-      const colorHex = palette[Math.floor(random() * palette.length)];
-      const rotationY = (random() - 0.5) * 0.1; // subtle orientation alignment
+      // Accepted Building Lot!
+      // Downtown center proximity multiplier: towering skyscrapers in CBD, mid-rises in outer districts
+      const distFromCenter = Math.hypot(candX - bounds.center.x, candZ - bounds.center.z);
+      const centerFactor = Math.max(
+        0.2,
+        1.0 - distFromCenter / (Math.max(bounds.size.width, bounds.size.depth) * 0.65)
+      );
+      const height = (minH + random() * (maxH - minH)) * (0.45 + centerFactor * 0.7);
+      const colorHex = glassPalette[Math.floor(random() * glassPalette.length)];
+
+      // Flatiron wedge alignment if near diagonal avenues
+      const isNearDiagonal =
+        Math.abs(Math.abs(candX - bounds.center.x) - Math.abs(candZ - bounds.center.z)) < 24;
+      const rotationY = isNearDiagonal
+        ? ((candX - bounds.center.x) * (candZ - bounds.center.z) > 0 ? Math.PI / 4 : -Math.PI / 4) +
+          (random() - 0.5) * 0.05
+        : (random() - 0.5) * 0.08;
 
       placedFootprints.push({ cx: candX, cz: candZ, radius: bRadius });
+
+      // Multi-tier skyscraper architecture
+      const tiers: {
+        width: number;
+        depth: number;
+        height: number;
+        offsetY: number;
+        style: "podium" | "glass_tower" | "stepped" | "penthouse";
+      }[] = [];
+      const hasPodium = height > 28;
+      const podiumHeight = hasPodium ? Math.min(8.0, height * 0.18) : 0;
+
+      if (hasPodium) {
+        tiers.push({
+          width: bWidth,
+          depth: bDepth,
+          height: podiumHeight,
+          offsetY: podiumHeight / 2,
+          style: "podium",
+        });
+      }
+
+      const towerHeight = height - podiumHeight;
+      const towerInset = hasPodium ? 1.2 : 0;
+      const towerWidth = Math.max(8.0, bWidth - towerInset * 2);
+      const towerDepth = Math.max(8.0, bDepth - towerInset * 2);
+
+      tiers.push({
+        width: towerWidth,
+        depth: towerDepth,
+        height: towerHeight,
+        offsetY: podiumHeight + towerHeight / 2,
+        style: "glass_tower",
+      });
+
+      // Rooftop crowns for prominent skyscrapers
+      const hasSpire = height > 55 && random() > 0.4;
+      const hasHelipad = height > 45 && !hasSpire && random() > 0.55;
+      const hasPenthouse = height > 38 && random() > 0.3;
+
+      if (hasPenthouse) {
+        const phH = 4.5;
+        const phW = towerWidth * 0.55;
+        const phD = towerDepth * 0.55;
+        tiers.push({
+          width: phW,
+          depth: phD,
+          height: phH,
+          offsetY: height + phH / 2,
+          style: "penthouse",
+        });
+      }
+
+      const hasPlaza = random() > 0.65;
+
       buildings.push({
         id: `bld_${++idCounter}`,
-        position: { x: candX, y: height / 2, z: candZ },
+        position: { x: candX, y: 0, z: candZ },
         width: Math.round(bWidth * 10) / 10,
         depth: Math.round(bDepth * 10) / 10,
         height: Math.round(height * 10) / 10,
         rotationY,
         colorHex,
+        tiers,
+        hasSpire,
+        hasHelipad,
+        hasPlaza,
+        windowGlowColorHex: random() > 0.5 ? 0xfef08a : 0xfde047,
       });
     }
   }
 
   return buildings;
 }
+
+/**
+ * Generates instanced urban environmental props: street trees, modern LED streetlamps,
+ * decorative plaza greenery, and central park groves, positioned strictly outside roadway boundaries.
+ */
+export function generateUrbanProps(
+  geometry: RoadNetworkGeometry,
+  buildings: ProceduralBuilding[],
+  seed = 42
+): {
+  trees: UrbanTreeProp[];
+  streetlamps: StreetlampProp[];
+} {
+  const random = createMulberry32(seed);
+  const trees: UrbanTreeProp[] = [];
+  const streetlamps: StreetlampProp[] = [];
+
+  const nodeMap = new Map<string, RoadNodeGeometry>();
+  for (const n of geometry.nodes) {
+    nodeMap.set(n.id, n);
+  }
+
+  const foliagePalette = [
+    0x2d6a4f, // Lush Emerald Pine
+    0x40916c, // Fresh Park Green
+    0x1b4332, // Deep Forest Green
+    0x52b788, // Lime Meadow Green
+    0x2d5a27, // Urban Maple
+  ];
+
+  let treeCounter = 0;
+  let lampCounter = 0;
+
+  // 1. Street-Side Trees & Streetlamps along Road Sidewalks
+  for (const edge of geometry.edges) {
+    const u = nodeMap.get(edge.start_node_id);
+    const v = nodeMap.get(edge.end_node_id);
+    if (!u || !v) continue;
+
+    const p1 = simToWorldCoordinates(u.x, u.y);
+    const p2 = simToWorldCoordinates(v.x, v.y);
+
+    const dx = p2.x - p1.x;
+    const dz = p2.z - p1.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 18) continue;
+
+    const ux = dx / len;
+    const uz = dz / len;
+    const nx = -uz;
+    const nz = ux;
+
+    const roadWidth = computeRoadEdgeWidth(edge);
+    const halfWidth = roadWidth / 2;
+
+    // Sidewalk offset for trees: 2.2m beyond road edge
+    const treeOffsetDist = halfWidth + 2.2;
+    // Sidewalk offset for lamps: 1.4m beyond road edge (curb line)
+    const lampOffsetDist = halfWidth + 1.4;
+
+    const startDist = 8.0;
+    const endDist = len - 8.0;
+
+    // Distribute Street Trees every ~14m
+    for (let d = startDist; d <= endDist; d += 14.0) {
+      const px = p1.x + ux * d;
+      const pz = p1.z + uz * d;
+
+      // Left side tree
+      const tHeightL = 4.2 + random() * 1.8;
+      const tColorL = foliagePalette[Math.floor(random() * foliagePalette.length)];
+      trees.push({
+        id: `tree_${++treeCounter}`,
+        position: { x: px + nx * treeOffsetDist, y: 0, z: pz + nz * treeOffsetDist },
+        height: Math.round(tHeightL * 10) / 10,
+        canopyRadius: 1.6 + random() * 0.6,
+        canopyColorHex: tColorL,
+      });
+
+      // Right side tree
+      const tHeightR = 4.2 + random() * 1.8;
+      const tColorR = foliagePalette[Math.floor(random() * foliagePalette.length)];
+      trees.push({
+        id: `tree_${++treeCounter}`,
+        position: { x: px - nx * treeOffsetDist, y: 0, z: pz - nz * treeOffsetDist },
+        height: Math.round(tHeightR * 10) / 10,
+        canopyRadius: 1.6 + random() * 0.6,
+        canopyColorHex: tColorR,
+      });
+    }
+
+    // Distribute Streetlamps every ~28m
+    for (let d = startDist + 6.0; d <= endDist; d += 28.0) {
+      const px = p1.x + ux * d;
+      const pz = p1.z + uz * d;
+      const rotY = Math.atan2(dx, dz);
+
+      // Left lamp
+      streetlamps.push({
+        id: `lamp_${++lampCounter}`,
+        position: { x: px + nx * lampOffsetDist, y: 0, z: pz + nz * lampOffsetDist },
+        rotationY: rotY + Math.PI / 2,
+        height: 5.5,
+      });
+
+      // Right lamp
+      streetlamps.push({
+        id: `lamp_${++lampCounter}`,
+        position: { x: px - nx * lampOffsetDist, y: 0, z: pz - nz * lampOffsetDist },
+        rotationY: rotY - Math.PI / 2,
+        height: 5.5,
+      });
+    }
+  }
+
+  // 2. Plaza Trees in Building Courtyards
+  for (const b of buildings) {
+    if (b.hasPlaza) {
+      const plazaTrees = 2 + Math.floor(random() * 3);
+      for (let i = 0; i < plazaTrees; i++) {
+        const angle = random() * Math.PI * 2;
+        const radius = Math.max(b.width, b.depth) * 0.6 + 2.0 + random() * 4.0;
+        const tx = b.position.x + Math.cos(angle) * radius;
+        const tz = b.position.z + Math.sin(angle) * radius;
+        const tHeight = 3.6 + random() * 2.2;
+        const tColor = foliagePalette[Math.floor(random() * foliagePalette.length)];
+
+        trees.push({
+          id: `tree_${++treeCounter}`,
+          position: { x: tx, y: 0, z: tz },
+          height: Math.round(tHeight * 10) / 10,
+          canopyRadius: 1.5 + random() * 0.8,
+          canopyColorHex: tColor,
+        });
+      }
+    }
+  }
+
+  // 3. Central Park Woodland Canopy Grove
+  const bounds = computeNetworkBounds(geometry);
+  const parkMinX = bounds.center.x - 110;
+  const parkMaxX = bounds.center.x - 30;
+  const parkMinZ = bounds.center.z + 30;
+  const parkMaxZ = bounds.center.z + 120;
+  const parkCenterX = (parkMinX + parkMaxX) / 2;
+  const parkCenterZ = (parkMinZ + parkMaxZ) / 2;
+
+  for (let px = parkMinX + 10; px <= parkMaxX - 10; px += 16) {
+    for (let pz = parkMinZ + 10; pz <= parkMaxZ - 10; pz += 16) {
+      const distToFountain = Math.hypot(px - parkCenterX, pz - parkCenterZ);
+      if (distToFountain < 16) continue;
+
+      const jx = px + (random() - 0.5) * 6;
+      const jz = pz + (random() - 0.5) * 6;
+      const tHeight = 4.8 + random() * 2.5;
+      const tColor = foliagePalette[Math.floor(random() * foliagePalette.length)];
+
+      trees.push({
+        id: `tree_park_${++treeCounter}`,
+        position: { x: jx, y: 0, z: jz },
+        height: Math.round(tHeight * 10) / 10,
+        canopyRadius: 2.0 + random() * 0.9,
+        canopyColorHex: tColor,
+      });
+    }
+  }
+
+  return { trees, streetlamps };
+}
+

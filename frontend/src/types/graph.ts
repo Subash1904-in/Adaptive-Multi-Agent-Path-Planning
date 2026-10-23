@@ -59,6 +59,14 @@ export interface SidewalkSegmentGeometry {
   curbHeight: number;
 }
 
+export interface BuildingTier {
+  width: number;
+  depth: number;
+  height: number;
+  offsetY: number;
+  style: "podium" | "glass_tower" | "stepped" | "penthouse";
+}
+
 export interface ProceduralBuilding {
   id: string;
   position: Point3D;
@@ -67,6 +75,26 @@ export interface ProceduralBuilding {
   height: number;
   rotationY: number;
   colorHex: number;
+  tiers?: BuildingTier[];
+  hasSpire?: boolean;
+  hasHelipad?: boolean;
+  hasPlaza?: boolean;
+  windowGlowColorHex?: number;
+}
+
+export interface UrbanTreeProp {
+  id: string;
+  position: Point3D;
+  height: number;
+  canopyRadius: number;
+  canopyColorHex: number;
+}
+
+export interface StreetlampProp {
+  id: string;
+  position: Point3D;
+  rotationY: number;
+  height: number;
 }
 
 export interface BuildingGeneratorOptions {

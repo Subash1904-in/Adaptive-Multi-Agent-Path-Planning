@@ -212,8 +212,24 @@ export class SimulationWebSocketClient {
     if (envelope.event_type === "heartbeat") {
       this.sendCommand({ type: "heartbeat" });
     }
+    const rawObj = parsed as Record<string, unknown>;
+    const simTime =
+      typeof rawObj.simulation_time_s === "number"
+        ? rawObj.simulation_time_s
+        : typeof rawObj.timestamp_s === "number"
+        ? rawObj.timestamp_s
+        : 0;
 
-    const fullEnvelope = envelope as WebSocketEventEnvelope;
+    const fullEnvelope: WebSocketEventEnvelope = {
+      ...(rawObj as Record<string, unknown>),
+      event_type: envelope.event_type,
+      run_id: String(rawObj.run_id || ""),
+      sequence: envelope.sequence,
+      tick: envelope.tick,
+      timestamp_s: simTime,
+      schema_version: String(rawObj.schema_version || "1.0.0"),
+      payload: (rawObj.payload as Record<string, unknown>) || {},
+    };
     for (const listener of this.eventListeners) {
       try {
         listener(fullEnvelope);
