@@ -29,6 +29,7 @@ from apps.core.scenarios.examples import (
     create_single_vehicle_scenario,
     create_tick_limited_scenario,
     create_unreachable_vehicle_scenario,
+    create_luxembourg_rush_hour_scenario,
 )
 from apps.core.scenarios.exceptions import (
     ScenarioBuilderError,
@@ -130,4 +131,5 @@ __all__ = [
     "create_single_vehicle_scenario",
     "create_tick_limited_scenario",
     "create_unreachable_vehicle_scenario",
+    "create_luxembourg_rush_hour_scenario",
 ]

@@ -28,8 +28,11 @@ export const IncidentControlPanel: React.FC<IncidentControlPanelProps> = ({
 }) => {
   const [incidentType, setIncidentType] = useState<IncidentType>("road_closure");
   const [targetEdgeId, setTargetEdgeId] = useState<string>("");
+  const [targetNodeId, setTargetNodeId] = useState<string>("");
   const [severity, setSeverity] = useState<IncidentSeverity>("high");
   const [delayMultiplier, setDelayMultiplier] = useState<number>(2.5);
+  const [durationSeconds, setDurationSeconds] = useState<number>(120);
+  const [signalPhase, setSignalPhase] = useState<"red" | "yellow" | "green">("red");
   const [obstacleType, setObstacleType] = useState<ObstacleType>("construction");
   const [description, setDescription] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -68,13 +71,22 @@ export const IncidentControlPanel: React.FC<IncidentControlPanelProps> = ({
       description: description.trim() || undefined,
       edge_id: edge,
       affected_edge_id: edge,
+      duration_s: durationSeconds,
     };
 
+    if (targetNodeId) {
+      payload.node_id = targetNodeId;
+      payload.affected_node_id = targetNodeId;
+    }
     if (incidentType === "congestion") {
       payload.delay_multiplier = delayMultiplier;
       payload.congestion_factor = delayMultiplier;
     } else if (incidentType === "obstacle") {
       payload.obstacle_type = obstacleType;
+    } else if (incidentType === "signal_override") {
+      payload.signal_id = targetNodeId || undefined;
+      payload.override_phase = signalPhase;
+      payload.target_signal_phase = signalPhase;
     }
 
     try {
@@ -216,8 +228,59 @@ export const IncidentControlPanel: React.FC<IncidentControlPanelProps> = ({
             <option value="road_closure">Road Closure (Block Path)</option>
             <option value="congestion">Traffic Congestion (Delay)</option>
             <option value="obstacle">Physical Obstacle / Debris</option>
+            <option value="hazard">Hazard Zone (Caution)</option>
+            <option value="accident">Collision / Accident</option>
+            <option value="signal_override">Signal Override</option>
           </select>
         </div>
+
+        <div className="form-field">
+          <label htmlFor="panel-inc-node" className="form-label">Target Node (Optional)</label>
+          <select
+            id="panel-inc-node"
+            value={targetNodeId}
+            onChange={(e) => setTargetNodeId(e.target.value)}
+            disabled={!hasActiveRun || isSubmitting}
+            className="form-select"
+          >
+            <option value="">Use selected edge</option>
+            {metroGeometry.nodes.slice(0, 80).map((node) => (
+              <option key={node.id} value={node.id}>{node.id}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-field">
+          <label htmlFor="panel-inc-duration" className="form-label">
+            Duration: {durationSeconds}s
+          </label>
+          <input
+            id="panel-inc-duration"
+            type="range"
+            min="10"
+            max="900"
+            step="10"
+            value={durationSeconds}
+            onChange={(e) => setDurationSeconds(Number(e.target.value))}
+            style={{ width: "100%", accentColor: "#0f172a" }}
+          />
+        </div>
+
+        {incidentType === "signal_override" && (
+          <div className="form-field">
+            <label htmlFor="panel-inc-phase" className="form-label">Override Phase</label>
+            <select
+              id="panel-inc-phase"
+              value={signalPhase}
+              onChange={(e) => setSignalPhase(e.target.value as "red" | "yellow" | "green")}
+              className="form-select"
+            >
+              <option value="red">Red</option>
+              <option value="yellow">Yellow</option>
+              <option value="green">Green</option>
+            </select>
+          </div>
+        )}
 
         <div className="form-field">
           <label htmlFor="panel-inc-edge" className="form-label">

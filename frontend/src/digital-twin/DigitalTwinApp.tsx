@@ -71,8 +71,9 @@ export function DigitalTwinApp() {
     const simulation = new TwinSimulation() as TwinSimulationRuntime;
     simulation.running = true;
     simulationRef.current = simulation;
-    if (!viewportRef.current) return;
-    const world = new TwinWorld(viewportRef.current) as TwinWorldRuntime;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const world = new TwinWorld(viewport) as TwinWorldRuntime;
     worldRef.current = world;
     let previous = performance.now();
     let frame = 0;
@@ -95,9 +96,7 @@ export function DigitalTwinApp() {
       cancelAnimationFrame(animation);
       worldRef.current = null;
       simulationRef.current = null;
-      if (viewportRef.current) {
-        viewportRef.current.replaceChildren();
-      }
+      viewport.replaceChildren();
     };
   }, []);
 
@@ -150,7 +149,11 @@ export function DigitalTwinApp() {
         <button className="twin-primary" onClick={() => simulation?.startPresentationSequence({ quick: true })}>Start quick mission</button>
         <div className="twin-button-grid">
           <button onClick={() => { if (simulation) simulation.running = !simulation.running; }}>{simulation?.running ? "Pause" : "Resume"}</button>
-          <button onClick={() => { simulation?.reset(); simulation && (simulation.running = true); }}>Reset twin</button>
+          <button onClick={() => {
+            if (!simulation) return;
+            simulation.reset();
+            simulation.running = true;
+          }}>Reset twin</button>
         </div>
         <label>Backend scenario<select value={selectedScenario} onChange={(event) => setSelectedScenario(event.target.value)}>
           {scenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.name}</option>)}

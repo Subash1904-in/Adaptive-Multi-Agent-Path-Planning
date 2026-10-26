@@ -162,6 +162,86 @@ export interface MetropolitanNetworkOptions {
 }
 
 /**
+ * Hand-authored SIHSimulation-inspired circulation layout.
+ *
+ * This is intentionally a new procedural layout rather than an import of the
+ * supplied project's map or UI. The rounded perimeter, two inner loops, and
+ * radial connectors provide smooth continuous circulation for dense traffic.
+ */
+export function buildSIHSimulationLayout(): RoadNetworkGeometry {
+  const nodes: RoadNodeGeometry[] = [];
+  const edges: RoadEdgeGeometry[] = [];
+  const addNode = (id: string, x: number, y: number, zone: string) =>
+    nodes.push({ id, x, y, attributes: { layout: "sih-simulation", zone } });
+  const addBidirectional = (id: string, a: string, b: string, lanes = 2) => {
+    const start = nodes.find((node) => node.id === a);
+    const end = nodes.find((node) => node.id === b);
+    if (!start || !end) return;
+    const length = Math.hypot(end.x - start.x, end.y - start.y);
+    edges.push(
+      {
+        id,
+        start_node_id: a,
+        end_node_id: b,
+        length_m: length,
+        speed_limit_mps: 12.5,
+        lanes,
+        attributes: { layout: "sih-simulation", one_way: false, width_m: lanes * 3.75 },
+      },
+      {
+        id: `${id}_rev`,
+        start_node_id: b,
+        end_node_id: a,
+        length_m: length,
+        speed_limit_mps: 12.5,
+        lanes,
+        attributes: { layout: "sih-simulation", one_way: false, width_m: lanes * 3.75 },
+      }
+    );
+  };
+
+  const outerCount = 20;
+  for (let index = 0; index < outerCount; index += 1) {
+    const angle = (index / outerCount) * Math.PI * 2;
+    addNode(`sih_outer_${index}`, Math.cos(angle) * 270, Math.sin(angle) * 185, "outer-loop");
+  }
+  for (let index = 0; index < outerCount; index += 1) {
+    addBidirectional(
+      `sih_outer_edge_${index}`,
+      `sih_outer_${index}`,
+      `sih_outer_${(index + 1) % outerCount}`,
+      3
+    );
+  }
+
+  const innerCount = 12;
+  for (let index = 0; index < innerCount; index += 1) {
+    const angle = (index / innerCount) * Math.PI * 2 + Math.PI / 12;
+    addNode(`sih_inner_${index}`, Math.cos(angle) * 125, Math.sin(angle) * 85, "inner-loop");
+  }
+  for (let index = 0; index < innerCount; index += 1) {
+    addBidirectional(
+      `sih_inner_edge_${index}`,
+      `sih_inner_${index}`,
+      `sih_inner_${(index + 1) % innerCount}`,
+      2
+    );
+  }
+
+  for (let index = 0; index < 12; index += 1) {
+    const outerIndex = Math.round((index / innerCount) * outerCount) % outerCount;
+    addBidirectional(
+      `sih_connector_${index}`,
+      `sih_inner_${index}`,
+      `sih_outer_${outerIndex}`,
+      2
+    );
+  }
+
+  return { nodes, edges };
+}
+
+/**
  * Expands or constructs an extensive, realistic metropolitan road network.
  * Preserves all scenario nodes and edges so simulation paths remain 100% valid,
  * while generating:
@@ -674,7 +754,11 @@ export function getUnifiedMetropolitanRoadNetwork(
   scenario: ScenarioDefinition | null
 ): RoadNetworkGeometry {
   const base = extractRoadNetworkFromScenario(scenario);
-  return buildRealisticMetropolitanNetwork(base);
+  const sihLayout = buildSIHSimulationLayout();
+  return buildRealisticMetropolitanNetwork({
+    nodes: [...sihLayout.nodes, ...base.nodes],
+    edges: [...sihLayout.edges, ...base.edges],
+  });
 }
 
 /**
@@ -1264,6 +1348,108 @@ export function generateProceduralBuildings(
 }
 
 /**
+ * Builds a hand-authored suburban district around the metropolitan network.
+ * The offsets are intentionally fixed so the visual map is stable across runs
+ * and can be adjusted like a simple map layout rather than a random city fill.
+ */
+export function generateManualSuburbanBuildings(
+  geometry: RoadNetworkGeometry
+): ProceduralBuilding[] {
+  if (geometry.nodes.length === 0) return [];
+
+  const bounds = computeNetworkBounds(geometry);
+  const lots: Array<[number, number, number, number, number]> = [
+    [-175, -105, 18, 14, 9],
+    [-125, -105, 14, 18, 12],
+    [-75, -105, 20, 14, 10],
+    [-15, -105, 16, 16, 14],
+    [45, -105, 22, 14, 11],
+    [105, -105, 15, 20, 15],
+    [165, -105, 20, 15, 10],
+    [-175, -45, 15, 18, 12],
+    [-120, -45, 22, 14, 10],
+    [-65, -45, 16, 18, 13],
+    [5, -45, 20, 15, 9],
+    [65, -45, 14, 20, 16],
+    [125, -45, 22, 14, 11],
+    [180, -45, 16, 18, 13],
+    [-175, 35, 20, 15, 11],
+    [-115, 35, 15, 20, 15],
+    [-55, 35, 22, 14, 10],
+    [15, 35, 16, 18, 12],
+    [75, 35, 20, 15, 14],
+    [135, 35, 15, 20, 10],
+    [-165, 100, 18, 14, 9],
+    [-105, 100, 14, 18, 13],
+    [-45, 100, 20, 15, 11],
+    [20, 100, 16, 20, 15],
+    [80, 100, 22, 14, 10],
+    [145, 100, 15, 18, 12],
+  ];
+  const facadePalette = [0xf08a62, 0xe97855, 0xf2a36f, 0xd9684c, 0xec946d];
+  const roofPalette = [0x3f6fb6, 0x4d83c7, 0x64748b, 0x2f5d9b];
+
+  const nodeMap = new Map(geometry.nodes.map((node) => [node.id, node]));
+  const segments = geometry.edges.flatMap((edge) => {
+    const start = nodeMap.get(edge.start_node_id);
+    const end = nodeMap.get(edge.end_node_id);
+    if (!start || !end) return [];
+    const a = simToWorldCoordinates(start.x, start.y);
+    const b = simToWorldCoordinates(end.x, end.y);
+    return [{ ax: a.x, az: a.z, bx: b.x, bz: b.z, halfWidth: computeRoadEdgeWidth(edge) / 2 }];
+  });
+  const placed: Array<{ x: number; z: number; radius: number }> = [];
+  const buildings: ProceduralBuilding[] = [];
+
+  for (let index = 0; index < lots.length; index += 1) {
+    const [offsetX, offsetZ, width, depth, height] = lots[index];
+    const x = bounds.center.x + offsetX;
+    const z = bounds.center.z + offsetZ;
+    const radius = Math.hypot(width, depth) / 2;
+    const nearRoad = segments.some((segment) => {
+      const distance = pointToSegmentDistance(x, z, segment.ax, segment.az, segment.bx, segment.bz);
+      return distance < segment.halfWidth + 5.5 + radius;
+    });
+    const nearJunction = geometry.nodes.some((node) => {
+      const position = simToWorldCoordinates(node.x, node.y);
+      return Math.hypot(x - position.x, z - position.z) < radius + 11;
+    });
+    const overlaps = placed.some((building) =>
+      Math.hypot(x - building.x, z - building.z) < radius + building.radius + 2
+    );
+    if (nearRoad || nearJunction || overlaps) continue;
+
+    placed.push({ x, z, radius });
+    const floorHeight = Math.max(4.5, height - 4);
+    buildings.push({
+      id: `manual_suburban_${index + 1}`,
+      position: { x, y: 0, z },
+      width,
+      depth,
+      height,
+      rotationY: index % 3 === 0 ? Math.PI / 2 : 0,
+      colorHex: facadePalette[index % facadePalette.length],
+      tiers: [
+        { width, depth, height: floorHeight, offsetY: floorHeight / 2, style: "podium" },
+        {
+          width: width * 0.92,
+          depth: depth * 0.92,
+          height: height - floorHeight,
+          offsetY: floorHeight + (height - floorHeight) / 2,
+          style: "stepped",
+        },
+      ],
+      hasPlaza: false,
+      hasSpire: false,
+      hasHelipad: false,
+      windowGlowColorHex: roofPalette[index % roofPalette.length],
+    });
+  }
+
+  return buildings;
+}
+
+/**
  * Generates instanced urban environmental props: street trees, modern LED streetlamps,
  * decorative plaza greenery, and central park groves, positioned strictly outside roadway boundaries.
  */
@@ -1431,4 +1617,3 @@ export function generateUrbanProps(
 
   return { trees, streetlamps };
 }
-

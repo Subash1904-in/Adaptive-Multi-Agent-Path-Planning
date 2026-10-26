@@ -15,6 +15,7 @@ from apps.core.scenarios.builder import ScenarioBuilder
 from apps.core.scenarios.examples import (
     create_ambulance_corridor_scenario,
     create_congestion_sharing_scenario,
+    create_luxembourg_rush_hour_scenario,
     create_multi_vehicle_scenario,
     create_pedestrian_crossing_permitted_scenario,
     create_signalized_scenario,
@@ -139,6 +140,7 @@ class ScenarioRegistry:
     def preload_defaults(self) -> None:
         """Preload standard example scenarios into the registry."""
         defaults = [
+            ("scn_lux_rush_hour", create_luxembourg_rush_hour_scenario()),
             ("scn_single_veh", create_single_vehicle_scenario()),
             ("scn_multi_veh", create_multi_vehicle_scenario()),
             ("scn_signalized", create_signalized_scenario()),

@@ -14,6 +14,7 @@ from apps.core.decision.config import DecisionConfig
 from apps.core.domain.enums import VehicleType
 from apps.core.emergency.models import EmergencyConfig, EmergencyType, ReservationConflictPolicy
 from apps.core.graph.generator import CityGridConfig
+from apps.core.graph.osm_models import BoundingBox, OSMImportConfig
 from apps.core.kinematics.models import KinematicsConfig
 from apps.core.pedestrians.models import PedestrianLifecycleState
 from apps.core.routing.models import AdaptiveRoutingConfig, CostMode, RoutingAlgorithm
@@ -2148,3 +2149,62 @@ def create_ai_decision_emergency_corridor_rejection_scenario(
         max_ticks=max_ticks,
         seed=seed,
     )
+
+
+def create_luxembourg_rush_hour_scenario(
+    time_step_s: float = 0.1,
+    max_ticks: int = 2000,
+    seed: int = 42,
+) -> ScenarioDefinition:
+    """Create a high-density multi-agent path planning scenario in 3D Luxembourg City."""
+    rn = RoadNetworkDefinition(
+        source_type=RoadNetworkSourceType.OSM_IMPORT,
+        osm_config=OSMImportConfig(
+            bounds=BoundingBox(
+                north=49.625,
+                south=49.600,
+                east=6.145,
+                west=6.115,
+            ),
+            allow_fallback=True,
+            fallback_config=CityGridConfig(rows=6, cols=6, spacing_m=80.0),
+        ),
+    )
+    vehicles = tuple(
+        VehicleScenarioDefinition(
+            vehicle_id="veh_amb_01" if i == 0 else f"veh_{str(i + 1).zfill(2)}",
+            start_node_id=f"node_{i * 5}",
+            destination_node_id=f"node_{(i * 5 + 30) % 200}",
+            vehicle_type=VehicleType.EMERGENCY if i == 0 else VehicleType.STANDARD,
+            initial_speed_mps=11.0,
+            algorithm=RoutingAlgorithm.ASTAR,
+            cost_mode=CostMode.TRAVEL_TIME,
+        )
+        for i in range(28)
+    )
+    ev = EmergencyVehicleScenarioDefinition(
+        vehicle_id="veh_amb_01",
+        emergency_type=EmergencyType.AMBULANCE,
+        start_node_id="node_0",
+        destination_node_id="node_50",
+        priority_level=1,
+        auto_activate=True,
+    )
+    return ScenarioDefinition(
+        metadata=ScenarioMetadata(
+            id="scn_lux_rush_hour",
+            name="Luxembourg City: Boulevard Royal Rush Hour",
+            description="Dense multi-agent navigation across Boulevard Royal and Pont Grande-Duchesse Charlotte with emergency priority routing.",
+        ),
+        road_network=rn,
+        vehicles=vehicles,
+        emergency_vehicles=(ev,),
+        v2v_config=CommunicationConfig(enabled=True, range_m=250.0),
+        emergency_config=EmergencyConfig(enabled=True),
+        adaptive_routing_config=AdaptiveRoutingConfig(enabled=True),
+        decision_config=DecisionConfig(enabled=True),
+        time_step_s=time_step_s,
+        max_ticks=max_ticks,
+        seed=seed,
+    )
+

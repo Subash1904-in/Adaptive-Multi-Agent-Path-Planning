@@ -22,6 +22,7 @@ export class V2VOverlayManager {
   public readonly rangeGroup: THREE.Group = new THREE.Group();
   public readonly animationsGroup: THREE.Group = new THREE.Group();
   public readonly degradationGroup: THREE.Group = new THREE.Group();
+  public readonly messageLabelsGroup: THREE.Group = new THREE.Group();
 
   private options: V2VOverlayOptions = { ...DEFAULT_V2V_OVERLAY_OPTIONS };
 
@@ -42,6 +43,7 @@ export class V2VOverlayManager {
   // Bounded animation queue
   private activeAnimations: V2VMessageAnimation[] = [];
   private animationMeshes: Map<string, THREE.Object3D> = new Map();
+  private messageLabels: Map<string, THREE.Sprite> = new Map();
   private maxActiveAnimations = 20;
 
   // Reusable shared geometries
@@ -54,6 +56,7 @@ export class V2VOverlayManager {
     this.rootGroup.add(this.rangeGroup);
     this.rootGroup.add(this.animationsGroup);
     this.rootGroup.add(this.degradationGroup);
+    this.degradationGroup.add(this.messageLabelsGroup);
 
     // Initialize shared reusable materials
     this.activeLinkMaterial = new THREE.LineBasicMaterial({
@@ -126,6 +129,7 @@ export class V2VOverlayManager {
       this.linksGroup.visible = false;
       return;
     }
+
     this.linksGroup.visible = true;
 
     const currentKeys = new Set<string>();
@@ -180,6 +184,7 @@ export class V2VOverlayManager {
           line.computeLineDistances();
         }
       }
+
     }
 
     // Remove obsolete links
@@ -188,6 +193,73 @@ export class V2VOverlayManager {
         this.linksGroup.remove(mesh);
         mesh.geometry.dispose();
         this.linkMeshes.delete(id);
+      }
+    }
+  }
+
+  /**
+   * Render the latest V2V exchange as a compact chat label over each sender.
+   */
+  public updateMessageLabels(
+    links: V2VLink[],
+    getVehicleWorldPos: (id: string) => THREE.Vector3 | null,
+    timestampS: number
+  ): void {
+    const currentIds = new Set<string>();
+    for (const link of links) {
+      const position = getVehicleWorldPos(link.vehicleA);
+      if (!position) continue;
+      const id = `${link.id}:${link.lastMessageId ?? "heartbeat"}`;
+      currentIds.add(id);
+      let sprite = this.messageLabels.get(id);
+      if (!sprite) {
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 128;
+        const context = canvas.getContext("2d");
+        if (!context) continue;
+        context.fillStyle = "rgba(15, 23, 42, 0.92)";
+        context.roundRect(4, 4, 504, 120, 18);
+        context.fill();
+        context.fillStyle = "#67e8f9";
+        context.font = "bold 26px sans-serif";
+        context.fillText(`${link.vehicleA}  ->  ${link.vehicleB}`, 20, 42);
+        context.fillStyle = "#e2e8f0";
+        context.font = "22px sans-serif";
+        context.fillText(
+          link.lastMessageId ? `V2V ${link.lastMessageId}` : "V2V heartbeat - autonomous",
+          20,
+          78
+        );
+        context.fillStyle = link.status === "active" ? "#34d399" : "#fbbf24";
+        context.fillText(
+          `${link.status.toUpperCase()} - ${Math.max(0, Math.round(timestampS))}s`,
+          20,
+          108
+        );
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+        sprite = new THREE.Sprite(
+          new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            depthTest: false,
+            depthWrite: false,
+          })
+        );
+        sprite.scale.set(10, 2.5, 1);
+        this.messageLabelsGroup.add(sprite);
+        this.messageLabels.set(id, sprite);
+      }
+      sprite.position.set(position.x, position.y + 5.5, position.z);
+    }
+
+    for (const [id, sprite] of this.messageLabels.entries()) {
+      if (!currentIds.has(id)) {
+        this.messageLabelsGroup.remove(sprite);
+        sprite.material.map?.dispose();
+        sprite.material.dispose();
+        this.messageLabels.delete(id);
       }
     }
   }
@@ -408,6 +480,13 @@ export class V2VOverlayManager {
     }
     this.animationMeshes.clear();
     this.activeAnimations = [];
+
+    for (const sprite of this.messageLabels.values()) {
+      this.messageLabelsGroup.remove(sprite);
+      sprite.material.map?.dispose();
+      sprite.material.dispose();
+    }
+    this.messageLabels.clear();
   }
 
   /**
