@@ -31,7 +31,6 @@ test-results/
 *.sqlite3-journal
 .env
 .env.*
-!frontend/.env.example
 local_settings.py
 secrets/
 *.pem
@@ -48,12 +47,6 @@ runs/
 tensorboard_logs/
 wandb/
 
-# Node and frontend artifacts
-node_modules/
-frontend/node_modules/
-frontend/dist/
-frontend/build/
-*.tsbuildinfo
 
 # OS and IDE files
 .DS_Store
